@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     lineHeight: 16,
 
-    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
     textAlign: 'center',
 
     minHeight: 32,

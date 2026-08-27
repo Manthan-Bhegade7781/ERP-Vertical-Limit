@@ -161,14 +161,14 @@ const styles = StyleSheet.create({
 
     width: '100%',
 
-    marginBottom: 3,
+    marginBottom: 1,
   },
 
   time: {
     flex: 1,
 
     color: '#5B6272',
-
+    fontFamily: 'PoppinsRegular',
     fontSize: 14,
     lineHeight: 19,
 
@@ -180,8 +180,8 @@ const styles = StyleSheet.create({
 
     backgroundColor: '#F0E9FF',
 
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
 
     borderRadius: 10,
   },
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     color: '#5420D8',
 
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: 'PoppinsSemiBold',
   },
 
   className: {
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 22,
 
-    fontWeight: '700',
+    fontFamily: 'PoppinsSemiBold',
 
     marginBottom: 5,
   },
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
 
   subjectLabel: {
     color: '#5B6272',
-
+    fontFamily: 'PoppinsRegular',
     fontSize: 13,
   },
 
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     color: '#5420D8',
 
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
 
     marginLeft: 3,
 
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
 
   room: {
     color: '#5B6272',
-
+    fontFamily: 'PoppinsRegular',
     fontSize: 12.5,
 
     marginLeft: 3,

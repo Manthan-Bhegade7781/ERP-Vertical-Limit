@@ -78,8 +78,8 @@ const styles = StyleSheet.create({
 
   title: {
     color: '#111528',
-    fontSize: 21,
-    fontWeight: '700',
+    fontSize: 18,
+    fontFamily: 'PoppinsBold',
   },
 
   row: {
