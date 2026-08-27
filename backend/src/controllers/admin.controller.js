@@ -1,5 +1,6 @@
 const User = require("../models/User");
 
+// Get all pending teacher/student registrations
 const getPendingRegistrations = async (req, res) => {
   try {
     const users = await User.find({
@@ -25,6 +26,8 @@ const getPendingRegistrations = async (req, res) => {
   }
 };
 
+
+// Approve a teacher/student registration
 const approveRegistration = async (req, res) => {
   try {
     const { id } = req.params;
@@ -32,6 +35,7 @@ const approveRegistration = async (req, res) => {
     const user = await User.findOne({
       _id: id,
       status: "pending",
+      registrationRole: { $in: ["teacher", "student"] },
     });
 
     if (!user) {
@@ -41,8 +45,8 @@ const approveRegistration = async (req, res) => {
       });
     }
 
+    // Activate the account
     user.status = "active";
-    user.roles = [user.registrationRole];
 
     await user.save();
 
@@ -50,12 +54,16 @@ const approveRegistration = async (req, res) => {
       success: true,
       message: "Registration approved successfully",
       data: {
-        userId: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        roles: user.roles,
-        status: user.status,
-        branchId: user.branchId,
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          mobileNumber: user.mobileNumber,
+          roles: user.roles,
+          branchId: user.branchId,
+          status: user.status,
+          registrationRole: user.registrationRole,
+        },
       },
     });
   } catch (error) {
@@ -68,13 +76,16 @@ const approveRegistration = async (req, res) => {
   }
 };
 
+// Reject a teacher/student registration
 const rejectRegistration = async (req, res) => {
   try {
     const { id } = req.params;
+    const { rejectionReason } = req.body;
 
     const user = await User.findOne({
       _id: id,
       status: "pending",
+      registrationRole: { $in: ["teacher", "student"] },
     });
 
     if (!user) {
@@ -84,7 +95,15 @@ const rejectRegistration = async (req, res) => {
       });
     }
 
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Rejection reason is required",
+      });
+    }
+
     user.status = "rejected";
+    user.rejectionReason = rejectionReason.trim();
 
     await user.save();
 
@@ -92,10 +111,17 @@ const rejectRegistration = async (req, res) => {
       success: true,
       message: "Registration rejected successfully",
       data: {
-        userId: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        status: user.status,
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          mobileNumber: user.mobileNumber,
+          roles: user.roles,
+          branchId: user.branchId,
+          status: user.status,
+          registrationRole: user.registrationRole,
+          rejectionReason: user.rejectionReason,
+        },
       },
     });
   } catch (error) {

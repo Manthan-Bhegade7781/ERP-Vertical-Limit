@@ -11,18 +11,25 @@ const { authorizeRoles } = require("../middleware/role.middleware");
 
 const router = express.Router();
 
-router.use(protect);
-router.use(authorizeRoles("super_admin"));
-
-router.get("/registrations", getPendingRegistrations);
+// Super Admin only
+router.get(
+  "/registrations",
+  protect,
+  authorizeRoles("super_admin"),
+  getPendingRegistrations
+);
 
 router.patch(
   "/registrations/:id/approve",
+  protect,
+  authorizeRoles("super_admin"),
   approveRegistration
 );
 
 router.patch(
   "/registrations/:id/reject",
+  protect,
+  authorizeRoles("super_admin"),
   rejectRegistration
 );
 
