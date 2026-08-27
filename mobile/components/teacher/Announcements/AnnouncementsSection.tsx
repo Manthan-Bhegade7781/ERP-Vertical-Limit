@@ -16,16 +16,21 @@ export default function AnnouncementsSection({
   onViewAllPress,
 }: AnnouncementsSectionProps) {
   return (
-    <View style={styles.card}>
+    <View style={styles.section}>
 
       <View style={styles.header}>
 
-        <Text style={styles.title}>
+        <Text
+          style={styles.title}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           Recent Announcements
         </Text>
 
         <Pressable
           onPress={onViewAllPress}
+          hitSlop={8}
         >
           <Text style={styles.viewAll}>
             View All
@@ -40,9 +45,7 @@ export default function AnnouncementsSection({
         date="22 May 2025"
         author="Admin"
         onPress={() => {
-          console.log(
-            'Staff Meeting announcement pressed'
-          );
+          console.log('Staff Meeting pressed');
         }}
       />
 
@@ -51,9 +54,10 @@ export default function AnnouncementsSection({
 }
 
 const styles = StyleSheet.create({
-  card: {
+  section: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
+
     padding: 16,
     marginBottom: 16,
   },
@@ -61,11 +65,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+
     marginBottom: 14,
   },
 
   title: {
+    flex: 1,
     color: '#111528',
     fontSize: 21,
     fontWeight: '700',
@@ -75,5 +80,7 @@ const styles = StyleSheet.create({
     color: '#5420D8',
     fontSize: 16,
     fontWeight: '700',
+
+    marginLeft: 10,
   },
 });

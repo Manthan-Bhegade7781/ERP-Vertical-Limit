@@ -21,7 +21,7 @@ export default function QuickActionsSection({
   onReportsPress,
 }: QuickActionsSectionProps) {
   return (
-    <View style={styles.card}>
+    <View style={styles.section}>
 
       <Text style={styles.title}>
         Quick Actions
@@ -39,7 +39,7 @@ export default function QuickActionsSection({
 
         <QuickAction
           icon="document-text-outline"
-          label="Add Lecture Log"
+          label={"Add \nLecture Log"}
           color="#22A55A"
           background="#E3F7EB"
           onPress={onLectureLogPress}
@@ -62,14 +62,16 @@ export default function QuickActionsSection({
         />
 
       </View>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  section: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
+
     padding: 16,
     marginBottom: 16,
   },
@@ -82,7 +84,9 @@ const styles = StyleSheet.create({
 
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+
     marginTop: 16,
+
+    gap: 8,
   },
 });

@@ -16,20 +16,23 @@ export default function ScheduleSection({
   onViewAllPress,
 }: ScheduleSectionProps) {
   return (
-    <View style={styles.card}>
+    <View style={styles.section}>
 
       <View style={styles.header}>
+
         <Text style={styles.title}>
           Today's Schedule
         </Text>
 
         <Pressable
           onPress={onViewAllPress}
+          hitSlop={8}
         >
           <Text style={styles.viewAll}>
             View All
           </Text>
         </Pressable>
+
       </View>
 
       <View style={styles.list}>
@@ -42,9 +45,7 @@ export default function ScheduleSection({
           className="12th Science A"
           room="Room 101"
           onPress={() => {
-            console.log(
-              '12th Science A pressed'
-            );
+            console.log('12th Science A pressed');
           }}
         />
 
@@ -56,9 +57,7 @@ export default function ScheduleSection({
           className="11th Science B"
           room="Room 102"
           onPress={() => {
-            console.log(
-              '11th Science B pressed'
-            );
+            console.log('11th Science B pressed');
           }}
         />
 
@@ -70,21 +69,21 @@ export default function ScheduleSection({
           className="12th Science B"
           room="Room 101"
           onPress={() => {
-            console.log(
-              '12th Science B pressed'
-            );
+            console.log('12th Science B pressed');
           }}
         />
 
       </View>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  section: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
+
     padding: 16,
     marginBottom: 16,
   },
@@ -93,6 +92,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+
     marginBottom: 14,
   },
 

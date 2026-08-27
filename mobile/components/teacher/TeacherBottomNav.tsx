@@ -8,7 +8,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type TabName = 'home' | 'batches' | 'students' | 'profile';
+type TabName =
+  | 'home'
+  | 'batches'
+  | 'students'
+  | 'profile';
 
 type TeacherBottomNavProps = {
   activeTab: TabName;
@@ -32,9 +36,9 @@ function BottomNavItem({
   return (
     <Pressable
       style={({ pressed }) => [
-        styles.bottomNavItem,
-        active && styles.bottomNavActive,
-        pressed && styles.bottomNavPressed,
+        styles.navItem,
+        active && styles.activeItem,
+        pressed && styles.pressed,
       ]}
       onPress={onPress}
     >
@@ -46,8 +50,8 @@ function BottomNavItem({
 
       <Text
         style={[
-          styles.bottomNavLabel,
-          active && styles.bottomNavActiveLabel,
+          styles.navLabel,
+          active && styles.activeLabel,
         ]}
       >
         {label}
@@ -63,19 +67,16 @@ export default function TeacherBottomNav({
 }: TeacherBottomNavProps) {
   const insets = useSafeAreaInsets();
 
-  const bottomNavHeight = 74 + insets.bottom;
-
   return (
     <View
       style={[
-        styles.bottomNav,
+        styles.container,
         {
-          height: bottomNavHeight,
           paddingBottom: insets.bottom,
         },
       ]}
     >
-      {/* HOME */}
+
       <BottomNavItem
         icon="home"
         label="Home"
@@ -83,7 +84,6 @@ export default function TeacherBottomNav({
         onPress={() => onTabChange('home')}
       />
 
-      {/* BATCHES */}
       <BottomNavItem
         icon="people-outline"
         label="Batches"
@@ -91,11 +91,11 @@ export default function TeacherBottomNav({
         onPress={() => onTabChange('batches')}
       />
 
-      {/* ADD */}
+      {/* Center Add Button */}
       <Pressable
         style={({ pressed }) => [
-          styles.addButtonContainer,
-          pressed && styles.addButtonPressed,
+          styles.addContainer,
+          pressed && styles.addPressed,
         ]}
         onPress={onAddPress}
       >
@@ -107,12 +107,11 @@ export default function TeacherBottomNav({
           />
         </View>
 
-        <Text style={styles.addButtonLabel}>
+        <Text style={styles.addLabel}>
           Add
         </Text>
       </Pressable>
 
-      {/* STUDENTS */}
       <BottomNavItem
         icon="school-outline"
         label="Students"
@@ -120,28 +119,31 @@ export default function TeacherBottomNav({
         onPress={() => onTabChange('students')}
       />
 
-      {/* PROFILE */}
       <BottomNavItem
         icon="person-outline"
         label="Profile"
         active={activeTab === 'profile'}
         onPress={() => onTabChange('profile')}
       />
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bottomNav: {
+  container: {
     position: 'absolute',
+
     left: 0,
     right: 0,
     bottom: 0,
 
+    minHeight: 82,
+
     backgroundColor: '#FFFFFF',
 
     borderTopWidth: 1,
-    borderTopColor: '#E6E6EA',
+    borderTopColor: '#E5E5EA',
 
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -158,56 +160,44 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
 
     elevation: 12,
+
+    zIndex: 100,
   },
 
-  bottomNavItem: {
+  navItem: {
     width: '18%',
-    height: 64,
+    height: 62,
+
+    borderRadius: 12,
 
     alignItems: 'center',
     justifyContent: 'center',
-
-    borderRadius: 12,
   },
 
-  /*
-   * This is the active grey/purple box.
-   *
-   * Because activeTab comes from TeacherDashboard,
-   * this box automatically moves between:
-   *
-   * Home → Batches → Students → Profile
-   */
-  bottomNavActive: {
+  activeItem: {
     backgroundColor: '#F0E7FF',
   },
 
-  bottomNavPressed: {
-    opacity: 0.65,
-  },
-
-  bottomNavLabel: {
+  navLabel: {
     color: '#687080',
     fontSize: 12,
     fontWeight: '500',
+
     marginTop: 3,
   },
 
-  bottomNavActiveLabel: {
+  activeLabel: {
     color: '#5420D8',
     fontWeight: '700',
   },
 
-  /* ADD BUTTON */
-
-  addButtonContainer: {
+  addContainer: {
     width: '20%',
-    height: 72,
+    height: 78,
 
     alignItems: 'center',
-    justifyContent: 'flex-start',
 
-    marginTop: -27,
+    marginTop: -28,
   },
 
   addButton: {
@@ -232,15 +222,19 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 
-  addButtonLabel: {
+  addLabel: {
     color: '#687080',
     fontSize: 12,
     fontWeight: '500',
+
     marginTop: 3,
   },
 
-  addButtonPressed: {
+  pressed: {
     opacity: 0.7,
+  },
+
+  addPressed: {
     transform: [{ scale: 0.96 }],
   },
 });

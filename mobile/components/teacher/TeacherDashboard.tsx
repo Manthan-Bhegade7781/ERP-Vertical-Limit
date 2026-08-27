@@ -19,31 +19,33 @@ type TabName = 'home' | 'batches' | 'students' | 'profile';
 export default function TeacherDashboard() {
   const insets = useSafeAreaInsets();
 
-  const [activeTab, setActiveTab] =
-    useState<TabName>('home');
+  const [activeTab, setActiveTab] = useState<TabName>('home');
 
-  const bottomNavHeight = 74 + insets.bottom;
+  const bottomNavHeight = 82 + insets.bottom;
 
   return (
     <View style={styles.container}>
 
-      {/* Header */}
+      {/* Fixed Header */}
       <TeacherHeader
         onMenuPress={() => {
           console.log('Menu pressed');
+        }}
+        onNotificationPress={() => {
+          console.log('Notifications pressed');
         }}
         onProfilePress={() => {
           setActiveTab('profile');
         }}
       />
 
-      {/* Main scrollable content */}
+      {/* Scrollable Dashboard */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingBottom: bottomNavHeight + 24,
+            paddingBottom: bottomNavHeight + 20,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -78,7 +80,7 @@ export default function TeacherDashboard() {
         />
       </ScrollView>
 
-      {/* Fixed bottom navigation */}
+      {/* Fixed Bottom Navigation */}
       <TeacherBottomNav
         activeTab={activeTab}
         onTabChange={setActiveTab}

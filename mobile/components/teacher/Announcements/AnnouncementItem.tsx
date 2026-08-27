@@ -62,6 +62,7 @@ export default function AnnouncementItem({
         size={22}
         color="#6630D7"
       />
+
     </Pressable>
   );
 }
@@ -70,18 +71,25 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
+
     backgroundColor: '#F5F0FF',
+
     borderRadius: 14,
+
     padding: 12,
   },
 
   iconBox: {
     width: 58,
     height: 58,
+
     borderRadius: 13,
+
     backgroundColor: '#EDE4FF',
+
     alignItems: 'center',
     justifyContent: 'center',
+
     marginRight: 12,
   },
 
@@ -94,13 +102,15 @@ const styles = StyleSheet.create({
     color: '#171A2B',
     fontSize: 16,
     fontWeight: '700',
+
     marginBottom: 3,
   },
 
   description: {
     color: '#303545',
-    fontSize: 12,
+    fontSize: 12.5,
     lineHeight: 17,
+
     marginBottom: 2,
   },
 

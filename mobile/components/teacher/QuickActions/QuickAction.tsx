@@ -40,7 +40,7 @@ export default function QuickAction({
       >
         <Ionicons
           name={icon}
-          size={34}
+          size={25}
           color={color}
         />
       </View>
@@ -59,29 +59,36 @@ export default function QuickAction({
 
 const styles = StyleSheet.create({
   action: {
-    width: '24%',
+    flex: 1,
     alignItems: 'center',
+    minWidth: 0,
   },
 
   iconBox: {
-    width: 72,
-    height: 68,
-    borderRadius: 13,
+    width: 60,
+    height: 60,
+
+    borderRadius: 14,
+
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 9,
+
+    marginBottom: 8,
   },
 
   label: {
     color: '#171A2B',
-    fontSize: 12,
+    fontSize: 11.5,
     lineHeight: 16,
+
     fontWeight: '600',
     textAlign: 'center',
+
     minHeight: 32,
   },
 
   pressed: {
-    opacity: 0.72,
+    opacity: 0.7,
+    transform: [{ scale: 0.97 }],
   },
 });

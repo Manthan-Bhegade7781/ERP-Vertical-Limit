@@ -10,11 +10,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TeacherHeaderProps = {
   onMenuPress?: () => void;
+  onNotificationPress?: () => void;
   onProfilePress?: () => void;
 };
 
 export default function TeacherHeader({
   onMenuPress,
+  onNotificationPress,
   onProfilePress,
 }: TeacherHeaderProps) {
   const insets = useSafeAreaInsets();
@@ -24,29 +26,37 @@ export default function TeacherHeader({
       style={[
         styles.header,
         {
-          paddingTop: insets.top + 10,
+          paddingTop: insets.top + 8,
         },
       ]}
     >
-      <View style={styles.headerTop}>
+      <View style={styles.headerContent}>
 
+        {/* Menu */}
         <Pressable
           style={styles.menuButton}
           onPress={onMenuPress}
+          hitSlop={8}
         >
           <Ionicons
             name="menu-outline"
-            size={35}
+            size={34}
             color="#FFFFFF"
           />
         </Pressable>
 
-        <View style={styles.headerText}>
+        {/* Teacher Information */}
+        <View style={styles.teacherInfo}>
           <Text style={styles.greeting}>
             Good Morning, 👋
           </Text>
 
-          <Text style={styles.teacherName}>
+          <Text
+            style={styles.teacherName}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+          >
             Priya Sharma
           </Text>
 
@@ -55,17 +65,17 @@ export default function TeacherHeader({
           </Text>
         </View>
 
-        <View style={styles.headerRight}>
+        {/* Header Actions */}
+        <View style={styles.actions}>
 
           <Pressable
             style={styles.notificationButton}
-            onPress={() => {
-              console.log('Notifications pressed');
-            }}
+            onPress={onNotificationPress}
+            hitSlop={8}
           >
             <Ionicons
               name="notifications-outline"
-              size={31}
+              size={30}
               color="#FFFFFF"
             />
 
@@ -78,12 +88,13 @@ export default function TeacherHeader({
           >
             <Ionicons
               name="person-outline"
-              size={39}
-              color="#171B2D"
+              size={36}
+              color="#111528"
             />
           </Pressable>
 
         </View>
+
       </View>
     </View>
   );
@@ -93,29 +104,30 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#5122C8',
     paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingBottom: 14,
   },
 
-  headerTop: {
+  headerContent: {
+    minHeight: 112,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 116,
   },
 
   menuButton: {
-    width: 45,
+    width: 42,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
 
-  headerText: {
+  teacherInfo: {
     flex: 1,
-    paddingLeft: 2,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
   },
 
   greeting: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '400',
     marginBottom: 2,
   },
@@ -123,37 +135,38 @@ const styles = StyleSheet.create({
   teacherName: {
     color: '#FFFFFF',
     fontSize: 28,
-    lineHeight: 34,
+    lineHeight: 32,
     fontWeight: '700',
   },
 
   teacherRole: {
     color: '#FFFFFF',
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 21,
+    marginTop: 1,
   },
 
-  headerRight: {
+  actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 9,
   },
 
   notificationButton: {
-    width: 42,
-    height: 48,
+    width: 38,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   notificationDot: {
     position: 'absolute',
-    right: 5,
-    top: 4,
+    right: 2,
+    top: 5,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FF5A5F',
+    backgroundColor: '#FF6464',
   },
 
   avatar: {

@@ -3,40 +3,64 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import OverviewCard from './OverviewCard';
 
 export default function OverviewSection() {
-  return (
-    <View style={styles.card}>
+  const { width } = useWindowDimensions();
 
+  const isSmallScreen = width < 380;
+
+  return (
+    <View
+      style={[
+        styles.section,
+        isSmallScreen && styles.smallSection,
+      ]}
+    >
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>
+        <Text
+          style={[
+            styles.title,
+            isSmallScreen && styles.smallTitle,
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
           Today's Overview
         </Text>
 
-        <View style={styles.date}>
+        <View style={styles.dateContainer}>
           <Ionicons
             name="calendar-outline"
-            size={22}
+            size={isSmallScreen ? 18 : 20}
             color="#5420D8"
           />
 
-          <Text style={styles.dateText}>
+          <Text
+            style={[
+              styles.date,
+              isSmallScreen && styles.smallDate,
+            ]}
+            numberOfLines={1}
+          >
             22 May 2025
           </Text>
         </View>
       </View>
 
-      <View style={styles.row}>
-
+      {/* Cards */}
+      <View style={styles.cardsRow}>
         <OverviewCard
           icon="calendar-outline"
           iconColor="#6630D7"
           iconBackground="#EEE7FF"
-          title="My Attendance"
+          title={"My \nAttendance"}
           value="Present"
           subtitle="Checked in"
           extra="09:15 AM"
@@ -68,47 +92,93 @@ export default function OverviewSection() {
           value="3"
           subtitle="Total Lectures"
         />
-
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  section: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
+
+    borderRadius: 22,
+
+    paddingTop: 17,
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+
     marginBottom: 16,
+  },
+
+  smallSection: {
+    paddingHorizontal: 9,
+    paddingTop: 14,
+    paddingBottom: 12,
   },
 
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+
     alignItems: 'center',
-    marginBottom: 14,
+    justifyContent: 'space-between',
+
+    marginBottom: 12,
+
+    paddingHorizontal: 1,
   },
 
   title: {
+    flex: 1,
+
     color: '#111528',
-    fontSize: 21,
+
+    fontSize: 23,
+    lineHeight: 28,
+
     fontWeight: '700',
+
+    marginRight: 8,
+
+    includeFontPadding: false,
+  },
+
+  smallTitle: {
+    fontSize: 20,
+    lineHeight: 25,
+  },
+
+  dateContainer: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    flexShrink: 0,
   },
 
   date: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-
-  dateText: {
     color: '#5420D8',
-    fontSize: 15,
+
+    fontSize: 13.5,
+    lineHeight: 18,
+
     fontWeight: '600',
+
+    marginLeft: 5,
+
+    includeFontPadding: false,
   },
 
-  row: {
+  smallDate: {
+    fontSize: 11.5,
+  },
+
+  cardsRow: {
+    width: '100%',
+
     flexDirection: 'row',
-    gap: 10,
+
+    alignItems: 'stretch',
+
+    marginHorizontal: -2,
   },
 });
