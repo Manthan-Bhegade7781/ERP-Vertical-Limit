@@ -57,6 +57,12 @@ const userSchema = new mongoose.Schema(
       enum: ["teacher", "student", null],
       default: null,
     },
+
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: null,
+    },
   },
   {
     timestamps: true,
