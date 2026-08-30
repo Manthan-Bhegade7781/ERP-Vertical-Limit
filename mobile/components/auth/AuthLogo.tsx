@@ -7,14 +7,6 @@ export function AuthLogo() {
     <View style={styles.wrapper}>
       <View style={styles.logoMark}>
         <MaterialCommunityIcons name="school-outline" size={76} color="#2E155E" />
-        <View style={styles.bookLine} />
-        <MaterialCommunityIcons
-          name="book-open-page-variant"
-          size={70}
-          color="#5A2EC4"
-          style={styles.book}
-        />
-        <View style={styles.goldAccent} />
       </View>
       <Text style={styles.brand}>VERTICAL CLASSES</Text>
       <Text style={styles.tagline}>Coaching Institute ERP</Text>

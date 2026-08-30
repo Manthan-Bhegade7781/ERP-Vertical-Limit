@@ -12,6 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import AuthInput from './AuthInput';
+import RoleSelector, { UserRole } from './RoleSelector';
 import { AuthScreen } from './AuthScreen';
 
 const BRANCHES = [
@@ -27,6 +28,7 @@ export function RegisterForm() {
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const [branch, setBranch] = useState('');
+  const [role, setRole] = useState<UserRole | ''>('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] =
     useState('');
@@ -40,6 +42,7 @@ export function RegisterForm() {
       !email.trim() ||
       !mobile.trim() ||
       !branch ||
+      !role ||
       !password ||
       !confirmPassword
     ) {
@@ -269,6 +272,13 @@ export function RegisterForm() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Role */}
+
+      <RoleSelector
+        value={role}
+        onChange={setRole}
+      />
 
       {/* Password */}
 

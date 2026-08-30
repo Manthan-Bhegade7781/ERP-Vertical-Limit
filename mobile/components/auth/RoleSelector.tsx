@@ -2,20 +2,22 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export type UserRole = 'Admin' | 'Teacher' | 'Student';
+export type UserRole = 'Teacher' | 'Student';
 
 type RoleSelectorProps = {
-  value: UserRole;
+  value: UserRole | '';
   onChange: (role: UserRole) => void;
 };
 
-const roles: Array<{ label: UserRole; icon: keyof typeof MaterialCommunityIcons.glyphMap }> = [
-  { label: 'Admin', icon: 'account' },
+const roles: Array<{
+  label: UserRole;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}> = [
   { label: 'Teacher', icon: 'human-male-board' },
   { label: 'Student', icon: 'book-open-page-variant' },
 ];
 
-export function RoleSelector({ value, onChange }: RoleSelectorProps) {
+export default function RoleSelector({ value, onChange }: RoleSelectorProps) {
   return (
     <View style={styles.card}>
       <Text style={styles.label}>Login As</Text>
