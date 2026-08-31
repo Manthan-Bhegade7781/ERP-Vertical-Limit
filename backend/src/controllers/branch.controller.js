@@ -47,6 +47,34 @@ const createBranch = async (req, res) => {
   }
 };
 
+// Get all active branches
+const getActiveBranches = async (req, res) => {
+  try {
+    const branches = await Branch.find(
+      { status: "active" },
+      {
+        name: 1,
+        code: 1,
+      }
+    ).sort({ name: 1 });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        branches,
+      },
+    });
+  } catch (error) {
+    console.error("Get active branches error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch branches",
+    });
+  }
+};
+
 module.exports = {
   createBranch,
+  getActiveBranches,
 };
