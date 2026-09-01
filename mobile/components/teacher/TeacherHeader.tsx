@@ -128,20 +128,21 @@ const styles = StyleSheet.create({
   greeting: {
     color: '#FFFFFF',
     fontSize: 17,
-    fontWeight: '400',
-    marginBottom: 2,
+    fontFamily: 'PoppinsRegular',
+    marginBottom: 5,
   },
 
   teacherName: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 24,
     lineHeight: 32,
-    fontWeight: '700',
+    fontFamily: 'PoppinsSemiBold',
   },
 
   teacherRole: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontFamily: 'PoppinsRegular',
     lineHeight: 21,
     marginTop: 1,
   },

@@ -55,15 +55,17 @@ export default function OverviewCard({
       {/* Title */}
       <View style={styles.titleContainer}>
         <Text
-    style={[
-      styles.title,
-      title === 'My Attendance' && styles.attendanceTitle,
-    ]}
-    numberOfLines={2}
-    minimumFontScale={0.8}
-  >
-    {title}
-  </Text>
+          style={[
+            styles.title,
+            title === 'My\nAttendance' &&
+              styles.attendanceTitle,
+          ]}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
+          {title}
+        </Text>
       </View>
 
       {/* Value */}
@@ -74,6 +76,8 @@ export default function OverviewCard({
             value === 'Present' && styles.presentValue,
           ]}
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
         >
           {value}
         </Text>
@@ -84,6 +88,8 @@ export default function OverviewCard({
         <Text
           style={styles.subtitle}
           numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
         >
           {subtitle}
         </Text>
@@ -104,24 +110,21 @@ export default function OverviewCard({
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
-    minWidth: 0,
-
+    width: 150,
     height: 220,
 
     backgroundColor: '#FFFFFF',
 
     borderRadius: 16,
+
     borderWidth: 1,
     borderColor: '#E3E3E8',
 
     alignItems: 'center',
 
     paddingTop: 12,
-    paddingHorizontal: 5,
+    paddingHorizontal: 10,
     paddingBottom: 8,
-
-    marginHorizontal: 2,
   },
 
   iconCircle: {
@@ -138,33 +141,31 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 
- titleContainer: {
-  width: '100%',
-  height: 34,
+  titleContainer: {
+    width: '100%',
+    height: 36,
 
-  alignItems: 'center',
-  justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
 
-  marginBottom: 5,
-},
+    marginBottom: 1,
+  },
 
-title: {
-  width: '100%',
+  title: {
+    width: '100%',
+    color: '#171A2B',
 
-  color: '#171A2B',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 14,
+    lineHeight: 19,
 
-  fontSize: 11.2,
-  lineHeight: 16,
+    textAlign: 'center',
+  },
 
-  fontWeight: '600',
-
-  textAlign: 'center',
-},
-
-attendanceTitle: {
-  fontSize: 11.5,
-  lineHeight: 15,
-},
+  attendanceTitle: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
 
   valueContainer: {
     width: '100%',
@@ -173,7 +174,7 @@ attendanceTitle: {
     alignItems: 'center',
     justifyContent: 'center',
 
-    marginTop: 4,
+    marginTop: 2,
 
     flexShrink: 0,
   },
@@ -181,10 +182,9 @@ attendanceTitle: {
   value: {
     color: '#111528',
 
-    fontSize: 20,
+    fontFamily: 'PoppinsBold',
+    fontSize: 28,
     lineHeight: 36,
-
-    fontWeight: '700',
 
     textAlign: 'center',
   },
@@ -192,10 +192,11 @@ attendanceTitle: {
   presentValue: {
     color: '#22A55A',
 
-    fontSize: 15,
-    lineHeight: 25,
+    fontFamily: 'PoppinsBold',
+    fontSize: 18,
+    lineHeight: 26,
 
-    fontWeight: '700',
+    textAlign: 'center',
   },
 
   subtitleContainer: {
@@ -205,18 +206,18 @@ attendanceTitle: {
     alignItems: 'center',
     justifyContent: 'center',
 
-    marginTop: 4,
+    marginTop: 1,
 
     flexShrink: 0,
   },
 
   subtitle: {
     width: '100%',
-
     color: '#4F5565',
 
-    fontSize: 12.5,
-    lineHeight: 17,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 13,
+    lineHeight: 18,
 
     textAlign: 'center',
   },
@@ -224,16 +225,12 @@ attendanceTitle: {
   extra: {
     color: '#171A2B',
 
-    fontSize: 12.5,
-    lineHeight: 17,
-
-    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 13,
+    lineHeight: 18,
 
     textAlign: 'center',
-
     marginTop: 2,
-
-    flexShrink: 0,
   },
 
   pressed: {

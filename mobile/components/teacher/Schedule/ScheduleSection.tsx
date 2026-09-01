@@ -98,14 +98,14 @@ const styles = StyleSheet.create({
 
   title: {
     color: '#111528',
-    fontSize: 21,
-    fontWeight: '700',
+    fontSize: 18,
+    fontFamily: 'PoppinsBold',
   },
 
   viewAll: {
     color: '#5420D8',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontFamily: 'PoppinsBold',
   },
 
   list: {

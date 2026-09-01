@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   navLabel: {
     color: '#687080',
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: 'Poppins',
 
     marginTop: 3,
   },
@@ -225,9 +225,9 @@ const styles = StyleSheet.create({
   addLabel: {
     color: '#687080',
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: 'PoppinsSemiBold',
 
-    marginTop: 3,
+    marginTop: 5,
   },
 
   pressed: {

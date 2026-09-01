@@ -101,21 +101,23 @@ const styles = StyleSheet.create({
   title: {
     color: '#171A2B',
     fontSize: 16,
-    fontWeight: '700',
-
-    marginBottom: 3,
-  },
-
-  description: {
-    color: '#303545',
-    fontSize: 12.5,
-    lineHeight: 17,
+    fontFamily: 'PoppinsSemiBold',
 
     marginBottom: 2,
   },
 
+  description: {
+    color: '#303545',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12.5,
+    lineHeight: 17,
+
+    marginBottom: 3,
+  },
+
   meta: {
     color: '#666C7A',
+    fontFamily: 'Poppins',
     fontSize: 12,
   },
 

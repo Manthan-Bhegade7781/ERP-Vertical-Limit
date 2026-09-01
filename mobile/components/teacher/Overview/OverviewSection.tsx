@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -55,12 +56,16 @@ export default function OverviewSection() {
       </View>
 
       {/* Cards */}
-      <View style={styles.cardsRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.cardsContainer}
+      >
         <OverviewCard
           icon="calendar-outline"
           iconColor="#6630D7"
           iconBackground="#EEE7FF"
-          title={"My \nAttendance"}
+          title={'My\nAttendance'}
           value="Present"
           subtitle="Checked in"
           extra="09:15 AM"
@@ -92,7 +97,7 @@ export default function OverviewSection() {
           value="3"
           subtitle="Total Lectures"
         />
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -111,7 +116,7 @@ const styles = StyleSheet.create({
   },
 
   smallSection: {
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingTop: 14,
     paddingBottom: 12,
   },
@@ -132,10 +137,9 @@ const styles = StyleSheet.create({
 
     color: '#111528',
 
-    fontSize: 23,
-    lineHeight: 28,
-
-    fontWeight: '700',
+    fontFamily: 'PoppinsBold',
+    fontSize: 18,
+    lineHeight: 30,
 
     marginRight: 8,
 
@@ -158,10 +162,9 @@ const styles = StyleSheet.create({
   date: {
     color: '#5420D8',
 
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 13.5,
-    lineHeight: 18,
-
-    fontWeight: '600',
+    lineHeight: 19,
 
     marginLeft: 5,
 
@@ -172,13 +175,8 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
   },
 
-  cardsRow: {
-    width: '100%',
-
-    flexDirection: 'row',
-
-    alignItems: 'stretch',
-
-    marginHorizontal: -2,
+  cardsContainer: {
+    paddingRight: 4,
+    gap: 8,
   },
 });
