@@ -31,7 +31,7 @@ export default function QuickActionsSection({
 
         <QuickAction
           icon="person-add-outline"
-          label="Mark Attendance"
+          label={"Mark \nAttendance"}
           color="#6630D7"
           background="#EEE7FF"
           onPress={onAttendancePress}
