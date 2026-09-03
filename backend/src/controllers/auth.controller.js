@@ -61,6 +61,7 @@ const register = async (req, res) => {
     const user = await User.create({
       fullName,
       email: email.toLowerCase(),
+      mobileNumber,
       passwordHash,
       roles: [role],
       branchId,
@@ -210,8 +211,111 @@ const getMe = async (req, res) => {
   }
 };
 
+const updateMe = async (req, res) => {
+  try {
+    const { fullName, email, mobileNumber } = req.body;
+
+    // 1. Validate required fields
+    if (!fullName || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name and email are required",
+      });
+    }
+
+    const trimmedName = fullName.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    const trimmedMobile = mobileNumber?.trim() || "";
+
+    // 2. Validate full name
+    if (trimmedName.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name must contain at least 2 characters",
+      });
+    }
+
+    // 3. Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a valid email address",
+      });
+    }
+
+    // 4. Check if another user already has this email
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+      _id: { $ne: req.user._id },
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists",
+      });
+    }
+
+    // 5. Update only allowed profile fields
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        fullName: trimmedName,
+        email: normalizedEmail,
+        mobileNumber: trimmedMobile,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).select("-passwordHash");
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // 6. Return updated profile
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: {
+        user: {
+          id: updatedUser._id,
+          fullName: updatedUser.fullName,
+          email: updatedUser.email,
+          mobileNumber: updatedUser.mobileNumber,
+          roles: updatedUser.roles,
+          branchId: updatedUser.branchId,
+          status: updatedUser.status,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+
+    // MongoDB duplicate email error
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update profile",
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
+  updateMe,
 };
