@@ -4,7 +4,12 @@ import {
   ThemeProvider,
 } from '@react-navigation/native';
 
-import { Stack } from 'expo-router';
+import {
+  Stack,
+  useRouter,
+  useSegments,
+} from 'expo-router';
+
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
@@ -21,11 +26,92 @@ import { useEffect } from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+import {
+  AuthProvider,
+  useAuth,
+} from '@/context/AuthContext';
+
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
 SplashScreen.preventAutoHideAsync();
+
+function RootNavigator() {
+  const {
+    isLoading,
+    isAuthenticated,
+  } = useAuth();
+
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    const firstSegment = segments[0];
+
+    const inAuthGroup =
+      firstSegment === '(auth)';
+
+    const inTabsGroup =
+      firstSegment === '(tabs)';
+
+    // Logged in → don't allow Auth screens
+    if (
+      isAuthenticated &&
+      inAuthGroup
+    ) {
+      router.replace('/(tabs)');
+      return;
+    }
+
+    // Logged out → don't allow Dashboard
+    if (
+      !isAuthenticated &&
+      inTabsGroup
+    ) {
+      router.replace('/(auth)');
+    }
+  }, [
+    isLoading,
+    isAuthenticated,
+    segments,
+    router,
+  ]);
+
+  if (isLoading) {
+    return null;
+  }
+
+  return (
+    <Stack>
+      <Stack.Screen
+        name="(auth)"
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="(tabs)"
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="modal"
+        options={{
+          presentation: 'modal',
+          title: 'Modal',
+        }}
+      />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -48,41 +134,18 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider
-      value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
-    >
-      <Stack>
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
-          }}
-        />
+    <AuthProvider>
+      <ThemeProvider
+        value={
+          colorScheme === 'dark'
+            ? DarkTheme
+            : DefaultTheme
+        }
+      >
+        <RootNavigator />
 
-        <Stack.Screen
-          name="register"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="(tabs)"
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <Stack.Screen
-          name="modal"
-          options={{
-            presentation: 'modal',
-            title: 'Modal',
-          }}
-        />
-      </Stack>
-
-      <StatusBar style="auto" />
-    </ThemeProvider>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }

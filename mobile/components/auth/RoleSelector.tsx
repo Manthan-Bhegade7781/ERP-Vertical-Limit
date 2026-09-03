@@ -20,7 +20,6 @@ const roles: Array<{
 export default function RoleSelector({ value, onChange }: RoleSelectorProps) {
   return (
     <View style={styles.card}>
-      <Text style={styles.label}>Login As</Text>
       <View style={styles.rolesRow}>
         {roles.map((role, index) => {
           const selected = role.label === value;
@@ -50,7 +49,7 @@ export default function RoleSelector({ value, onChange }: RoleSelectorProps) {
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 108,
+    minHeight: 50,
     borderRadius: 17,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -64,6 +63,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07,
     shadowRadius: 12,
     elevation: 3,
+    marginBottom:10,
   },
   label: {
     width: 76,

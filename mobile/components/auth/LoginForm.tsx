@@ -10,39 +10,69 @@ import {
 
 import AuthInput from './AuthInput';
 import { AuthScreen } from './AuthScreen';
+import { useAuth } from '@/context/AuthContext';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { login } = useAuth();
 
-  const handleLogin = () => {
-    // Check required fields
-    if (!email.trim() || !password) {
+  const handleLogin = async () => {
+  // Required fields
+  if (!email.trim() || !password) {
+    Alert.alert(
+      'Missing details',
+      'Please enter your email and password.'
+    );
+    return;
+  }
+
+  // Email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email.trim())) {
+    Alert.alert(
+      'Invalid Email',
+      'Please enter a valid email address.'
+    );
+    return;
+  }
+
+  try {
+    const result = await login(
+      email.trim(),
+      password
+    );
+
+    if (!result.success) {
       Alert.alert(
-        'Missing details',
-        'Please enter your email and password.'
+        'Login failed',
+        result.message || 'Unable to login.'
       );
       return;
     }
 
-    // Email validation
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(email.trim())) {
-      Alert.alert(
-        'Invalid Email',
-        'Please enter a valid email address.'
-      );
-      return;
-    }
-
-    // Demo login
     Alert.alert(
       'Login successful',
-      'Welcome back to Vertical Classes!'
+      `Welcome back, ${result.data?.user.fullName || 'User'}!`,
+      [
+        {
+          text: 'Continue',
+          onPress: () => {
+            router.replace('/(tabs)');
+          },
+        },
+      ]
     );
-  };
+  } catch (error) {
+    console.error('Login error:', error);
+
+    Alert.alert(
+      'Connection error',
+      'Unable to connect to the server. Please try again.'
+    );
+  }
+};
 
   return (
     <AuthScreen footer={false}>

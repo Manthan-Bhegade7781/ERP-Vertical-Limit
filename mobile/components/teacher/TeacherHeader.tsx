@@ -7,6 +7,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/context/AuthContext';
+
 
 type TeacherHeaderProps = {
   onMenuPress?: () => void;
@@ -20,6 +22,7 @@ export default function TeacherHeader({
   onProfilePress,
 }: TeacherHeaderProps) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   return (
     <View
@@ -57,11 +60,11 @@ export default function TeacherHeader({
             adjustsFontSizeToFit
             minimumFontScale={0.85}
           >
-            Priya Sharma
+            {user?.fullName || 'Teacher Name'}
           </Text>
 
           <Text style={styles.teacherRole}>
-            Physics Teacher
+            {user?.roles || 'Not Defined'}
           </Text>
         </View>
 
@@ -140,6 +143,7 @@ const styles = StyleSheet.create({
   },
 
   teacherRole: {
+    textTransform: 'capitalize',
     color: '#FFFFFF',
     fontSize: 16,
     fontFamily: 'PoppinsRegular',

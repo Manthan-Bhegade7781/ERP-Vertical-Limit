@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -14,20 +14,22 @@ import { router } from 'expo-router';
 import AuthInput from './AuthInput';
 import RoleSelector, { UserRole } from './RoleSelector';
 import { AuthScreen } from './AuthScreen';
+import { API_BASE_URL } from '@/config/api';
 
-const BRANCHES = [
-  'Talegoan Dabhade',
-  'Pune ',
-  'Mumbai',
-  'Nashik',
-  'Nagpur',
-];
+type Branch = {
+  _id: string;
+  name: string;
+  code: string;
+};
 
 export function RegisterForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const [branch, setBranch] = useState('');
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesError, setBranchesError] = useState('');
   const [role, setRole] = useState<UserRole | ''>('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] =
@@ -35,8 +37,45 @@ export function RegisterForm() {
 
   const [branchModalVisible, setBranchModalVisible] =
     useState(false);
+  const selectedBranch = branches.find(
+  (item) => item._id === branch
+);
 
-  const handleRegister = () => {
+  useEffect(() => {
+  const fetchBranches = async () => {
+    try {
+      setBranchesLoading(true);
+      setBranchesError('');
+
+      const response = await fetch(
+        `${API_BASE_URL}/branches`
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || 'Failed to fetch branches'
+        );
+      }
+
+      setBranches(result.data.branches);
+    } catch (error) {
+      console.error('Fetch branches error:', error);
+
+      setBranchesError(
+        'Unable to load branches. Please try again.'
+      );
+    } finally {
+      setBranchesLoading(false);
+    }
+  };
+
+  fetchBranches();
+}, []);
+
+  const handleRegister = async () => {
+    // Required fields
     if (
       !name.trim() ||
       !email.trim() ||
@@ -48,13 +87,13 @@ export function RegisterForm() {
     ) {
       Alert.alert(
         'Missing details',
-        'Please fill all required fields.'
+        'Please fill in all required fields.'
       );
       return;
     }
 
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(email.trim())) {
       Alert.alert(
@@ -64,42 +103,63 @@ export function RegisterForm() {
       return;
     }
 
-    const mobileRegex = /^[0-9]{10}$/;
-
-    if (!mobileRegex.test(mobile.trim())) {
-      Alert.alert(
-        'Invalid Mobile Number',
-        'Please enter a valid 10-digit mobile number.'
-      );
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert(
-        'Invalid Password',
-        'Password must be at least 6 characters long.'
-      );
-      return;
-    }
-
+    // Password match
     if (password !== confirmPassword) {
       Alert.alert(
-        'Password Mismatch',
-        'Password and confirm password must match.'
+        'Password mismatch',
+        'Passwords do not match.'
       );
       return;
     }
 
-    Alert.alert(
-      'Registration Successful',
-      `Your account has been created for ${branch}.`,
-      [
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/auth/register`,
         {
-          text: 'Go to Login',
-          onPress: () => router.replace('/'),
-        },
-      ]
-    );
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fullName: name.trim(),
+            email: email.trim(),
+            password,
+            mobileNumber: mobile.trim(),
+            role: role.toLowerCase(),
+            branchId: branch,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        Alert.alert(
+          'Registration failed',
+          result.message || 'Unable to create your account.'
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Registration submitted',
+        result.message ||
+          'Your account has been submitted for Super Admin approval.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/'),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Registration error:', error);
+
+      Alert.alert(
+        'Connection error',
+        'Unable to connect to the server. Please check your internet connection and try again.'
+      );
+    }
   };
 
   return (
@@ -162,8 +222,8 @@ export function RegisterForm() {
         <TouchableOpacity
           style={[
             styles.branchSelector,
-            branch &&
-              styles.branchSelectorSelected,
+            selectedBranch &&
+            styles.branchSelectorSelected
           ]}
           activeOpacity={0.8}
           onPress={() =>
@@ -184,7 +244,7 @@ export function RegisterForm() {
                 styles.branchPlaceholder,
             ]}
           >
-            {branch || 'Select your branch'}
+            {selectedBranch?.name || 'Select your branch'}
           </Text>
 
           <MaterialCommunityIcons
@@ -236,31 +296,43 @@ export function RegisterForm() {
               </TouchableOpacity>
             </View>
 
-            {BRANCHES.map((item) => (
+            {branchesLoading && (
+              <Text style={styles.branchStatus}>
+                Loading branches...
+              </Text>
+            )}
+
+            {branchesError && (
+              <Text style={styles.branchError}>
+                {branchesError}
+              </Text>
+            )}
+
+            {branches.map((item) => (
               <TouchableOpacity
-                key={item}
+                key={item._id}
                 style={[
                   styles.branchOption,
-                  branch === item &&
+                  branch === item._id &&
                     styles.selectedBranchOption,
                 ]}
                 activeOpacity={0.7}
                 onPress={() => {
-                  setBranch(item);
+                  setBranch(item._id);
                   setBranchModalVisible(false);
                 }}
               >
                 <Text
                   style={[
                     styles.branchOptionText,
-                    branch === item &&
+                    branch === item._id &&
                       styles.selectedBranchOptionText,
                   ]}
                 >
-                  {item}
+                  {item.name}
                 </Text>
 
-                {branch === item && (
+                {branch === item._id && (
                   <MaterialCommunityIcons
                     name="check"
                     size={21}
@@ -274,7 +346,7 @@ export function RegisterForm() {
       </Modal>
 
       {/* Role */}
-
+      <Text style={styles.label}>Login As</Text>
       <RoleSelector
         value={role}
         onChange={setRole}
@@ -503,4 +575,20 @@ const styles = StyleSheet.create({
     color: '#5A2EC4',
     fontSize: 13,
   },
+
+  branchStatus: {
+  fontFamily: 'PoppinsRegular',
+  fontSize: 14,
+  color: '#77767D',
+  textAlign: 'center',
+  paddingVertical: 20,
+},
+
+branchError: {
+  fontFamily: 'PoppinsRegular',
+  fontSize: 14,
+  color: '#D64545',
+  textAlign: 'center',
+  paddingVertical: 20,
+},
 });
