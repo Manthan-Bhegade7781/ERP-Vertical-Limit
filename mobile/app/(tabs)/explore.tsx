@@ -1,112 +1,174 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from "react";
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { StyleSheet, Text, View } from "react-native";
 
-export default function TabTwoScreen() {
+import { useLocalSearchParams } from "expo-router";
+
+import StudentsPage from "@/components/SuperAdminDashboard/pages/StudentsPage";
+import TeachersPage from "@/components/SuperAdminDashboard/pages/TeachersPage";
+import CoursesPage from "@/components/SuperAdminDashboard/pages/CoursesPage";
+import BranchesPage from "@/components/SuperAdminDashboard/pages/BranchesPage";
+import BatchesPage from "@/components/SuperAdminDashboard/pages/BatchesPage";
+import AttendancePage from "@/components/SuperAdminDashboard/pages/AttendancePage";
+import ExaminationsPage from "@/components/SuperAdminDashboard/pages/ExaminationsPage";
+import AssignmentsPage from "@/components/SuperAdminDashboard/pages/AssignmentsPage";
+import FeesManagementPage from "@/components/SuperAdminDashboard/pages/FeesManagementPage";
+import PerformancePage from "@/components/SuperAdminDashboard/pages/PerformancePage";
+import UsersRolesPage from "@/components/SuperAdminDashboard/pages/UsersRolesPage";
+import AnnouncementsPage from "@/components/SuperAdminDashboard/pages/AnnouncementsPage";
+import MessagesPage from "@/components/SuperAdminDashboard/pages/MessagesPage";
+import ReportsPage from "@/components/SuperAdminDashboard/pages/ReportsPage";
+import SettingsPage from "@/components/SuperAdminDashboard/pages/SettingsPage";
+import AuditLogsPage from "@/components/SuperAdminDashboard/pages/AuditLogsPage";
+import ProfilePage from "@/components/SuperAdminDashboard/pages/ProfilePage";
+import TimetablePage from "@/components/SuperAdminDashboard/pages/TimetablePage";
+import StaffOnLeavePage from "@/components/SuperAdminDashboard/pages/StaffOnLeavePage";
+import AcademicsPage from "@/components/SuperAdminDashboard/pages/AcademicsPage";
+import AccountsPage from "@/components/SuperAdminDashboard/pages/AccountsPage";
+import AcademicCalendarPage from "@/components/SuperAdminDashboard/pages/AcademicCalendarPage";
+import PTGPage from "@/components/SuperAdminDashboard/pages/PTGPage";
+import FeedbackPage from "@/components/SuperAdminDashboard/pages/Feedback";
+import StudentComplaintPage from "@/components/SuperAdminDashboard/pages/StudentComplaintPage";
+
+export default function ExploreScreen() {
+  const params = useLocalSearchParams<{
+    feature?: string;
+  }>();
+
+  const feature = params.feature;
+
+  if (feature === "Students") {
+    return <StudentsPage />;
+  }
+
+  if (feature === "Teachers") {
+    return <TeachersPage />;
+  }
+
+  if (feature === "Courses") {
+    return <CoursesPage />;
+  }
+
+  if (feature === "Branches") {
+    return <BranchesPage />;
+  }
+
+  if (feature === "Batches") {
+    return <BatchesPage />;
+  }
+
+  if (feature === "Attendance") {
+    return <AttendancePage />;
+  }
+
+  if (feature === "Examinations") {
+    return <ExaminationsPage />;
+  }
+
+  if (feature === "Assignments") {
+    return <AssignmentsPage />;
+  }
+
+  if (feature === "Fees Management") {
+    return <FeesManagementPage />;
+  }
+
+  if (feature === "Performance") {
+    return <PerformancePage />;
+  }
+
+  if (feature === "Users & Roles") {
+    return <UsersRolesPage />;
+  }
+
+  if (feature === "Announcements") {
+    return <AnnouncementsPage />;
+  }
+
+  if (feature === "Messages") {
+    return <MessagesPage />;
+  }
+
+  if (feature === "Reports") {
+    return <ReportsPage />;
+  }
+
+  if (feature === "Settings") {
+    return <SettingsPage />;
+  }
+
+  if (feature === "Audit Logs") {
+    return <AuditLogsPage />;
+  }
+
+  if (feature === "Profile") {
+    return <ProfilePage />;
+  }
+
+  if (feature === "Timetable") {
+    return <TimetablePage />;
+  }
+
+  if (feature === "Staff on Leave") {
+    return <StaffOnLeavePage />;
+  }
+
+  if (feature === "Academics") {
+    return <AcademicsPage />;
+  }
+
+  if (feature === "Accounts") {
+    return <AccountsPage />;
+  }
+
+  if (feature === "Academic Calendar") {
+    return <AcademicCalendarPage />;
+  }
+
+  if (feature === "PTG") {
+    return <PTGPage />;
+  }
+
+  if (feature === "Feedback") {
+    return <FeedbackPage />;
+  }
+
+  if (feature === "Student Complaint") {
+    return <StudentComplaintPage />;
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <Text style={styles.title}>{feature || "Feature"}</Text>
+
+      <Text style={styles.subtitle}>
+        Feature page coming next.
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    backgroundColor: "#F7F8FC",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+
+  title: {
+    fontFamily: "PoppinsBold",
+    fontSize: 24,
+    color: "#172033",
+    textAlign: "center",
+  },
+
+  subtitle: {
+    fontFamily: "PoppinsRegular",
+    fontSize: 11,
+    color: "#748096",
+    marginTop: 5,
+    textAlign: "center",
   },
 });
