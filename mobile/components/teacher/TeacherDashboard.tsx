@@ -14,6 +14,8 @@ import ScheduleSection from './Schedule/ScheduleSection';
 import QuickActionsSection from './QuickActions/QuickActionsSection';
 import AnnouncementsSection from './Announcements/AnnouncementsSection';
 import ProfilePage from './Profile/ProfilePage';
+import { useAuth } from '@/context/AuthContext';
+import { updateCurrentUser } from '@/services/auth';
 
 type TabName =
   | 'home'
@@ -23,6 +25,7 @@ type TabName =
 
 export default function TeacherDashboard() {
   const insets = useSafeAreaInsets();
+  const { user, updateUser } = useAuth();
 
   const [activeTab, setActiveTab] =
     useState<TabName>('home');
@@ -33,14 +36,9 @@ export default function TeacherDashboard() {
    * Temporary local state for the profile UI.
    * This can later be connected to the backend.
    */
-  const [profileName, setProfileName] =
-    useState('Priya Sharma');
-
-  const [profileEmail, setProfileEmail] =
-    useState('priya.sharma@example.com');
-
-  const [profilePhone, setProfilePhone] =
-    useState('+91 98765 43210');
+  const profileName = user?.fullName ?? '';
+  const profileEmail = user?.email ?? '';
+  const profilePhone = user?.mobileNumber ?? '';
 
   const bottomNavHeight =
     82 + insets.bottom;
@@ -49,21 +47,39 @@ export default function TeacherDashboard() {
     setActiveTab(tab);
   };
 
-  const handleSaveProfile = (
-    name: string,
-    email: string,
-    phone: string,
-  ) => {
-    setProfileName(name);
-    setProfileEmail(email);
-    setProfilePhone(phone);
-
-    console.log('PROFILE SAVED:', {
+const handleSaveProfile = async (
+  name: string,
+  email: string,
+  phone: string,
+) => {
+  try {
+    const result = await updateCurrentUser(
       name,
       email,
-      phone,
-    });
-  };
+      phone
+    );
+
+    if (!result.success || !result.data?.user) {
+      console.error(
+        'PROFILE UPDATE FAILED:',
+        result.message
+      );
+      return;
+    }
+
+    const updatedUser = result.data.user;
+
+    // Update global authentication state
+    updateUser(updatedUser);
+
+    console.log('PROFILE UPDATED:', updatedUser);
+  } catch (error) {
+    console.error(
+      'PROFILE UPDATE ERROR:',
+      error
+    );
+  }
+};
 
   return (
     <View style={styles.container}>

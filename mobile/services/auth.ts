@@ -31,6 +31,14 @@ type MeResponse = {
   };
 };
 
+type UpdateProfileResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    user: AuthUser;
+  };
+};
+
 // Login and securely store JWT
 export const login = async (
   email: string,
@@ -105,6 +113,43 @@ export const getCurrentUser =
 
     return result.data.user;
   };
+
+  // Update currently logged-in user's profile
+export const updateCurrentUser = async (
+  fullName: string,
+  email: string,
+  mobileNumber: string
+): Promise<UpdateProfileResponse> => {
+  const token = await getToken();
+
+  if (!token) {
+    return {
+      success: false,
+      message: 'Authentication required',
+    };
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/auth/me`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        mobileNumber: mobileNumber.trim(),
+      }),
+    }
+  );
+
+  const result: UpdateProfileResponse =
+    await response.json();
+
+  return result;
+};
 
 // Logout
 export const logout = async (): Promise<void> => {

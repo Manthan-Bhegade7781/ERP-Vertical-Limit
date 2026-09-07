@@ -16,6 +16,7 @@ type AuthContextType = {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  updateUser: (user: AuthUser) => void;
   login: (
     email: string,
     password: string
@@ -80,6 +81,11 @@ export function AuthProvider({
   return result;
 };
 
+// Update user data in the global auth state
+const updateUser = (updatedUser: AuthUser) => {
+  setUser(updatedUser);
+};
+
   // Logout
   const logout = async () => {
     await logoutUser();
@@ -94,6 +100,7 @@ export function AuthProvider({
         isAuthenticated: !!user,
         login,
         logout,
+        updateUser,
       }}
     >
       {children}

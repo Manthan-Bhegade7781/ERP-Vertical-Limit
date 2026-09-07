@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/context/AuthContext';
 
 type ProfilePageProps = {
   name: string;
@@ -30,6 +31,7 @@ export default function ProfilePage({
   phone,
   onSaveProfile,
 }: ProfilePageProps) {
+  const { logout,user } = useAuth();
   const [editVisible, setEditVisible] = useState(false);
 
   const [editName, setEditName] = useState(name);
@@ -186,8 +188,17 @@ export default function ProfilePage({
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: () => {
-            console.log('Logout confirmed');
+          onPress: async () => {
+            try {
+              await logout();
+            } catch (error) {
+              console.error('Logout error:', error);
+
+              Alert.alert(
+                'Logout Failed',
+                'Unable to logout. Please try again.',
+              );
+            }
           },
         },
       ],
@@ -220,7 +231,7 @@ export default function ProfilePage({
           </Text>
 
           <Text style={styles.profileRole}>
-            Physics Teacher
+            {user?.roles || 'Not specified'}
           </Text>
 
           <Pressable
@@ -765,6 +776,7 @@ const styles = StyleSheet.create({
   },
 
   profileRole: {
+    textTransform: 'capitalize',
     color: '#666B78',
     fontFamily: 'PoppinsRegular',
     fontSize: 13,

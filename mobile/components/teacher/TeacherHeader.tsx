@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEffect, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -23,6 +24,30 @@ export default function TeacherHeader({
 }: TeacherHeaderProps) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+
+  const [greeting, setGreeting] = useState('');
+
+  useEffect(() => {
+    const updateGreeting = () => {
+      const hour = new Date().getHours();
+
+      if (hour >= 5 && hour < 12) {
+        setGreeting('Good Morning');
+      } else if (hour >= 12 && hour < 17) {
+        setGreeting('Good Afternoon');
+      } else if (hour >= 17 && hour < 21) {
+        setGreeting('Good Evening');
+      } else {
+        setGreeting('Good Night');
+      }
+    };
+
+    updateGreeting();
+
+    const interval = setInterval(updateGreeting, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <View
@@ -51,7 +76,7 @@ export default function TeacherHeader({
         {/* Teacher Information */}
         <View style={styles.teacherInfo}>
           <Text style={styles.greeting}>
-            Good Morning, 👋
+            {greeting}, 👋
           </Text>
 
           <Text
@@ -63,9 +88,6 @@ export default function TeacherHeader({
             {user?.fullName || 'Teacher Name'}
           </Text>
 
-          <Text style={styles.teacherRole}>
-            {user?.roles || 'Not Defined'}
-          </Text>
         </View>
 
         {/* Header Actions */}
@@ -107,7 +129,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#5122C8',
     paddingHorizontal: 20,
-    paddingBottom: 14,
+    paddingBottom: 3,
   },
 
   headerContent: {
@@ -132,7 +154,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     fontFamily: 'PoppinsRegular',
-    marginBottom: 5,
+    marginBottom: 3,
   },
 
   teacherName: {
