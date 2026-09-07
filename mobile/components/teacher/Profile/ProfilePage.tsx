@@ -3,6 +3,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -17,10 +19,20 @@ type ProfilePageProps = {
   name: string;
   email: string;
   phone: string;
+
   onSaveProfile: (
     name: string,
     email: string,
     phone: string,
+  ) => void;
+
+  /*
+   * Dashboard supplies this handler so that
+   * Profile uses the same bottom-nav behavior
+   * as the Home page.
+   */
+  onContentScroll?: (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
   ) => void;
 };
 
@@ -29,29 +41,45 @@ export default function ProfilePage({
   email,
   phone,
   onSaveProfile,
+  onContentScroll,
 }: ProfilePageProps) {
-  const [editVisible, setEditVisible] = useState(false);
+  const [editVisible, setEditVisible] =
+    useState(false);
 
-  const [editName, setEditName] = useState(name);
-  const [editEmail, setEditEmail] = useState(email);
-  const [editPhone, setEditPhone] = useState(
-    extractPhoneDigits(phone),
-  );
+  const [editName, setEditName] =
+    useState(name);
 
-  const [nameError, setNameError] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [phoneError, setPhoneError] = useState('');
+  const [editEmail, setEditEmail] =
+    useState(email);
+
+  const [editPhone, setEditPhone] =
+    useState(extractPhoneDigits(phone));
+
+  const [nameError, setNameError] =
+    useState('');
+
+  const [emailError, setEmailError] =
+    useState('');
+
+  const [phoneError, setPhoneError] =
+    useState('');
 
   useEffect(() => {
     setEditName(name);
     setEditEmail(email);
-    setEditPhone(extractPhoneDigits(phone));
+    setEditPhone(
+      extractPhoneDigits(phone),
+    );
   }, [name, email, phone]);
+
+  /* ================= EDIT PROFILE ================= */
 
   const openEditProfile = () => {
     setEditName(name);
     setEditEmail(email);
-    setEditPhone(extractPhoneDigits(phone));
+    setEditPhone(
+      extractPhoneDigits(phone),
+    );
 
     clearErrors();
     setEditVisible(true);
@@ -60,7 +88,9 @@ export default function ProfilePage({
   const closeEditProfile = () => {
     setEditName(name);
     setEditEmail(email);
-    setEditPhone(extractPhoneDigits(phone));
+    setEditPhone(
+      extractPhoneDigits(phone),
+    );
 
     clearErrors();
     setEditVisible(false);
@@ -74,7 +104,9 @@ export default function ProfilePage({
 
   /* ================= NAME ================= */
 
-  const handleNameChange = (text: string) => {
+  const handleNameChange = (
+    text: string,
+  ) => {
     setEditName(text);
 
     if (text.trim().length > 0) {
@@ -84,7 +116,9 @@ export default function ProfilePage({
 
   /* ================= EMAIL ================= */
 
-  const handleEmailChange = (text: string) => {
+  const handleEmailChange = (
+    text: string,
+  ) => {
     setEditEmail(text);
 
     if (isValidEmail(text.trim())) {
@@ -94,10 +128,14 @@ export default function ProfilePage({
 
   /* ================= PHONE ================= */
 
-  const handlePhoneChange = (text: string) => {
-    const digitsOnly = text.replace(/\D/g, '');
+  const handlePhoneChange = (
+    text: string,
+  ) => {
+    const digitsOnly =
+      text.replace(/\D/g, '');
 
-    const limitedDigits = digitsOnly.slice(0, 10);
+    const limitedDigits =
+      digitsOnly.slice(0, 10);
 
     setEditPhone(limitedDigits);
 
@@ -116,16 +154,23 @@ export default function ProfilePage({
   /* ================= SAVE ================= */
 
   const handleSave = () => {
-    const trimmedName = editName.trim();
-    const trimmedEmail = editEmail.trim();
-    const phoneDigits = editPhone.replace(/\D/g, '');
+    const trimmedName =
+      editName.trim();
+
+    const trimmedEmail =
+      editEmail.trim();
+
+    const phoneDigits =
+      editPhone.replace(/\D/g, '');
 
     let hasError = false;
 
     /* NAME */
 
     if (!trimmedName) {
-      setNameError('Name cannot be empty.');
+      setNameError(
+        'Name cannot be empty.',
+      );
       hasError = true;
     } else {
       setNameError('');
@@ -134,10 +179,16 @@ export default function ProfilePage({
     /* EMAIL */
 
     if (!trimmedEmail) {
-      setEmailError('Email cannot be empty.');
+      setEmailError(
+        'Email cannot be empty.',
+      );
       hasError = true;
-    } else if (!isValidEmail(trimmedEmail)) {
-      setEmailError('Please enter a valid email address.');
+    } else if (
+      !isValidEmail(trimmedEmail)
+    ) {
+      setEmailError(
+        'Please enter a valid email address.',
+      );
       hasError = true;
     } else {
       setEmailError('');
@@ -146,9 +197,13 @@ export default function ProfilePage({
     /* PHONE */
 
     if (!phoneDigits) {
-      setPhoneError('Phone number cannot be empty.');
+      setPhoneError(
+        'Phone number cannot be empty.',
+      );
       hasError = true;
-    } else if (phoneDigits.length !== 10) {
+    } else if (
+      phoneDigits.length !== 10
+    ) {
       setPhoneError(
         'Phone number must contain exactly 10 digits.',
       );
@@ -161,7 +216,8 @@ export default function ProfilePage({
       return;
     }
 
-    const formattedPhone = `+91 ${phoneDigits}`;
+    const formattedPhone =
+      `+91 ${phoneDigits}`;
 
     onSaveProfile(
       trimmedName,
@@ -187,7 +243,9 @@ export default function ProfilePage({
           text: 'Logout',
           style: 'destructive',
           onPress: () => {
-            console.log('Logout confirmed');
+            console.log(
+              'Logout confirmed',
+            );
           },
         },
       ],
@@ -200,9 +258,13 @@ export default function ProfilePage({
 
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={
+          styles.content
+        }
         showsVerticalScrollIndicator={false}
         bounces
+        scrollEventThrottle={16}
+        onScroll={onContentScroll}
       >
         {/* ================= PROFILE SUMMARY ================= */}
 
@@ -334,7 +396,9 @@ export default function ProfilePage({
         visible={editVisible}
         transparent
         animationType="slide"
-        onRequestClose={closeEditProfile}
+        onRequestClose={
+          closeEditProfile
+        }
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -345,27 +409,45 @@ export default function ProfilePage({
           }
         >
           <Pressable
-            style={styles.modalBackground}
-            onPress={closeEditProfile}
+            style={
+              styles.modalBackground
+            }
+            onPress={
+              closeEditProfile
+            }
           />
 
           <View style={styles.editModal}>
-            {/* ================= MODAL HEADER ================= */}
+            {/* ================= HEADER ================= */}
 
             <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderText}>
-                <Text style={styles.modalTitle}>
+              <View
+                style={
+                  styles.modalHeaderText
+                }
+              >
+                <Text
+                  style={styles.modalTitle}
+                >
                   Edit Profile
                 </Text>
 
-                <Text style={styles.modalSubtitle}>
+                <Text
+                  style={
+                    styles.modalSubtitle
+                  }
+                >
                   Update your personal information
                 </Text>
               </View>
 
               <Pressable
-                style={styles.closeButton}
-                onPress={closeEditProfile}
+                style={
+                  styles.closeButton
+                }
+                onPress={
+                  closeEditProfile
+                }
               >
                 <Ionicons
                   name="close"
@@ -375,17 +457,22 @@ export default function ProfilePage({
               </Pressable>
             </View>
 
-            {/* ================= FULL NAME ================= */}
+            {/* ================= NAME ================= */}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>
+            <View
+              style={styles.inputGroup}
+            >
+              <Text
+                style={styles.inputLabel}
+              >
                 Full Name
               </Text>
 
               <View
                 style={[
                   styles.inputWrapper,
-                  nameError && styles.inputError,
+                  nameError &&
+                    styles.inputError,
                 ]}
               >
                 <Ionicons
@@ -400,7 +487,9 @@ export default function ProfilePage({
 
                 <TextInput
                   value={editName}
-                  onChangeText={handleNameChange}
+                  onChangeText={
+                    handleNameChange
+                  }
                   placeholder="Enter your name"
                   placeholderTextColor="#A0A3AD"
                   style={styles.input}
@@ -410,7 +499,11 @@ export default function ProfilePage({
               </View>
 
               {nameError ? (
-                <Text style={styles.errorText}>
+                <Text
+                  style={
+                    styles.errorText
+                  }
+                >
                   {nameError}
                 </Text>
               ) : null}
@@ -418,15 +511,20 @@ export default function ProfilePage({
 
             {/* ================= EMAIL ================= */}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>
+            <View
+              style={styles.inputGroup}
+            >
+              <Text
+                style={styles.inputLabel}
+              >
                 Email
               </Text>
 
               <View
                 style={[
                   styles.inputWrapper,
-                  emailError && styles.inputError,
+                  emailError &&
+                    styles.inputError,
                 ]}
               >
                 <Ionicons
@@ -441,7 +539,9 @@ export default function ProfilePage({
 
                 <TextInput
                   value={editEmail}
-                  onChangeText={handleEmailChange}
+                  onChangeText={
+                    handleEmailChange
+                  }
                   placeholder="Enter your email"
                   placeholderTextColor="#A0A3AD"
                   style={styles.input}
@@ -453,12 +553,18 @@ export default function ProfilePage({
 
               {/* EMAIL HELPER TEXT */}
 
-              <Text style={styles.emailHint}>
+              <Text
+                style={styles.emailHint}
+              >
                 Enter a valid email address
               </Text>
 
               {emailError ? (
-                <Text style={styles.errorText}>
+                <Text
+                  style={
+                    styles.errorText
+                  }
+                >
                   {emailError}
                 </Text>
               ) : null}
@@ -466,44 +572,65 @@ export default function ProfilePage({
 
             {/* ================= PHONE ================= */}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>
+            <View
+              style={styles.inputGroup}
+            >
+              <Text
+                style={styles.inputLabel}
+              >
                 Phone Number
               </Text>
 
               <View
                 style={[
                   styles.inputWrapper,
-                  phoneError && styles.inputError,
+                  phoneError &&
+                    styles.inputError,
                 ]}
               >
                 {/* FIXED +91 */}
 
-                <Text style={styles.countryCode}>
+                <Text
+                  style={
+                    styles.countryCode
+                  }
+                >
                   +91
                 </Text>
 
-                <View style={styles.phoneDivider} />
+                <View
+                  style={
+                    styles.phoneDivider
+                  }
+                />
 
                 <TextInput
                   value={editPhone}
-                  onChangeText={handlePhoneChange}
+                  onChangeText={
+                    handlePhoneChange
+                  }
                   placeholder="10 digit number"
                   placeholderTextColor="#A0A3AD"
-                  style={styles.phoneInput}
+                  style={
+                    styles.phoneInput
+                  }
                   keyboardType="number-pad"
                   maxLength={10}
                 />
               </View>
 
-              {/* PHONE HELPER TEXT */}
-
-              <Text style={styles.phoneHint}>
+              <Text
+                style={styles.phoneHint}
+              >
                 Enter exactly 10 digits
               </Text>
 
               {phoneError ? (
-                <Text style={styles.errorText}>
+                <Text
+                  style={
+                    styles.errorText
+                  }
+                >
                   {phoneError}
                 </Text>
               ) : null}
@@ -511,29 +638,34 @@ export default function ProfilePage({
 
             {/* ================= BUTTONS ================= */}
 
-            <View style={styles.modalButtons}>
-              {/* CANCEL */}
-
+            <View
+              style={styles.modalButtons}
+            >
               <Pressable
                 style={({ pressed }) => [
                   styles.cancelButton,
-                  pressed && styles.pressed,
+                  pressed &&
+                    styles.pressed,
                 ]}
-                onPress={closeEditProfile}
+                onPress={
+                  closeEditProfile
+                }
               >
-                <Text style={styles.cancelButtonText}>
+                <Text
+                  style={
+                    styles.cancelButtonText
+                  }
+                >
                   Cancel
                 </Text>
               </Pressable>
-
-              {/* SAVE */}
 
               <Pressable
                 style={({ pressed }) => [
                   styles.saveButton,
 
                   /*
-                   * GREY UNTIL ALL FIELDS ARE VALID
+                   * Grey while invalid.
                    */
                   !isFormValid &&
                     styles.saveButtonDisabled,
@@ -573,7 +705,9 @@ export default function ProfilePage({
    VALIDATION
    ============================================================ */
 
-function isValidEmail(email: string): boolean {
+function isValidEmail(
+  email: string,
+): boolean {
   const emailRegex =
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -581,11 +715,14 @@ function isValidEmail(email: string): boolean {
 }
 
 /* ============================================================
-   PHONE HELPER
+   PHONE
    ============================================================ */
 
-function extractPhoneDigits(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
+function extractPhoneDigits(
+  phone: string,
+): string {
+  const digits =
+    phone.replace(/\D/g, '');
 
   if (
     digits.length === 12 &&
@@ -618,7 +755,8 @@ function ProfileRow({
     <Pressable
       style={({ pressed }) => [
         styles.profileRow,
-        !showDivider && styles.noDivider,
+        !showDivider &&
+          styles.noDivider,
         pressed && styles.pressed,
       ]}
     >
@@ -675,7 +813,8 @@ function ProfileAction({
     <Pressable
       style={({ pressed }) => [
         styles.actionRow,
-        !showDivider && styles.noDivider,
+        !showDivider &&
+          styles.noDivider,
         pressed && styles.pressed,
       ]}
       onPress={onPress}
@@ -683,7 +822,8 @@ function ProfileAction({
       <View
         style={[
           styles.actionIcon,
-          danger && styles.logoutIcon,
+          danger &&
+            styles.logoutIcon,
         ]}
       >
         <Ionicons
@@ -700,7 +840,8 @@ function ProfileAction({
       <Text
         style={[
           styles.actionText,
-          danger && styles.logoutText,
+          danger &&
+            styles.logoutText,
         ]}
       >
         {title}
@@ -722,8 +863,6 @@ function ProfileAction({
    ============================================================ */
 
 const styles = StyleSheet.create({
-  /* ================= PAGE ================= */
-
   container: {
     flex: 1,
     backgroundColor: '#F6F6F9',
@@ -735,7 +874,7 @@ const styles = StyleSheet.create({
     paddingBottom: 105,
   },
 
-  /* ================= PROFILE SUMMARY ================= */
+  /* ================= PROFILE ================= */
 
   profileSummary: {
     backgroundColor: '#FFFFFF',
@@ -806,7 +945,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
 
-  /* ================= PROFILE ROW ================= */
+  /* ================= ROWS ================= */
 
   profileRow: {
     flexDirection: 'row',
@@ -841,7 +980,6 @@ const styles = StyleSheet.create({
     color: '#171A2B',
     fontFamily: 'PoppinsMedium',
     fontSize: 13,
-    marginTop: 0,
   },
 
   /* ================= ACCOUNT ================= */
@@ -889,7 +1027,8 @@ const styles = StyleSheet.create({
 
   modalBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor:
+      'rgba(0, 0, 0, 0.45)',
   },
 
   editModal: {
@@ -974,7 +1113,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
 
-  /* ================= EMAIL HELPER ================= */
+  /* ================= EMAIL ================= */
 
   emailHint: {
     color: '#9296A2',

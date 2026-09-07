@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef } from 'react';
 import {
+  Animated,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   View,
@@ -15,50 +18,139 @@ import QuickActionsSection from './QuickActions/QuickActionsSection';
 import AnnouncementsSection from './Announcements/AnnouncementsSection';
 import ProfilePage from './Profile/ProfilePage';
 
-type TabName = 'home' | 'batches' | 'students' | 'profile';
+type TabName =
+  | 'home'
+  | 'batches'
+  | 'students'
+  | 'profile';
 
 export default function TeacherDashboard() {
   const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] =
-    useState<TabName>('home');
+    React.useState<TabName>('home');
 
-  /* =====================================================
-     PROFILE DATA
-  ===================================================== */
+  /* ================= PROFILE DATA ================= */
 
   const [profileName, setProfileName] =
-    useState('Priya Sharma');
+    React.useState('Priya Sharma');
 
   const [profileEmail, setProfileEmail] =
-    useState('priya.sharma@example.com');
+    React.useState('priya.sharma@example.com');
 
   const [profilePhone, setProfilePhone] =
-    useState('+91 98765 43210');
+    React.useState('+91 98765 43210');
 
+  /* ================= BOTTOM NAV ANIMATION ================= */
 
-  /* =====================================================
-     BOTTOM NAV HEIGHT
-  ===================================================== */
+  const bottomNavTranslateY = useRef(
+    new Animated.Value(0),
+  ).current;
 
+  const lastScrollY = useRef(0);
+
+  const isNavHidden = useRef(false);
+
+  /*
+   * Height of the bottom navigation including
+   * the device safe-area space.
+   */
   const bottomNavHeight =
     82 + insets.bottom;
 
+  /*
+   * Animate bottom navigation.
+   *
+   * hidden = true:
+   * bottom nav slides down.
+   *
+   * hidden = false:
+   * bottom nav slides back up.
+   */
+  const animateBottomNav = (hide: boolean) => {
+    if (isNavHidden.current === hide) {
+      return;
+    }
 
-  /* =====================================================
-     TAB CHANGE
-  ===================================================== */
+    isNavHidden.current = hide;
+
+    Animated.timing(bottomNavTranslateY, {
+      toValue: hide ? bottomNavHeight : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  /*
+   * Detect scroll direction.
+   *
+   * Content moves UP:
+   * offset increases
+   * -> hide bottom nav
+   *
+   * Content moves DOWN:
+   * offset decreases
+   * -> show bottom nav
+   */
+  const handleContentScroll = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const currentScrollY =
+      event.nativeEvent.contentOffset.y;
+
+    /*
+     * Always show nav at the very top.
+     */
+    if (currentScrollY <= 5) {
+      lastScrollY.current = 0;
+      animateBottomNav(false);
+      return;
+    }
+
+    const difference =
+      currentScrollY - lastScrollY.current;
+
+    /*
+     * Small movements are ignored.
+     * This prevents flickering/jitter.
+     */
+    if (Math.abs(difference) < 4) {
+      return;
+    }
+
+    /*
+     * User is scrolling upward through content.
+     */
+    if (difference > 0) {
+      animateBottomNav(true);
+    }
+
+    /*
+     * User is scrolling downward through content.
+     */
+    else {
+      animateBottomNav(false);
+    }
+
+    lastScrollY.current = currentScrollY;
+  };
+
+  /* ================= TAB CHANGE ================= */
 
   const handleTabChange = (tab: TabName) => {
     console.log('TAB CHANGED:', tab);
 
+    /*
+     * Whenever the user changes page,
+     * bring the bottom nav back.
+     */
+    lastScrollY.current = 0;
+    animateBottomNav(false);
+
     setActiveTab(tab);
   };
 
-
-  /* =====================================================
-     SAVE PROFILE
-  ===================================================== */
+  /* ================= SAVE PROFILE ================= */
 
   const handleSaveProfile = (
     name: string,
@@ -76,38 +168,30 @@ export default function TeacherDashboard() {
     });
   };
 
-
-  /* =====================================================
-     RENDER
-  ===================================================== */
-
   return (
     <View style={styles.container}>
-
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
+      {/* ================= HEADER ================= */}
 
       <TeacherHeader
         onMenuPress={() => {
           console.log('Menu pressed');
         }}
-
         onNotificationPress={() => {
           console.log('Notifications pressed');
         }}
-
         onProfilePress={() => {
           console.log('HEADER PROFILE PRESSED');
+
+          lastScrollY.current = 0;
+          animateBottomNav(false);
 
           setActiveTab('profile');
         }}
       />
 
-
-      {/* =====================================================
+      {/* ==================================================
           HOME
-      ===================================================== */}
+         ================================================== */}
 
       {activeTab === 'home' && (
         <ScrollView
@@ -120,151 +204,139 @@ export default function TeacherDashboard() {
             },
           ]}
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={handleContentScroll}
         >
-
           <OverviewSection />
-
 
           <ScheduleSection
             onViewAllPress={() => {
               console.log(
-                'View All Schedule pressed'
+                'View All Schedule pressed',
               );
             }}
           />
-
 
           <QuickActionsSection
             onAttendancePress={() => {
               console.log(
-                'Mark Attendance pressed'
+                'Mark Attendance pressed',
               );
             }}
-
             onLectureLogPress={() => {
               console.log(
-                'Add Lecture Log pressed'
+                'Add Lecture Log pressed',
               );
             }}
-
             onBatchesPress={() => {
-              setActiveTab('batches');
+              handleTabChange('batches');
             }}
-
             onReportsPress={() => {
               console.log(
-                'View Reports pressed'
+                'View Reports pressed',
               );
             }}
           />
-
 
           <AnnouncementsSection
             onViewAllPress={() => {
               console.log(
-                'View All Announcements pressed'
+                'View All Announcements pressed',
               );
             }}
           />
-
         </ScrollView>
       )}
 
-
-      {/* =====================================================
+      {/* ==================================================
           PROFILE
-      ===================================================== */}
+         ================================================== */}
 
       {activeTab === 'profile' && (
         <View style={styles.profileContainer}>
-
           <ProfilePage
             name={profileName}
             email={profileEmail}
             phone={profilePhone}
-
-            onSaveProfile={
-              handleSaveProfile
-            }
+            onSaveProfile={handleSaveProfile}
+            onContentScroll={handleContentScroll}
           />
-
         </View>
       )}
 
-
-      {/* =====================================================
+      {/* ==================================================
           BATCHES
-      ===================================================== */}
+         ================================================== */}
 
       {activeTab === 'batches' && (
-        <View
-          style={styles.placeholderContainer}
-        >
-          {/* Batches page coming soon */}
+        <View style={styles.placeholderContainer}>
+          {/* 
+            Batches page coming soon.
+
+            When the real Batches ScrollView is created,
+            pass handleContentScroll to its onScroll.
+          */}
         </View>
       )}
 
-
-      {/* =====================================================
+      {/* ==================================================
           STUDENTS
-      ===================================================== */}
+         ================================================== */}
 
       {activeTab === 'students' && (
-        <View
-          style={styles.placeholderContainer}
-        >
-          {/* Students page coming soon */}
+        <View style={styles.placeholderContainer}>
+          {/* 
+            Students page coming soon.
+
+            When the real Students ScrollView is created,
+            pass handleContentScroll to its onScroll.
+          */}
         </View>
       )}
 
+      {/* ==================================================
+          BOTTOM NAVIGATION
+         ================================================== */}
 
-      {/* =====================================================
-          FIXED BOTTOM NAVIGATION
-      ===================================================== */}
-
-      <View
+      <Animated.View
         style={[
           styles.bottomNavWrapper,
           {
             paddingBottom: insets.bottom,
+
+            /*
+             * This is what creates the LinkedIn-style
+             * hide/show animation.
+             */
+            transform: [
+              {
+                translateY: bottomNavTranslateY,
+              },
+            ],
           },
         ]}
       >
-
         <TeacherBottomNav
           activeTab={activeTab}
-
-          onTabChange={
-            handleTabChange
-          }
-
+          onTabChange={handleTabChange}
           onAddPress={() => {
             console.log('Add pressed');
           }}
         />
-
-      </View>
-
+      </Animated.View>
     </View>
   );
 }
 
-
-/* =========================================================
+/* ============================================================
    STYLES
-========================================================= */
+   ============================================================ */
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: '#F7F7FA',
   },
-
-
-  /* =======================================================
-     HOME
-  ======================================================= */
 
   scrollView: {
     flex: 1,
@@ -275,34 +347,18 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
 
-
-  /* =======================================================
-     PROFILE
-  ======================================================= */
-
   profileContainer: {
     flex: 1,
     backgroundColor: '#F6F6F9',
   },
-
-
-  /* =======================================================
-     TEMPORARY TABS
-  ======================================================= */
 
   placeholderContainer: {
     flex: 1,
     backgroundColor: '#F6F6F9',
   },
 
-
-  /* =======================================================
-     BOTTOM NAV
-  ======================================================= */
-
   bottomNavWrapper: {
     position: 'absolute',
-
     left: 0,
     right: 0,
     bottom: 0,
@@ -316,15 +372,11 @@ const styles = StyleSheet.create({
     borderTopColor: '#E6E6EA',
 
     shadowColor: '#000000',
-
     shadowOffset: {
       width: 0,
       height: -2,
     },
-
     shadowOpacity: 0.08,
-
     shadowRadius: 6,
   },
-
 });

@@ -6,7 +6,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TabName =
   | 'home'
@@ -17,224 +16,228 @@ type TabName =
 type TeacherBottomNavProps = {
   activeTab: TabName;
   onTabChange: (tab: TabName) => void;
-  onAddPress?: () => void;
+  onAddPress: () => void;
 };
-
-type BottomNavItemProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  active: boolean;
-  onPress: () => void;
-};
-
-function BottomNavItem({
-  icon,
-  label,
-  active,
-  onPress,
-}: BottomNavItemProps) {
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.navItem,
-        active && styles.activeItem,
-        pressed && styles.pressed,
-      ]}
-      onPress={onPress}
-    >
-      <Ionicons
-        name={icon}
-        size={27}
-        color={active ? '#5420D8' : '#687080'}
-      />
-
-      <Text
-        style={[
-          styles.navLabel,
-          active && styles.activeLabel,
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
 
 export default function TeacherBottomNav({
   activeTab,
   onTabChange,
   onAddPress,
 }: TeacherBottomNavProps) {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          paddingBottom: insets.bottom,
-        },
-      ]}
-    >
+    <View style={styles.container}>
+      {/* ================= HOME ================= */}
 
-      <BottomNavItem
-        icon="home"
-        label="Home"
-        active={activeTab === 'home'}
-        onPress={() => onTabChange('home')}
-      />
-
-      <BottomNavItem
-        icon="people-outline"
-        label="Batches"
-        active={activeTab === 'batches'}
-        onPress={() => onTabChange('batches')}
-      />
-
-      {/* Center Add Button */}
       <Pressable
-        style={({ pressed }) => [
-          styles.addContainer,
-          pressed && styles.addPressed,
-        ]}
-        onPress={onAddPress}
+        style={styles.navItem}
+        onPress={() =>
+          onTabChange('home')
+        }
       >
-        <View style={styles.addButton}>
-          <Ionicons
-            name="add"
-            size={42}
-            color="#FFFFFF"
-          />
-        </View>
+        <Ionicons
+          name={
+            activeTab === 'home'
+              ? 'home'
+              : 'home-outline'
+          }
+          size={22}
+          color={
+            activeTab === 'home'
+              ? '#5420D8'
+              : '#8A8E99'
+          }
+        />
 
-        <Text style={styles.addLabel}>
-          Add
+        <Text
+          style={[
+            styles.navLabel,
+            activeTab === 'home' &&
+              styles.activeLabel,
+          ]}
+        >
+          Home
         </Text>
       </Pressable>
 
-      <BottomNavItem
-        icon="school-outline"
-        label="Students"
-        active={activeTab === 'students'}
-        onPress={() => onTabChange('students')}
-      />
+      {/* ================= BATCHES ================= */}
 
-      <BottomNavItem
-        icon="person-outline"
-        label="Profile"
-        active={activeTab === 'profile'}
-        onPress={() => onTabChange('profile')}
-      />
+      <Pressable
+        style={styles.navItem}
+        onPress={() =>
+          onTabChange('batches')
+        }
+      >
+        <Ionicons
+          name={
+            activeTab === 'batches'
+              ? 'layers'
+              : 'layers-outline'
+          }
+          size={22}
+          color={
+            activeTab === 'batches'
+              ? '#5420D8'
+              : '#8A8E99'
+          }
+        />
 
+        <Text
+          style={[
+            styles.navLabel,
+            activeTab === 'batches' &&
+              styles.activeLabel,
+          ]}
+        >
+          Batches
+        </Text>
+      </Pressable>
+
+      {/* ================= CENTER ADD BUTTON ================= */}
+
+      <View style={styles.addContainer}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.addButton,
+            pressed && styles.pressed,
+          ]}
+          onPress={onAddPress}
+        >
+          <Ionicons
+            name="add"
+            size={28}
+            color="#FFFFFF"
+          />
+        </Pressable>
+      </View>
+
+      {/* ================= STUDENTS ================= */}
+
+      <Pressable
+        style={styles.navItem}
+        onPress={() =>
+          onTabChange('students')
+        }
+      >
+        <Ionicons
+          name={
+            activeTab === 'students'
+              ? 'people'
+              : 'people-outline'
+          }
+          size={22}
+          color={
+            activeTab === 'students'
+              ? '#5420D8'
+              : '#8A8E99'
+          }
+        />
+
+        <Text
+          style={[
+            styles.navLabel,
+            activeTab === 'students' &&
+              styles.activeLabel,
+          ]}
+        >
+          Students
+        </Text>
+      </Pressable>
+
+      {/* ================= PROFILE ================= */}
+
+      <Pressable
+        style={styles.navItem}
+        onPress={() =>
+          onTabChange('profile')
+        }
+      >
+        <Ionicons
+          name={
+            activeTab === 'profile'
+              ? 'person'
+              : 'person-outline'
+          }
+          size={22}
+          color={
+            activeTab === 'profile'
+              ? '#5420D8'
+              : '#8A8E99'
+          }
+        />
+
+        <Text
+          style={[
+            styles.navLabel,
+            activeTab === 'profile' &&
+              styles.activeLabel,
+          ]}
+        >
+          Profile
+        </Text>
+      </Pressable>
     </View>
   );
 }
 
+/* ============================================================
+   STYLES
+   ============================================================ */
+
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-
-    left: 0,
-    right: 0,
-    bottom: 0,
-
-    minHeight: 82,
-
+    height: 82,
     backgroundColor: '#FFFFFF',
-
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-around',
-
-    paddingTop: 7,
-
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-
-    elevation: 12,
-
-    zIndex: 100,
+    paddingHorizontal: 8,
   },
 
   navItem: {
-    width: '18%',
+    flex: 1,
     height: 62,
-
-    borderRadius: 12,
-
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  activeItem: {
-    backgroundColor: '#F0E7FF',
-  },
-
   navLabel: {
-    color: '#687080',
-    fontSize: 12,
-    fontFamily: 'Poppins',
-
     marginTop: 3,
+    color: '#8A8E99',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10,
   },
 
   activeLabel: {
     color: '#5420D8',
-    fontWeight: '700',
+    fontFamily: 'PoppinsSemiBold',
   },
 
+  /* ================= ADD BUTTON ================= */
+
   addContainer: {
-    width: '20%',
-    height: 78,
-
+    width: 72,
     alignItems: 'center',
-
-    marginTop: -28,
+    justifyContent: 'center',
   },
 
   addButton: {
-    width: 66,
-    height: 66,
-
-    borderRadius: 33,
-
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#5420D8',
-
     alignItems: 'center',
     justifyContent: 'center',
-
-    shadowColor: '#5420D8',
+    elevation: 6,
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
-      height: 5,
+      height: 3,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-
-    elevation: 8,
-  },
-
-  addLabel: {
-    color: '#687080',
-    fontSize: 12,
-    fontFamily: 'PoppinsSemiBold',
-
-    marginTop: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
 
   pressed: {
     opacity: 0.7,
-  },
-
-  addPressed: {
-    transform: [{ scale: 0.96 }],
   },
 });
