@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Animated,
   NativeScrollEvent,
@@ -17,81 +17,85 @@ import ScheduleSection from './Schedule/ScheduleSection';
 import QuickActionsSection from './QuickActions/QuickActionsSection';
 import AnnouncementsSection from './Announcements/AnnouncementsSection';
 import ProfilePage from './Profile/ProfilePage';
+import MarkAttendance from './QuickActions/MarkAttendance';
 
 type TabName =
   | 'home'
   | 'batches'
   | 'students'
-  | 'profile';
+  | 'profile'
+  | 'attendance';
 
 export default function TeacherDashboard() {
   const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] =
-    React.useState<TabName>('home');
+    useState<TabName>('home');
 
-  /* ================= PROFILE DATA ================= */
+  /* ============================================================
+     PROFILE DATA
+     ============================================================ */
 
   const [profileName, setProfileName] =
-    React.useState('Priya Sharma');
+    useState('Priya Sharma');
 
   const [profileEmail, setProfileEmail] =
-    React.useState('priya.sharma@example.com');
+    useState(
+      'priya.sharma@example.com',
+    );
 
   const [profilePhone, setProfilePhone] =
-    React.useState('+91 98765 43210');
+    useState('+91 98765 43210');
 
-  /* ================= BOTTOM NAV ANIMATION ================= */
+  /* ============================================================
+     BOTTOM NAV ANIMATION
+     ============================================================ */
 
-  const bottomNavTranslateY = useRef(
-    new Animated.Value(0),
-  ).current;
+  const bottomNavTranslateY =
+    useRef(
+      new Animated.Value(0),
+    ).current;
 
-  const lastScrollY = useRef(0);
+  const lastScrollY =
+    useRef(0);
 
-  const isNavHidden = useRef(false);
+  const navHidden =
+    useRef(false);
 
-  /*
-   * Height of the bottom navigation including
-   * the device safe-area space.
-   */
   const bottomNavHeight =
     82 + insets.bottom;
 
-  /*
-   * Animate bottom navigation.
-   *
-   * hidden = true:
-   * bottom nav slides down.
-   *
-   * hidden = false:
-   * bottom nav slides back up.
-   */
-  const animateBottomNav = (hide: boolean) => {
-    if (isNavHidden.current === hide) {
+  /* ============================================================
+     BOTTOM NAV SHOW / HIDE
+     ============================================================ */
+
+  const animateBottomNav = (
+    hide: boolean,
+  ) => {
+    if (navHidden.current === hide) {
       return;
     }
 
-    isNavHidden.current = hide;
+    navHidden.current = hide;
 
-    Animated.timing(bottomNavTranslateY, {
-      toValue: hide ? bottomNavHeight : 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(
+      bottomNavTranslateY,
+      {
+        toValue: hide
+          ? bottomNavHeight
+          : 0,
+
+        duration: 180,
+
+        useNativeDriver: true,
+      },
+    ).start();
   };
 
-  /*
-   * Detect scroll direction.
-   *
-   * Content moves UP:
-   * offset increases
-   * -> hide bottom nav
-   *
-   * Content moves DOWN:
-   * offset decreases
-   * -> show bottom nav
-   */
+  /* ============================================================
+     HANDLE SCROLL
+     ============================================================ */
+
   const handleContentScroll = (
     event: NativeSyntheticEvent<NativeScrollEvent>,
   ) => {
@@ -99,58 +103,70 @@ export default function TeacherDashboard() {
       event.nativeEvent.contentOffset.y;
 
     /*
-     * Always show nav at the very top.
+     * Always show the navigation
+     * when the user reaches the top.
      */
     if (currentScrollY <= 5) {
       lastScrollY.current = 0;
+
       animateBottomNav(false);
+
       return;
     }
 
     const difference =
-      currentScrollY - lastScrollY.current;
+      currentScrollY -
+      lastScrollY.current;
 
     /*
-     * Small movements are ignored.
-     * This prevents flickering/jitter.
+     * Ignore tiny movements.
      */
     if (Math.abs(difference) < 4) {
       return;
     }
 
     /*
-     * User is scrolling upward through content.
+     * Scrolling down the page:
+     * hide bottom navigation.
      */
     if (difference > 0) {
       animateBottomNav(true);
     }
 
     /*
-     * User is scrolling downward through content.
+     * Scrolling up:
+     * show bottom navigation.
      */
     else {
       animateBottomNav(false);
     }
 
-    lastScrollY.current = currentScrollY;
+    lastScrollY.current =
+      currentScrollY;
   };
 
-  /* ================= TAB CHANGE ================= */
+  /* ============================================================
+     HANDLE TAB CHANGE
+     ============================================================ */
 
-  const handleTabChange = (tab: TabName) => {
-    console.log('TAB CHANGED:', tab);
-
+  const handleTabChange = (
+    tab: TabName,
+  ) => {
     /*
-     * Whenever the user changes page,
-     * bring the bottom nav back.
+     * Every time the teacher changes
+     * page, bring the bottom navigation
+     * back.
      */
     lastScrollY.current = 0;
+
     animateBottomNav(false);
 
     setActiveTab(tab);
   };
 
-  /* ================= SAVE PROFILE ================= */
+  /* ============================================================
+     SAVE PROFILE
+     ============================================================ */
 
   const handleSaveProfile = (
     name: string,
@@ -161,37 +177,48 @@ export default function TeacherDashboard() {
     setProfileEmail(email);
     setProfilePhone(phone);
 
-    console.log('PROFILE SAVED:', {
-      name,
-      email,
-      phone,
-    });
+    console.log(
+      'PROFILE SAVED:',
+      {
+        name,
+        email,
+        phone,
+      },
+    );
   };
+
+  /* ============================================================
+     UI
+     ============================================================ */
 
   return (
     <View style={styles.container}>
-      {/* ================= HEADER ================= */}
+
+      {/* ======================================================
+          HEADER
+         ====================================================== */}
 
       <TeacherHeader
         onMenuPress={() => {
-          console.log('Menu pressed');
+          console.log(
+            'Menu pressed',
+          );
         }}
         onNotificationPress={() => {
-          console.log('Notifications pressed');
+          console.log(
+            'Notifications pressed',
+          );
         }}
         onProfilePress={() => {
-          console.log('HEADER PROFILE PRESSED');
-
-          lastScrollY.current = 0;
-          animateBottomNav(false);
-
-          setActiveTab('profile');
+          handleTabChange(
+            'profile',
+          );
         }}
       />
 
-      {/* ==================================================
+      {/* ======================================================
           HOME
-         ================================================== */}
+         ====================================================== */}
 
       {activeTab === 'home' && (
         <ScrollView
@@ -203,10 +230,15 @@ export default function TeacherDashboard() {
                 bottomNavHeight + 20,
             },
           ]}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={
+            false
+          }
           scrollEventThrottle={16}
-          onScroll={handleContentScroll}
+          onScroll={
+            handleContentScroll
+          }
         >
+
           <OverviewSection />
 
           <ScheduleSection
@@ -218,19 +250,31 @@ export default function TeacherDashboard() {
           />
 
           <QuickActionsSection
+
+            /*
+             * MARK ATTENDANCE
+             *
+             * This now opens
+             * MarkAttendance.tsx
+             */
             onAttendancePress={() => {
-              console.log(
-                'Mark Attendance pressed',
+              handleTabChange(
+                'attendance',
               );
             }}
+
             onLectureLogPress={() => {
               console.log(
                 'Add Lecture Log pressed',
               );
             }}
+
             onBatchesPress={() => {
-              handleTabChange('batches');
+              handleTabChange(
+                'batches',
+              );
             }}
+
             onReportsPress={() => {
               console.log(
                 'View Reports pressed',
@@ -245,97 +289,134 @@ export default function TeacherDashboard() {
               );
             }}
           />
+
         </ScrollView>
       )}
 
-      {/* ==================================================
+      {/* ======================================================
           PROFILE
-         ================================================== */}
+         ====================================================== */}
 
       {activeTab === 'profile' && (
-        <View style={styles.profileContainer}>
+        <View
+          style={
+            styles.profileContainer
+          }
+        >
           <ProfilePage
             name={profileName}
             email={profileEmail}
             phone={profilePhone}
-            onSaveProfile={handleSaveProfile}
-            onContentScroll={handleContentScroll}
+            onSaveProfile={
+              handleSaveProfile
+            }
+            onContentScroll={
+              handleContentScroll
+            }
           />
         </View>
       )}
 
-      {/* ==================================================
+      {/* ======================================================
+          MARK ATTENDANCE
+         ====================================================== */}
+
+      {activeTab === 'attendance' && (
+        <View
+          style={
+            styles.attendanceContainer
+          }
+        >
+          <MarkAttendance
+            onContentScroll={
+              handleContentScroll
+            }
+          />
+        </View>
+      )}
+
+      {/* ======================================================
           BATCHES
-         ================================================== */}
+         ====================================================== */}
 
       {activeTab === 'batches' && (
-        <View style={styles.placeholderContainer}>
-          {/* 
-            Batches page coming soon.
-
-            When the real Batches ScrollView is created,
-            pass handleContentScroll to its onScroll.
-          */}
-        </View>
+        <View
+          style={
+            styles.placeholderContainer
+          }
+        />
       )}
 
-      {/* ==================================================
+      {/* ======================================================
           STUDENTS
-         ================================================== */}
+         ====================================================== */}
 
       {activeTab === 'students' && (
-        <View style={styles.placeholderContainer}>
-          {/* 
-            Students page coming soon.
-
-            When the real Students ScrollView is created,
-            pass handleContentScroll to its onScroll.
-          */}
-        </View>
+        <View
+          style={
+            styles.placeholderContainer
+          }
+        />
       )}
 
-      {/* ==================================================
+      {/* ======================================================
           BOTTOM NAVIGATION
-         ================================================== */}
+         ====================================================== */}
 
       <Animated.View
         style={[
           styles.bottomNavWrapper,
           {
-            paddingBottom: insets.bottom,
+            paddingBottom:
+              insets.bottom,
 
-            /*
-             * This is what creates the LinkedIn-style
-             * hide/show animation.
-             */
             transform: [
               {
-                translateY: bottomNavTranslateY,
+                translateY:
+                  bottomNavTranslateY,
               },
             ],
           },
         ]}
       >
         <TeacherBottomNav
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
+          /*
+           * Attendance is a secondary page,
+           * so we keep Home visually selected
+           * for now.
+           */
+          activeTab={
+            activeTab ===
+            'attendance'
+              ? 'home'
+              : activeTab
+          }
+
+          onTabChange={
+            handleTabChange
+          }
+
           onAddPress={() => {
-            console.log('Add pressed');
+            console.log(
+              'Add pressed',
+            );
           }}
         />
       </Animated.View>
+
     </View>
   );
 }
 
-/* ============================================================
+/* ==============================================================
    STYLES
-   ============================================================ */
+   ============================================================== */
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7FA',
+    backgroundColor:
+      '#F7F7FA',
   },
 
   scrollView: {
@@ -349,34 +430,48 @@ const styles = StyleSheet.create({
 
   profileContainer: {
     flex: 1,
-    backgroundColor: '#F6F6F9',
+    backgroundColor:
+      '#F6F6F9',
+  },
+
+  attendanceContainer: {
+    flex: 1,
+    backgroundColor:
+      '#F6F6F9',
   },
 
   placeholderContainer: {
     flex: 1,
-    backgroundColor: '#F6F6F9',
+    backgroundColor:
+      '#F6F6F9',
   },
 
   bottomNavWrapper: {
     position: 'absolute',
+
     left: 0,
     right: 0,
     bottom: 0,
 
-    backgroundColor: '#FFFFFF',
+    backgroundColor:
+      '#FFFFFF',
 
     zIndex: 999,
     elevation: 30,
 
     borderTopWidth: 1,
-    borderTopColor: '#E6E6EA',
+    borderTopColor:
+      '#E6E6EA',
 
     shadowColor: '#000000',
+
     shadowOffset: {
       width: 0,
       height: -2,
     },
+
     shadowOpacity: 0.08,
+
     shadowRadius: 6,
   },
 });
