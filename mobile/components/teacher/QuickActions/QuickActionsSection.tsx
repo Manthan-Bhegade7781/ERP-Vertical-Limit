@@ -47,7 +47,7 @@ export default function QuickActionsSection({
 
         <QuickAction
           icon="people-outline"
-          label="View My Batches"
+          label="Upload Marks"
           color="#1670E8"
           background="#E6F0FF"
           onPress={onBatchesPress}

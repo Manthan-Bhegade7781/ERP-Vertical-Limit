@@ -11,7 +11,8 @@ type TabName =
   | 'home'
   | 'batches'
   | 'students'
-  | 'profile';
+  | 'profile'
+  | 'attendance';
 
 type TeacherBottomNavProps = {
   activeTab: TabName;

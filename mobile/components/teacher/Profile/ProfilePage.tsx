@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, {
+  useEffect,
+  useState,
+} from 'react';
+
 import {
   Alert,
   KeyboardAvoidingView,
   Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -13,11 +15,16 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
+import {
+  Ionicons,
+} from '@expo/vector-icons';
 
 type ProfilePageProps = {
   name: string;
+
   email: string;
+
   phone: string;
 
   onSaveProfile: (
@@ -26,13 +33,8 @@ type ProfilePageProps = {
     phone: string,
   ) => void;
 
-  /*
-   * Dashboard supplies this handler so that
-   * Profile uses the same bottom-nav behavior
-   * as the Home page.
-   */
   onContentScroll?: (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
+    event: any,
   ) => void;
 };
 
@@ -43,58 +45,73 @@ export default function ProfilePage({
   onSaveProfile,
   onContentScroll,
 }: ProfilePageProps) {
-  const [editVisible, setEditVisible] =
-    useState(false);
 
-  const [editName, setEditName] =
-    useState(name);
+  /* --------------------------------
+     EDIT MODAL
+  -------------------------------- */
 
-  const [editEmail, setEditEmail] =
-    useState(email);
+  const [
+    editVisible,
+    setEditVisible,
+  ] = useState(false);
 
-  const [editPhone, setEditPhone] =
-    useState(extractPhoneDigits(phone));
+  const [
+    editName,
+    setEditName,
+  ] = useState(name);
 
-  const [nameError, setNameError] =
-    useState('');
+  const [
+    editEmail,
+    setEditEmail,
+  ] = useState(email);
 
-  const [emailError, setEmailError] =
-    useState('');
+  const [
+    editPhone,
+    setEditPhone,
+  ] = useState(
+    extractPhoneDigits(phone),
+  );
 
-  const [phoneError, setPhoneError] =
-    useState('');
+  /* --------------------------------
+     VALIDATION ERRORS
+  -------------------------------- */
+
+  const [
+    nameError,
+    setNameError,
+  ] = useState('');
+
+  const [
+    emailError,
+    setEmailError,
+  ] = useState('');
+
+  const [
+    phoneError,
+    setPhoneError,
+  ] = useState('');
+
+  /* --------------------------------
+     KEEP EDIT FORM IN SYNC
+  -------------------------------- */
 
   useEffect(() => {
     setEditName(name);
+
     setEditEmail(email);
+
     setEditPhone(
       extractPhoneDigits(phone),
     );
-  }, [name, email, phone]);
+  }, [
+    name,
+    email,
+    phone,
+  ]);
 
-  /* ================= EDIT PROFILE ================= */
-
-  const openEditProfile = () => {
-    setEditName(name);
-    setEditEmail(email);
-    setEditPhone(
-      extractPhoneDigits(phone),
-    );
-
-    clearErrors();
-    setEditVisible(true);
-  };
-
-  const closeEditProfile = () => {
-    setEditName(name);
-    setEditEmail(email);
-    setEditPhone(
-      extractPhoneDigits(phone),
-    );
-
-    clearErrors();
-    setEditVisible(false);
-  };
+  /* --------------------------------
+     CLEAR ERRORS
+  -------------------------------- */
 
   const clearErrors = () => {
     setNameError('');
@@ -102,58 +119,131 @@ export default function ProfilePage({
     setPhoneError('');
   };
 
-  /* ================= NAME ================= */
+  /* --------------------------------
+     OPEN EDIT
+  -------------------------------- */
+
+  const openEditProfile = () => {
+    setEditName(name);
+
+    setEditEmail(email);
+
+    setEditPhone(
+      extractPhoneDigits(phone),
+    );
+
+    clearErrors();
+
+    setEditVisible(true);
+  };
+
+  /* --------------------------------
+     CLOSE EDIT
+  -------------------------------- */
+
+  const closeEditProfile = () => {
+    setEditName(name);
+
+    setEditEmail(email);
+
+    setEditPhone(
+      extractPhoneDigits(phone),
+    );
+
+    clearErrors();
+
+    setEditVisible(false);
+  };
+
+  /* --------------------------------
+     NAME CHANGE
+  -------------------------------- */
 
   const handleNameChange = (
     text: string,
   ) => {
     setEditName(text);
 
-    if (text.trim().length > 0) {
+    if (text.trim()) {
       setNameError('');
     }
   };
 
-  /* ================= EMAIL ================= */
+  /* --------------------------------
+     EMAIL CHANGE
+  -------------------------------- */
 
   const handleEmailChange = (
     text: string,
   ) => {
     setEditEmail(text);
 
-    if (isValidEmail(text.trim())) {
+    if (
+      isValidEmail(
+        text.trim(),
+      )
+    ) {
       setEmailError('');
     }
   };
 
-  /* ================= PHONE ================= */
+  /* --------------------------------
+     PHONE CHANGE
+  -------------------------------- */
 
   const handlePhoneChange = (
     text: string,
   ) => {
+
+    /*
+      Only numbers are accepted.
+    */
+
     const digitsOnly =
-      text.replace(/\D/g, '');
+      text.replace(
+        /\D/g,
+        '',
+      );
+
+    /*
+      Maximum exactly 10 digits.
+    */
 
     const limitedDigits =
-      digitsOnly.slice(0, 10);
+      digitsOnly.slice(
+        0,
+        10,
+      );
 
-    setEditPhone(limitedDigits);
+    setEditPhone(
+      limitedDigits,
+    );
 
-    if (limitedDigits.length === 10) {
+    if (
+      limitedDigits.length ===
+      10
+    ) {
       setPhoneError('');
     }
   };
 
-  /* ================= FORM VALIDATION ================= */
+  /* --------------------------------
+     FORM VALIDATION
+  -------------------------------- */
 
   const isFormValid =
     editName.trim().length > 0 &&
-    isValidEmail(editEmail.trim()) &&
+    isValidEmail(
+      editEmail.trim(),
+    ) &&
     editPhone.length === 10;
 
-  /* ================= SAVE ================= */
+  /* --------------------------------
+     SAVE PROFILE
+  -------------------------------- */
 
   const handleSave = () => {
+
     const trimmedName =
       editName.trim();
 
@@ -161,60 +251,88 @@ export default function ProfilePage({
       editEmail.trim();
 
     const phoneDigits =
-      editPhone.replace(/\D/g, '');
+      editPhone.replace(
+        /\D/g,
+        '',
+      );
 
     let hasError = false;
 
     /* NAME */
 
     if (!trimmedName) {
+
       setNameError(
         'Name cannot be empty.',
       );
+
       hasError = true;
+
     } else {
+
       setNameError('');
     }
 
     /* EMAIL */
 
     if (!trimmedEmail) {
+
       setEmailError(
         'Email cannot be empty.',
       );
+
       hasError = true;
+
     } else if (
-      !isValidEmail(trimmedEmail)
+      !isValidEmail(
+        trimmedEmail,
+      )
     ) {
+
       setEmailError(
         'Please enter a valid email address.',
       );
+
       hasError = true;
+
     } else {
+
       setEmailError('');
     }
 
     /* PHONE */
 
     if (!phoneDigits) {
+
       setPhoneError(
         'Phone number cannot be empty.',
       );
+
       hasError = true;
+
     } else if (
-      phoneDigits.length !== 10
+      phoneDigits.length !==
+      10
     ) {
+
       setPhoneError(
         'Phone number must contain exactly 10 digits.',
       );
+
       hasError = true;
+
     } else {
+
       setPhoneError('');
     }
 
     if (hasError) {
       return;
     }
+
+    /*
+      +91 is always automatically added.
+    */
 
     const formattedPhone =
       `+91 ${phoneDigits}`;
@@ -228,20 +346,26 @@ export default function ProfilePage({
     setEditVisible(false);
   };
 
-  /* ================= LOGOUT ================= */
+  /* --------------------------------
+     LOGOUT
+  -------------------------------- */
 
   const handleLogout = () => {
+
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
+
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
+
         {
           text: 'Logout',
           style: 'destructive',
+
           onPress: () => {
             console.log(
               'Logout confirmed',
@@ -254,22 +378,43 @@ export default function ProfilePage({
 
   return (
     <>
-      {/* ================= PROFILE PAGE ================= */}
+      {/* =================================
+          PROFILE CONTENT
+      ================================= */}
 
       <ScrollView
         style={styles.container}
+
         contentContainerStyle={
           styles.content
         }
-        showsVerticalScrollIndicator={false}
-        bounces
-        scrollEventThrottle={16}
-        onScroll={onContentScroll}
-      >
-        {/* ================= PROFILE SUMMARY ================= */}
 
-        <View style={styles.profileSummary}>
-          <View style={styles.profileAvatar}>
+        showsVerticalScrollIndicator={
+          false
+        }
+
+        bounces
+
+        scrollEventThrottle={16}
+
+        onScroll={
+          onContentScroll
+        }
+      >
+
+        {/* PROFILE SUMMARY */}
+
+        <View
+          style={
+            styles.profileSummary
+          }
+        >
+
+          <View
+            style={
+              styles.profileAvatar
+            }
+          >
             <Ionicons
               name="person-outline"
               size={46}
@@ -277,20 +422,35 @@ export default function ProfilePage({
             />
           </View>
 
-          <Text style={styles.profileName}>
+          <Text
+            style={
+              styles.profileName
+            }
+          >
             {name}
           </Text>
 
-          <Text style={styles.profileRole}>
+          <Text
+            style={
+              styles.profileRole
+            }
+          >
             Physics Teacher
           </Text>
 
           <Pressable
-            style={({ pressed }) => [
+            style={({
+              pressed,
+            }) => [
               styles.editButton,
-              pressed && styles.pressed,
+
+              pressed &&
+                styles.pressed,
             ]}
-            onPress={openEditProfile}
+
+            onPress={
+              openEditProfile
+            }
           >
             <Ionicons
               name="create-outline"
@@ -298,16 +458,28 @@ export default function ProfilePage({
               color="#5420D8"
             />
 
-            <Text style={styles.editButtonText}>
+            <Text
+              style={
+                styles.editButtonText
+              }
+            >
               Edit Profile
             </Text>
           </Pressable>
+
         </View>
 
-        {/* ================= PERSONAL INFORMATION ================= */}
+        {/* PERSONAL INFORMATION */}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={styles.section}
+        >
+
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             Personal Information
           </Text>
 
@@ -329,12 +501,20 @@ export default function ProfilePage({
             value="TCH-001"
             showDivider={false}
           />
+
         </View>
 
-        {/* ================= TEACHING INFORMATION ================= */}
+        {/* TEACHING INFORMATION */}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={styles.section}
+        >
+
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             Teaching Information
           </Text>
 
@@ -356,12 +536,20 @@ export default function ProfilePage({
             value="68 Students"
             showDivider={false}
           />
+
         </View>
 
-        {/* ================= ACCOUNT ================= */}
+        {/* ACCOUNT */}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={styles.section}
+        >
+
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             Account
           </Text>
 
@@ -385,12 +573,18 @@ export default function ProfilePage({
             title="Logout"
             danger
             showDivider={false}
-            onPress={handleLogout}
+            onPress={
+              handleLogout
+            }
           />
+
         </View>
+
       </ScrollView>
 
-      {/* ================= EDIT PROFILE MODAL ================= */}
+      {/* =================================
+          EDIT PROFILE MODAL
+      ================================= */}
 
       <Modal
         visible={editVisible}
@@ -400,34 +594,53 @@ export default function ProfilePage({
           closeEditProfile
         }
       >
+
         <KeyboardAvoidingView
-          style={styles.modalOverlay}
+          style={
+            styles.modalOverlay
+          }
+
           behavior={
             Platform.OS === 'ios'
               ? 'padding'
               : undefined
           }
         >
+
           <Pressable
             style={
               styles.modalBackground
             }
+
             onPress={
               closeEditProfile
             }
           />
 
-          <View style={styles.editModal}>
-            {/* ================= HEADER ================= */}
+          <View
+            style={
+              styles.editModal
+            }
+          >
 
-            <View style={styles.modalHeader}>
+            {/* MODAL HEADER */}
+
+            <View
+              style={
+                styles.modalHeader
+              }
+            >
+
               <View
                 style={
                   styles.modalHeaderText
                 }
               >
+
                 <Text
-                  style={styles.modalTitle}
+                  style={
+                    styles.modalTitle
+                  }
                 >
                   Edit Profile
                 </Text>
@@ -439,31 +652,41 @@ export default function ProfilePage({
                 >
                   Update your personal information
                 </Text>
+
               </View>
 
               <Pressable
                 style={
                   styles.closeButton
                 }
+
                 onPress={
                   closeEditProfile
                 }
               >
+
                 <Ionicons
                   name="close"
                   size={23}
                   color="#555B69"
                 />
+
               </Pressable>
+
             </View>
 
-            {/* ================= NAME ================= */}
+            {/* FULL NAME */}
 
             <View
-              style={styles.inputGroup}
+              style={
+                styles.inputGroup
+              }
             >
+
               <Text
-                style={styles.inputLabel}
+                style={
+                  styles.inputLabel
+                }
               >
                 Full Name
               </Text>
@@ -471,10 +694,12 @@ export default function ProfilePage({
               <View
                 style={[
                   styles.inputWrapper,
+
                   nameError &&
                     styles.inputError,
                 ]}
               >
+
                 <Ionicons
                   name="person-outline"
                   size={19}
@@ -492,10 +717,13 @@ export default function ProfilePage({
                   }
                   placeholder="Enter your name"
                   placeholderTextColor="#A0A3AD"
-                  style={styles.input}
+                  style={
+                    styles.input
+                  }
                   autoCapitalize="words"
                   autoCorrect={false}
                 />
+
               </View>
 
               {nameError ? (
@@ -507,15 +735,21 @@ export default function ProfilePage({
                   {nameError}
                 </Text>
               ) : null}
+
             </View>
 
-            {/* ================= EMAIL ================= */}
+            {/* EMAIL */}
 
             <View
-              style={styles.inputGroup}
+              style={
+                styles.inputGroup
+              }
             >
+
               <Text
-                style={styles.inputLabel}
+                style={
+                  styles.inputLabel
+                }
               >
                 Email
               </Text>
@@ -523,10 +757,12 @@ export default function ProfilePage({
               <View
                 style={[
                   styles.inputWrapper,
+
                   emailError &&
                     styles.inputError,
                 ]}
               >
+
                 <Ionicons
                   name="mail-outline"
                   size={19}
@@ -544,20 +780,15 @@ export default function ProfilePage({
                   }
                   placeholder="Enter your email"
                   placeholderTextColor="#A0A3AD"
-                  style={styles.input}
+                  style={
+                    styles.input
+                  }
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
+
               </View>
-
-              {/* EMAIL HELPER TEXT */}
-
-              <Text
-                style={styles.emailHint}
-              >
-                Enter a valid email address
-              </Text>
 
               {emailError ? (
                 <Text
@@ -568,15 +799,21 @@ export default function ProfilePage({
                   {emailError}
                 </Text>
               ) : null}
+
             </View>
 
-            {/* ================= PHONE ================= */}
+            {/* PHONE */}
 
             <View
-              style={styles.inputGroup}
+              style={
+                styles.inputGroup
+              }
             >
+
               <Text
-                style={styles.inputLabel}
+                style={
+                  styles.inputLabel
+                }
               >
                 Phone Number
               </Text>
@@ -584,10 +821,12 @@ export default function ProfilePage({
               <View
                 style={[
                   styles.inputWrapper,
+
                   phoneError &&
                     styles.inputError,
                 ]}
               >
+
                 {/* FIXED +91 */}
 
                 <Text
@@ -617,10 +856,13 @@ export default function ProfilePage({
                   keyboardType="number-pad"
                   maxLength={10}
                 />
+
               </View>
 
               <Text
-                style={styles.phoneHint}
+                style={
+                  styles.phoneHint
+                }
               >
                 Enter exactly 10 digits
               </Text>
@@ -634,23 +876,32 @@ export default function ProfilePage({
                   {phoneError}
                 </Text>
               ) : null}
+
             </View>
 
-            {/* ================= BUTTONS ================= */}
+            {/* BUTTONS */}
 
             <View
-              style={styles.modalButtons}
+              style={
+                styles.modalButtons
+              }
             >
+
               <Pressable
-                style={({ pressed }) => [
+                style={({
+                  pressed,
+                }) => [
                   styles.cancelButton,
+
                   pressed &&
                     styles.pressed,
                 ]}
+
                 onPress={
                   closeEditProfile
                 }
               >
+
                 <Text
                   style={
                     styles.cancelButtonText
@@ -658,15 +909,16 @@ export default function ProfilePage({
                 >
                   Cancel
                 </Text>
+
               </Pressable>
 
               <Pressable
-                style={({ pressed }) => [
+                style={({
+                  pressed,
+                }) => [
+
                   styles.saveButton,
 
-                  /*
-                   * Grey while invalid.
-                   */
                   !isFormValid &&
                     styles.saveButtonDisabled,
 
@@ -674,9 +926,16 @@ export default function ProfilePage({
                     isFormValid &&
                     styles.pressed,
                 ]}
-                onPress={handleSave}
-                disabled={!isFormValid}
+
+                onPress={
+                  handleSave
+                }
+
+                disabled={
+                  !isFormValid
+                }
               >
+
                 <Ionicons
                   name="checkmark"
                   size={19}
@@ -684,45 +943,51 @@ export default function ProfilePage({
                 />
 
                 <Text
-                  style={[
-                    styles.saveButtonText,
-                    !isFormValid &&
-                      styles.saveButtonTextDisabled,
-                  ]}
+                  style={
+                    styles.saveButtonText
+                  }
                 >
                   Save Changes
                 </Text>
+
               </Pressable>
+
             </View>
+
           </View>
+
         </KeyboardAvoidingView>
+
       </Modal>
     </>
   );
 }
 
-/* ============================================================
-   VALIDATION
-   ============================================================ */
+/* ======================================
+   HELPERS
+====================================== */
 
 function isValidEmail(
   email: string,
 ): boolean {
+
   const emailRegex =
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  return emailRegex.test(email);
+  return emailRegex.test(
+    email,
+  );
 }
-
-/* ============================================================
-   PHONE
-   ============================================================ */
 
 function extractPhoneDigits(
   phone: string,
 ): string {
+
   const digits =
-    phone.replace(/\D/g, '');
+    phone.replace(
+      /\D/g,
+      '',
+    );
 
   if (
     digits.length === 12 &&
@@ -734,14 +999,17 @@ function extractPhoneDigits(
   return digits.slice(-10);
 }
 
-/* ============================================================
+/* ======================================
    PROFILE ROW
-   ============================================================ */
+====================================== */
 
 type ProfileRowProps = {
   icon: keyof typeof Ionicons.glyphMap;
+
   label: string;
+
   value: string;
+
   showDivider?: boolean;
 };
 
@@ -751,34 +1019,61 @@ function ProfileRow({
   value,
   showDivider = true,
 }: ProfileRowProps) {
+
   return (
     <Pressable
-      style={({ pressed }) => [
+      style={({
+        pressed,
+      }) => [
+
         styles.profileRow,
+
         !showDivider &&
           styles.noDivider,
-        pressed && styles.pressed,
+
+        pressed &&
+          styles.pressed,
       ]}
     >
-      <View style={styles.rowIcon}>
+
+      <View
+        style={
+          styles.rowIcon
+        }
+      >
+
         <Ionicons
           name={icon}
           size={19}
           color="#5420D8"
         />
+
       </View>
 
-      <View style={styles.rowText}>
-        <Text style={styles.rowLabel}>
+      <View
+        style={
+          styles.rowText
+        }
+      >
+
+        <Text
+          style={
+            styles.rowLabel
+          }
+        >
           {label}
         </Text>
 
         <Text
-          style={styles.rowValue}
+          style={
+            styles.rowValue
+          }
+
           numberOfLines={1}
         >
           {value}
         </Text>
+
       </View>
 
       <Ionicons
@@ -786,19 +1081,24 @@ function ProfileRow({
         size={18}
         color="#9A9EAA"
       />
+
     </Pressable>
   );
 }
 
-/* ============================================================
+/* ======================================
    ACCOUNT ACTION
-   ============================================================ */
+====================================== */
 
 type ProfileActionProps = {
   icon: keyof typeof Ionicons.glyphMap;
+
   title: string;
+
   showDivider?: boolean;
+
   danger?: boolean;
+
   onPress?: () => void;
 };
 
@@ -809,23 +1109,36 @@ function ProfileAction({
   danger = false,
   onPress,
 }: ProfileActionProps) {
+
   return (
     <Pressable
-      style={({ pressed }) => [
+      style={({
+        pressed,
+      }) => [
+
         styles.actionRow,
+
         !showDivider &&
           styles.noDivider,
-        pressed && styles.pressed,
+
+        pressed &&
+          styles.pressed,
       ]}
-      onPress={onPress}
+
+      onPress={
+        onPress
+      }
     >
+
       <View
         style={[
           styles.actionIcon,
+
           danger &&
             styles.logoutIcon,
         ]}
       >
+
         <Ionicons
           name={icon}
           size={19}
@@ -835,11 +1148,13 @@ function ProfileAction({
               : '#5420D8'
           }
         />
+
       </View>
 
       <Text
         style={[
           styles.actionText,
+
           danger &&
             styles.logoutText,
         ]}
@@ -854,15 +1169,17 @@ function ProfileAction({
           color="#9A9EAA"
         />
       )}
+
     </Pressable>
   );
 }
 
-/* ============================================================
+/* ======================================
    STYLES
-   ============================================================ */
+====================================== */
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     backgroundColor: '#F6F6F9',
@@ -873,8 +1190,6 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 105,
   },
-
-  /* ================= PROFILE ================= */
 
   profileSummary: {
     backgroundColor: '#FFFFFF',
@@ -927,8 +1242,6 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
 
-  /* ================= SECTIONS ================= */
-
   section: {
     backgroundColor: '#FFFFFF',
     borderRadius: 17,
@@ -944,8 +1257,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 2,
   },
-
-  /* ================= ROWS ================= */
 
   profileRow: {
     flexDirection: 'row',
@@ -980,9 +1291,8 @@ const styles = StyleSheet.create({
     color: '#171A2B',
     fontFamily: 'PoppinsMedium',
     fontSize: 13,
+    marginTop: 0,
   },
-
-  /* ================= ACCOUNT ================= */
 
   actionRow: {
     flexDirection: 'row',
@@ -1017,8 +1327,6 @@ const styles = StyleSheet.create({
     color: '#D64545',
     fontFamily: 'PoppinsSemiBold',
   },
-
-  /* ================= MODAL ================= */
 
   modalOverlay: {
     flex: 1,
@@ -1075,8 +1383,6 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
-  /* ================= INPUTS ================= */
-
   inputGroup: {
     marginBottom: 13,
   },
@@ -1113,17 +1419,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
 
-  /* ================= EMAIL ================= */
-
-  emailHint: {
-    color: '#9296A2',
-    fontFamily: 'PoppinsRegular',
-    fontSize: 10.5,
-    marginTop: 4,
-  },
-
-  /* ================= PHONE ================= */
-
   countryCode: {
     color: '#171A2B',
     fontFamily: 'PoppinsSemiBold',
@@ -1158,8 +1453,6 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     marginTop: 4,
   },
-
-  /* ================= BUTTONS ================= */
 
   modalButtons: {
     flexDirection: 'row',
@@ -1204,12 +1497,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  saveButtonTextDisabled: {
-    color: '#777984',
-  },
-
-  /* ================= COMMON ================= */
-
   noDivider: {
     borderBottomWidth: 0,
   },
@@ -1217,4 +1504,5 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
   },
+
 });

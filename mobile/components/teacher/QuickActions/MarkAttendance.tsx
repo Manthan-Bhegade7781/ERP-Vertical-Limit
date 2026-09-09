@@ -1,14 +1,11 @@
 import React, {
-  useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 
 import {
+  Alert,
   Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,9 +16,13 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-type AttendanceStatus =
-  | 'present'
-  | 'absent';
+import { addLectureLog } from '../lectureLogStore';
+
+type MarkAttendanceProps = {
+  onContentScroll?: (
+    event: any,
+  ) => void;
+};
 
 type Student = {
   id: string;
@@ -29,1041 +30,695 @@ type Student = {
   studentId: string;
 };
 
-type MarkAttendanceProps = {
-  onContentScroll?: (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
-  ) => void;
+type Batch = {
+  id: string;
+  name: string;
+  students: Student[];
+  subjects: string[];
 };
 
-type DropdownType =
-  | 'batch'
-  | 'subject'
-  | 'time'
-  | null;
+const BATCHES: Batch[] = [
+  {
+    id: 'batch-8',
+    name: '8th Standard',
+    subjects: ['Physics', 'Mathematics'],
+    students: [
+      {
+        id: 'student-801',
+        name: 'Aarav Mehta',
+        studentId: 'STU-0801',
+      },
+      {
+        id: 'student-802',
+        name: 'Avni Shah',
+        studentId: 'STU-0802',
+      },
+      {
+        id: 'student-803',
+        name: 'Harsh Kumar',
+        studentId: 'STU-0803',
+      },
+      {
+        id: 'student-804',
+        name: 'Kiara Patel',
+        studentId: 'STU-0804',
+      },
+      {
+        id: 'student-805',
+        name: 'Reyansh Singh',
+        studentId: 'STU-0805',
+      },
+      {
+        id: 'student-806',
+        name: 'Tara Joshi',
+        studentId: 'STU-0806',
+      },
+    ],
+  },
 
-const BATCHES = [
-  '8th Standard',
-  '9th Standard',
-  '10th Standard',
-  '11th Science A',
-  '11th Science B',
-  '12th Science A',
-  '12th Science B',
-];
+  {
+    id: 'batch-9',
+    name: '9th Standard',
+    subjects: ['Physics', 'Mathematics'],
+    students: [
+      {
+        id: 'student-901',
+        name: 'Aarav Mehta',
+        studentId: 'STU-0901',
+      },
+      {
+        id: 'student-902',
+        name: 'Ananya Shah',
+        studentId: 'STU-0902',
+      },
+      {
+        id: 'student-903',
+        name: 'Dev Kumar',
+        studentId: 'STU-0903',
+      },
+      {
+        id: 'student-904',
+        name: 'Ishita Patel',
+        studentId: 'STU-0904',
+      },
+      {
+        id: 'student-905',
+        name: 'Rohan Singh',
+        studentId: 'STU-0905',
+      },
+    ],
+  },
 
-const SUBJECTS = [
-  'Physics',
-  'Chemistry',
-  'Mathematics',
+  {
+    id: 'batch-10',
+    name: '10th Standard',
+    subjects: ['Physics', 'Chemistry'],
+    students: [
+      {
+        id: 'student-1001',
+        name: 'Aditya Sharma',
+        studentId: 'STU-1001',
+      },
+      {
+        id: 'student-1002',
+        name: 'Diya Kapoor',
+        studentId: 'STU-1002',
+      },
+      {
+        id: 'student-1003',
+        name: 'Kabir Jain',
+        studentId: 'STU-1003',
+      },
+      {
+        id: 'student-1004',
+        name: 'Meera Patel',
+        studentId: 'STU-1004',
+      },
+      {
+        id: 'student-1005',
+        name: 'Vivaan Shah',
+        studentId: 'STU-1005',
+      },
+    ],
+  },
+
+  {
+    id: 'batch-11',
+    name: '11th Standard',
+    subjects: ['Physics'],
+    students: [
+      {
+        id: 'student-1101',
+        name: 'Arjun Verma',
+        studentId: 'STU-1101',
+      },
+      {
+        id: 'student-1102',
+        name: 'Ira Sharma',
+        studentId: 'STU-1102',
+      },
+      {
+        id: 'student-1103',
+        name: 'Karan Mehta',
+        studentId: 'STU-1103',
+      },
+      {
+        id: 'student-1104',
+        name: 'Myra Shah',
+        studentId: 'STU-1104',
+      },
+    ],
+  },
 ];
 
 const TIME_SLOTS = [
-  '08:00 AM - 09:00 AM',
   '09:00 AM - 10:00 AM',
   '10:00 AM - 11:00 AM',
   '11:00 AM - 12:00 PM',
   '12:00 PM - 01:00 PM',
   '02:00 PM - 03:00 PM',
   '03:00 PM - 04:00 PM',
-  '04:00 PM - 05:00 PM',
-];
-
-const STUDENTS_BY_BATCH: Record<
-  string,
-  Student[]
-> = {
-  '8th Standard': [
-    {
-      id: '8-01',
-      name: 'Aarav Sharma',
-      studentId: 'STU-0801',
-    },
-    {
-      id: '8-02',
-      name: 'Ananya Patel',
-      studentId: 'STU-0802',
-    },
-    {
-      id: '8-03',
-      name: 'Arjun Kumar',
-      studentId: 'STU-0803',
-    },
-    {
-      id: '8-04',
-      name: 'Diya Shah',
-      studentId: 'STU-0804',
-    },
-    {
-      id: '8-05',
-      name: 'Ishaan Singh',
-      studentId: 'STU-0805',
-    },
-    {
-      id: '8-06',
-      name: 'Meera Joshi',
-      studentId: 'STU-0806',
-    },
-  ],
-
-  '9th Standard': [
-    {
-      id: '9-01',
-      name: 'Aditya Sharma',
-      studentId: 'STU-0901',
-    },
-    {
-      id: '9-02',
-      name: 'Aisha Patel',
-      studentId: 'STU-0902',
-    },
-    {
-      id: '9-03',
-      name: 'Kabir Mehta',
-      studentId: 'STU-0903',
-    },
-    {
-      id: '9-04',
-      name: 'Kavya Rao',
-      studentId: 'STU-0904',
-    },
-    {
-      id: '9-05',
-      name: 'Manav Shah',
-      studentId: 'STU-0905',
-    },
-    {
-      id: '9-06',
-      name: 'Nisha Kumar',
-      studentId: 'STU-0906',
-    },
-  ],
-
-  '10th Standard': [
-    {
-      id: '10-01',
-      name: 'Aryan Sharma',
-      studentId: 'STU-1001',
-    },
-    {
-      id: '10-02',
-      name: 'Bhavya Patel',
-      studentId: 'STU-1002',
-    },
-    {
-      id: '10-03',
-      name: 'Dev Kumar',
-      studentId: 'STU-1003',
-    },
-    {
-      id: '10-04',
-      name: 'Isha Shah',
-      studentId: 'STU-1004',
-    },
-    {
-      id: '10-05',
-      name: 'Karan Mehta',
-      studentId: 'STU-1005',
-    },
-    {
-      id: '10-06',
-      name: 'Neha Joshi',
-      studentId: 'STU-1006',
-    },
-  ],
-
-  '11th Science A': [
-    {
-      id: '11A-01',
-      name: 'Akshay Sharma',
-      studentId: 'STU-1101',
-    },
-    {
-      id: '11A-02',
-      name: 'Anika Patel',
-      studentId: 'STU-1102',
-    },
-    {
-      id: '11A-03',
-      name: 'Dhruv Mehta',
-      studentId: 'STU-1103',
-    },
-    {
-      id: '11A-04',
-      name: 'Ira Shah',
-      studentId: 'STU-1104',
-    },
-    {
-      id: '11A-05',
-      name: 'Krish Kumar',
-      studentId: 'STU-1105',
-    },
-    {
-      id: '11A-06',
-      name: 'Manya Joshi',
-      studentId: 'STU-1106',
-    },
-  ],
-
-  '11th Science B': [
-    {
-      id: '11B-01',
-      name: 'Aarav Mehta',
-      studentId: 'STU-1107',
-    },
-    {
-      id: '11B-02',
-      name: 'Avni Shah',
-      studentId: 'STU-1108',
-    },
-    {
-      id: '11B-03',
-      name: 'Harsh Kumar',
-      studentId: 'STU-1109',
-    },
-    {
-      id: '11B-04',
-      name: 'Kiara Patel',
-      studentId: 'STU-1110',
-    },
-    {
-      id: '11B-05',
-      name: 'Reyansh Singh',
-      studentId: 'STU-1111',
-    },
-    {
-      id: '11B-06',
-      name: 'Tara Joshi',
-      studentId: 'STU-1112',
-    },
-  ],
-
-  '12th Science A': [
-    {
-      id: '12A-01',
-      name: 'Arnav Sharma',
-      studentId: 'STU-1201',
-    },
-    {
-      id: '12A-02',
-      name: 'Diya Patel',
-      studentId: 'STU-1202',
-    },
-    {
-      id: '12A-03',
-      name: 'Kunal Mehta',
-      studentId: 'STU-1203',
-    },
-    {
-      id: '12A-04',
-      name: 'Myra Shah',
-      studentId: 'STU-1204',
-    },
-    {
-      id: '12A-05',
-      name: 'Rudra Kumar',
-      studentId: 'STU-1205',
-    },
-    {
-      id: '12A-06',
-      name: 'Sara Singh',
-      studentId: 'STU-1206',
-    },
-  ],
-
-  '12th Science B': [
-    {
-      id: '12B-01',
-      name: 'Ayaan Sharma',
-      studentId: 'STU-1207',
-    },
-    {
-      id: '12B-02',
-      name: 'Anaya Patel',
-      studentId: 'STU-1208',
-    },
-    {
-      id: '12B-03',
-      name: 'Dev Mehta',
-      studentId: 'STU-1209',
-    },
-    {
-      id: '12B-04',
-      name: 'Ishita Shah',
-      studentId: 'STU-1210',
-    },
-    {
-      id: '12B-05',
-      name: 'Rehan Kumar',
-      studentId: 'STU-1211',
-    },
-    {
-      id: '12B-06',
-      name: 'Saanvi Joshi',
-      studentId: 'STU-1212',
-    },
-  ],
-};
-
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
 ];
 
 export default function MarkAttendance({
   onContentScroll,
 }: MarkAttendanceProps) {
-  const today = new Date();
-
-  const [selectedDay, setSelectedDay] =
-    useState(today.getDate());
-
-  const [selectedMonth, setSelectedMonth] =
-    useState(today.getMonth());
-
-  const [selectedYear, setSelectedYear] =
-    useState(today.getFullYear());
-
-  const [calendarMonth, setCalendarMonth] =
-    useState(today.getMonth());
-
-  const [calendarYear, setCalendarYear] =
-    useState(today.getFullYear());
-
-  const [yearInput, setYearInput] =
-    useState(
-      String(today.getFullYear()),
-    );
-
-  const [selectedBatch, setSelectedBatch] =
-    useState('11th Science B');
+  const [selectedBatchId, setSelectedBatchId] =
+    useState('batch-8');
 
   const [selectedSubject, setSelectedSubject] =
     useState('Physics');
 
-  const [selectedTimeSlot, setSelectedTimeSlot] =
+  const [selectedDate, setSelectedDate] =
+    useState(getTodayDate());
+
+  const [selectedTime, setSelectedTime] =
     useState(
-      getDefaultTimeSlot(
-        '11th Science B',
-      ),
+      '09:00 AM - 10:00 AM',
     );
 
-  const [teacherAttendance, setTeacherAttendance] =
-    useState<AttendanceStatus>(
-      'present',
+  const [teacherPresent, setTeacherPresent] =
+    useState(true);
+
+  const [attendance, setAttendance] =
+    useState<Record<string, boolean>>(
+      {},
     );
 
-  const [studentAttendance, setStudentAttendance] =
+  const [lectureDescription, setLectureDescription] =
+    useState('');
+
+  const [selectorVisible, setSelectorVisible] =
+    useState(false);
+
+  const [selectorType, setSelectorType] =
     useState<
-      Record<
-        string,
-        AttendanceStatus
-      >
-    >({});
+      'batch' |
+      'subject' |
+      'date' |
+      'time'
+    >('batch');
 
-  const [lectureLog, setLectureLog] =
-    useState('');
+  const selectedBatch =
+    BATCHES.find(
+      (batch) =>
+        batch.id === selectedBatchId,
+    ) || BATCHES[0];
 
-  const [dropdownVisible, setDropdownVisible] =
-    useState(false);
-
-  const [dropdownType, setDropdownType] =
-    useState<DropdownType>(null);
-
-  const [submitted, setSubmitted] =
-    useState(false);
-
-  const [submittedAt, setSubmittedAt] =
-    useState('');
-
-  const lastScrollY =
-    useRef(0);
-
-  const students = useMemo(
-    () =>
-      STUDENTS_BY_BATCH[
-        selectedBatch
-      ] || [],
-    [selectedBatch],
-  );
-
-  const selectedDate =
-    formatSelectedDate(
-      selectedDay,
-      selectedMonth,
-      selectedYear,
-    );
-
-  useEffect(() => {
-    const defaultAttendance: Record<
-      string,
-      AttendanceStatus
-    > = {};
-
-    students.forEach(
-      (student) => {
-        defaultAttendance[
-          student.id
-        ] = 'present';
-      },
-    );
-
-    setStudentAttendance(
-      defaultAttendance,
-    );
-
-    setSubmitted(false);
-  }, [
-    selectedBatch,
-    students,
-  ]);
+  const students =
+    selectedBatch.students;
 
   const presentCount =
     students.filter(
       (student) =>
-        studentAttendance[
-          student.id
-        ] === 'present',
+        attendance[student.id] ===
+        true,
     ).length;
 
   const absentCount =
-    students.filter(
-      (student) =>
-        studentAttendance[
-          student.id
-        ] === 'absent',
-    ).length;
+    students.length -
+    presentCount;
 
-  const handleScroll = (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
-  ) => {
-    lastScrollY.current =
-      event.nativeEvent.contentOffset.y;
-
-    onContentScroll?.(event);
-  };
-
-  const openDropdown = (
+  const openSelector = (
     type:
       | 'batch'
       | 'subject'
+      | 'date'
       | 'time',
   ) => {
-    setDropdownType(type);
-    setDropdownVisible(true);
+    setSelectorType(type);
+    setSelectorVisible(true);
   };
 
-  const openDateCalendar = () => {
-    setCalendarMonth(
-      selectedMonth,
-    );
-
-    setCalendarYear(
-      selectedYear,
-    );
-
-    setYearInput(
-      String(selectedYear),
-    );
-
-    setDropdownType(null);
-    setDropdownVisible(true);
+  const closeSelector = () => {
+    setSelectorVisible(false);
   };
 
-  const closeDropdown = () => {
-    setDropdownVisible(false);
-    setDropdownType(null);
-  };
-
-  const handleBatchChange = (
-    batch: string,
+  const selectBatch = (
+    batch: Batch,
   ) => {
-    setSelectedBatch(batch);
-
-    setSelectedTimeSlot(
-      getDefaultTimeSlot(batch),
+    setSelectedBatchId(
+      batch.id,
     );
 
-    setSubmitted(false);
-
-    closeDropdown();
-  };
-
-  const handleSubjectChange = (
-    subject: string,
-  ) => {
-    setSelectedSubject(subject);
-    setSubmitted(false);
-    closeDropdown();
-  };
-
-  const handleTimeChange = (
-    time: string,
-  ) => {
-    setSelectedTimeSlot(time);
-    setSubmitted(false);
-    closeDropdown();
-  };
-
-  const handleDateChange = (
-    day: number,
-    month: number,
-    year: number,
-  ) => {
-    setSelectedDay(day);
-    setSelectedMonth(month);
-    setSelectedYear(year);
-
-    setCalendarMonth(month);
-    setCalendarYear(year);
-
-    setYearInput(
-      String(year),
+    setSelectedSubject(
+      batch.subjects[0],
     );
 
-    setSubmitted(false);
+    setAttendance({});
 
-    closeDropdown();
+    closeSelector();
   };
 
-  const toggleStudentAttendance = (
+  const toggleStudent = (
     studentId: string,
   ) => {
-    setStudentAttendance(
-      (previous) => ({
-        ...previous,
+    setAttendance(
+      (current) => ({
+        ...current,
         [studentId]:
-          previous[
-            studentId
-          ] === 'present'
-            ? 'absent'
-            : 'present',
+          !current[studentId],
       }),
     );
-
-    setSubmitted(false);
   };
 
   const markAllPresent = () => {
-    const updated: Record<
+    const next: Record<
       string,
-      AttendanceStatus
+      boolean
     > = {};
 
     students.forEach(
       (student) => {
-        updated[
-          student.id
-        ] = 'present';
+        next[student.id] =
+          true;
       },
     );
 
-    setStudentAttendance(
-      updated,
-    );
-
-    setSubmitted(false);
+    setAttendance(next);
   };
 
   const markAllAbsent = () => {
-    const updated: Record<
-      string,
-      AttendanceStatus
-    > = {};
-
-    students.forEach(
-      (student) => {
-        updated[
-          student.id
-        ] = 'absent';
-      },
-    );
-
-    setStudentAttendance(
-      updated,
-    );
-
-    setSubmitted(false);
+    setAttendance({});
   };
 
-  const handleSubmit = () => {
-    const now =
-      new Date();
+  const submitAttendance = () => {
+    if (!teacherPresent) {
+      Alert.alert(
+        'Teacher Attendance',
+        'Please mark your own attendance before submitting.',
+      );
 
-    const time =
-      now.toLocaleTimeString(
-        [],
+      return;
+    }
+
+    if (
+      students.length === 0
+    ) {
+      Alert.alert(
+        'No Students',
+        'There are no students in this batch.',
+      );
+
+      return;
+    }
+
+    /*
+     * Save lecture description
+     * into the shared lecture-log
+     * source.
+     *
+     * This is what connects
+     * Mark Attendance with
+     * Add Lecture Log.
+     */
+
+    const cleanDescription =
+      lectureDescription.trim();
+
+    if (cleanDescription) {
+      addLectureLog({
+        id: `attendance-${Date.now()}`,
+        date: selectedDate,
+        batch: selectedBatch.name,
+        subject: selectedSubject,
+        time: selectedTime,
+        description:
+          cleanDescription,
+        source: 'attendance',
+      });
+    }
+
+    Alert.alert(
+      'Attendance Submitted',
+      `${presentCount} students present and ${absentCount} students absent.`,
+      [
         {
-          hour: '2-digit',
-          minute: '2-digit',
+          text: 'OK',
+          onPress: () => {
+            setLectureDescription('');
+          },
         },
-      );
-
-    setSubmittedAt(time);
-    setSubmitted(true);
-
-    console.log(
-      'ATTENDANCE SUBMITTED',
-      {
-        batch:
-          selectedBatch,
-        subject:
-          selectedSubject,
-        date:
-          selectedDate,
-        timeSlot:
-          selectedTimeSlot,
-        teacherAttendance,
-        studentAttendance,
-        lectureLog,
-        presentCount,
-        absentCount,
-      },
+      ],
     );
   };
 
-  const startNewAttendance =
-    () => {
-      const updated: Record<
-        string,
-        AttendanceStatus
-      > = {};
+  const selectorItems =
+    selectorType === 'batch'
+      ? BATCHES.map(
+          (batch) =>
+            batch.name,
+        )
+      : selectorType === 'subject'
+        ? selectedBatch.subjects
+        : selectorType === 'time'
+          ? TIME_SLOTS
+          : getDateOptions();
 
-      students.forEach(
-        (student) => {
-          updated[
-            student.id
-          ] = 'present';
-        },
+  const selectedSelectorValue =
+    selectorType === 'batch'
+      ? selectedBatch.name
+      : selectorType === 'subject'
+        ? selectedSubject
+        : selectorType === 'time'
+          ? selectedTime
+          : selectedDate;
+
+  const selectValue = (
+    value: string,
+  ) => {
+    if (
+      selectorType === 'batch'
+    ) {
+      const batch =
+        BATCHES.find(
+          (item) =>
+            item.name === value,
+        );
+
+      if (batch) {
+        selectBatch(batch);
+      }
+
+      return;
+    }
+
+    if (
+      selectorType === 'subject'
+    ) {
+      setSelectedSubject(
+        value,
       );
+    }
 
-      setStudentAttendance(
-        updated,
+    if (
+      selectorType === 'time'
+    ) {
+      setSelectedTime(
+        value,
       );
+    }
 
-      setTeacherAttendance(
-        'present',
+    if (
+      selectorType === 'date'
+    ) {
+      setSelectedDate(
+        value,
       );
+    }
 
-      setLectureLog('');
-      setSubmitted(false);
-      setSubmittedAt('');
-    };
+    closeSelector();
+  };
 
   return (
     <>
       <ScrollView
-        style={
-          styles.container
-        }
+        style={styles.container}
         contentContainerStyle={
           styles.content
         }
         showsVerticalScrollIndicator={
           false
         }
-        scrollEventThrottle={
-          16
-        }
-        onScroll={
-          handleScroll
-        }
+        scrollEventThrottle={16}
+        onScroll={onContentScroll}
       >
-        <View
-          style={
-            styles.pageHeader
-          }
-        >
-          <View
-            style={
-              styles.pageHeaderIcon
-            }
-          >
+        {/* HEADER */}
+
+        <View style={styles.headerCard}>
+          <View style={styles.headerIcon}>
             <Ionicons
-              name="checkmark-done-outline"
+              name="person-add-outline"
               size={25}
               color="#5420D8"
             />
           </View>
 
-          <View
-            style={
-              styles.pageHeaderText
-            }
-          >
-            <Text
-              style={
-                styles.pageTitle
-              }
-            >
+          <View style={styles.headerText}>
+            <Text style={styles.headerTitle}>
               Mark Attendance
             </Text>
 
-            <Text
-              style={
-                styles.pageSubtitle
-              }
-            >
+            <Text style={styles.headerSubtitle}>
               Record attendance for your lecture
             </Text>
           </View>
         </View>
 
-        {submitted && (
-          <View
-            style={
-              styles.successCard
-            }
-          >
-            <View
-              style={
-                styles.successIcon
-              }
-            >
+        {/* TEACHER ATTENDANCE */}
+
+        <View style={styles.teacherCard}>
+          <View style={styles.teacherTop}>
+            <View style={styles.teacherIcon}>
               <Ionicons
-                name="checkmark"
-                size={22}
-                color="#FFFFFF"
+                name="person-outline"
+                size={21}
+                color="#5420D8"
               />
             </View>
 
-            <View
-              style={
-                styles.successContent
-              }
-            >
-              <Text
-                style={
-                  styles.successTitle
-                }
-              >
-                Attendance Submitted
+            <View style={styles.teacherText}>
+              <Text style={styles.teacherTitle}>
+                Your Attendance
               </Text>
 
-              <Text
-                style={
-                  styles.successSubtitle
-                }
-              >
-                {selectedBatch}
-                {' • '}
-                {selectedSubject}
-              </Text>
-
-              <Text
-                style={
-                  styles.successTime
-                }
-              >
-                Submitted at{' '}
-                {submittedAt}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        <View
-          style={
-            styles.section
-          }
-        >
-          <View
-            style={
-              styles.sectionHeader
-            }
-          >
-            <View>
-              <Text
-                style={
-                  styles.sectionTitle
-                }
-              >
-                Teacher Attendance
-              </Text>
-
-              <Text
-                style={
-                  styles.sectionSubtitle
-                }
-              >
+              <Text style={styles.teacherSubtitle}>
                 Mark your attendance for this lecture
               </Text>
             </View>
+          </View>
 
-            <View
-              style={
-                styles.teacherIcon
+          <View style={styles.teacherButtons}>
+            <Pressable
+              style={[
+                styles.teacherButton,
+                teacherPresent &&
+                  styles.teacherPresent,
+              ]}
+              onPress={() =>
+                setTeacherPresent(true)
               }
             >
               <Ionicons
-                name="person-outline"
-                size={20}
-                color="#5420D8"
+                name="checkmark-circle-outline"
+                size={18}
+                color={
+                  teacherPresent
+                    ? '#FFFFFF'
+                    : '#2FA66A'
+                }
               />
-            </View>
-          </View>
-
-          <View
-            style={
-              styles.teacherAttendanceRow
-            }
-          >
-            <View
-              style={
-                styles.teacherInfo
-              }
-            >
-              <Text
-                style={
-                  styles.teacherName
-                }
-              >
-                Priya Sharma
-              </Text>
 
               <Text
-                style={
-                  styles.teacherRole
-                }
+                style={[
+                  styles.teacherButtonText,
+                  teacherPresent &&
+                    styles.teacherButtonTextActive,
+                ]}
               >
-                Physics Teacher
+                Present
               </Text>
-            </View>
+            </Pressable>
 
-            <View
-              style={
-                styles.statusButtons
+            <Pressable
+              style={[
+                styles.teacherButton,
+                !teacherPresent &&
+                  styles.teacherAbsent,
+              ]}
+              onPress={() =>
+                setTeacherPresent(false)
               }
             >
-              <Pressable
-                style={[
-                  styles.statusButton,
-                  teacherAttendance ===
-                    'present' &&
-                    styles.presentButtonActive,
-                ]}
-                onPress={() =>
-                  setTeacherAttendance(
-                    'present',
-                  )
+              <Ionicons
+                name="close-circle-outline"
+                size={18}
+                color={
+                  !teacherPresent
+                    ? '#FFFFFF'
+                    : '#D64545'
                 }
-              >
-                <Ionicons
-                  name="checkmark-circle"
-                  size={17}
-                  color={
-                    teacherAttendance ===
-                    'present'
-                      ? '#FFFFFF'
-                      : '#2FA66A'
-                  }
-                />
+              />
 
-                <Text
-                  style={[
-                    styles.statusButtonText,
-                    teacherAttendance ===
-                      'present' &&
-                      styles.statusButtonTextActive,
-                  ]}
-                >
-                  Present
-                </Text>
-              </Pressable>
-
-              <Pressable
+              <Text
                 style={[
-                  styles.statusButton,
-                  teacherAttendance ===
-                    'absent' &&
-                    styles.absentButtonActive,
+                  styles.teacherButtonText,
+                  !teacherPresent &&
+                    styles.teacherButtonTextAbsent,
                 ]}
-                onPress={() =>
-                  setTeacherAttendance(
-                    'absent',
-                  )
-                }
               >
-                <Ionicons
-                  name="close-circle"
-                  size={17}
-                  color={
-                    teacherAttendance ===
-                    'absent'
-                      ? '#FFFFFF'
-                      : '#D64545'
-                  }
-                />
-
-                <Text
-                  style={[
-                    styles.statusButtonText,
-                    teacherAttendance ===
-                      'absent' &&
-                      styles.statusButtonTextActive,
-                  ]}
-                >
-                  Absent
-                </Text>
-              </Pressable>
-            </View>
+                Absent
+              </Text>
+            </Pressable>
           </View>
         </View>
 
-        <View
-          style={
-            styles.section
-          }
-        >
-          <Text
-            style={
-              styles.sectionTitle
-            }
-          >
+        {/* LECTURE DETAILS */}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
             Lecture Details
           </Text>
 
-          <Text
-            style={
-              styles.sectionSubtitle
-            }
-          >
-            Select the class and lecture details
+          <Text style={styles.cardSubtitle}>
+            Select the class and lecture information
           </Text>
 
-          <DropdownField
-            label="Batch"
-            value={
-              selectedBatch
-            }
-            icon="people-outline"
-            onPress={() =>
-              openDropdown(
-                'batch',
-              )
-            }
-          />
+          {/* BATCH */}
 
-          <DropdownField
-            label="Subject"
-            value={
-              selectedSubject
-            }
-            icon="book-outline"
-            onPress={() =>
-              openDropdown(
-                'subject',
-              )
-            }
-          />
+          <Text style={styles.label}>
+            Batch
+          </Text>
 
-          <View
-            style={
-              styles.fieldGroup
+          <Pressable
+            style={styles.selector}
+            onPress={() =>
+              openSelector('batch')
             }
           >
-            <Text
-              style={
-                styles.fieldLabel
-              }
-            >
-              Date
-            </Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.dropdownField,
-                pressed &&
-                  styles.dropdownFieldPressed,
-              ]}
-              onPress={
-                openDateCalendar
-              }
-            >
+            <View style={styles.selectorIcon}>
               <Ionicons
-                name="calendar-outline"
-                size={19}
+                name="people-outline"
+                size={18}
                 color="#5420D8"
               />
+            </View>
 
-              <Text
-                style={
-                  styles.dropdownValue
-                }
-              >
-                {selectedDate}
-              </Text>
+            <Text style={styles.selectorText}>
+              {selectedBatch.name}
+            </Text>
 
-              <Ionicons
-                name="chevron-down"
-                size={19}
-                color="#777C89"
-              />
-            </Pressable>
-          </View>
+            <Ionicons
+              name="chevron-down"
+              size={18}
+              color="#777C89"
+            />
+          </Pressable>
 
-          <DropdownField
-            label="Time Slot"
-            value={
-              selectedTimeSlot
-            }
-            icon="time-outline"
+          {/* SUBJECT */}
+
+          <Text
+            style={[
+              styles.label,
+              styles.spacedLabel,
+            ]}
+          >
+            Subject
+          </Text>
+
+          <Pressable
+            style={styles.selector}
             onPress={() =>
-              openDropdown(
-                'time',
-              )
-            }
-            helperText="Today's scheduled slot is selected automatically."
-          />
-        </View>
-
-        <View
-          style={
-            styles.section
-          }
-        >
-          <View
-            style={
-              styles.sectionHeader
+              openSelector('subject')
             }
           >
-            <View
-              style={
-                styles.studentHeaderText
-              }
-            >
-              <Text
-                style={
-                  styles.sectionTitle
-                }
-              >
+            <View style={styles.selectorIcon}>
+              <Ionicons
+                name="book-outline"
+                size={18}
+                color="#5420D8"
+              />
+            </View>
+
+            <Text style={styles.selectorText}>
+              {selectedSubject}
+            </Text>
+
+            <Ionicons
+              name="chevron-down"
+              size={18}
+              color="#777C89"
+            />
+          </Pressable>
+
+          {/* DATE */}
+
+          <Text
+            style={[
+              styles.label,
+              styles.spacedLabel,
+            ]}
+          >
+            Date
+          </Text>
+
+          <Pressable
+            style={styles.selector}
+            onPress={() =>
+              openSelector('date')
+            }
+          >
+            <View style={styles.selectorIcon}>
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color="#5420D8"
+              />
+            </View>
+
+            <Text style={styles.selectorText}>
+              {selectedDate}
+            </Text>
+
+            <Ionicons
+              name="chevron-down"
+              size={18}
+              color="#777C89"
+            />
+          </Pressable>
+
+          {/* TIME */}
+
+          <Text
+            style={[
+              styles.label,
+              styles.spacedLabel,
+            ]}
+          >
+            Time Slot
+          </Text>
+
+          <Pressable
+            style={styles.selector}
+            onPress={() =>
+              openSelector('time')
+            }
+          >
+            <View style={styles.selectorIcon}>
+              <Ionicons
+                name="time-outline"
+                size={18}
+                color="#5420D8"
+              />
+            </View>
+
+            <Text style={styles.selectorText}>
+              {selectedTime}
+            </Text>
+
+            <Ionicons
+              name="chevron-down"
+              size={18}
+              color="#777C89"
+            />
+          </Pressable>
+        </View>
+
+        {/* STUDENTS */}
+
+        <View style={styles.studentCard}>
+          <View style={styles.studentHeader}>
+            <View>
+              <Text style={styles.studentTitle}>
                 Student Attendance
               </Text>
 
-              <Text
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                {students.length}{' '}
-                students in this batch
+              <Text style={styles.studentSubtitle}>
+                {students.length} students in this batch
               </Text>
             </View>
 
-            <View
-              style={
-                styles.studentCountBadge
-              }
-            >
+            <View style={styles.studentCountBadge}>
               <Text
                 style={
                   styles.studentCountText
@@ -1074,129 +729,150 @@ export default function MarkAttendance({
             </View>
           </View>
 
-          <View
-            style={
-              styles.quickMarkRow
-            }
-          >
+          {/* ALL BUTTONS */}
+
+          <View style={styles.allButtons}>
             <Pressable
-              style={
-                styles.markAllPresent
-              }
-              onPress={
-                markAllPresent
-              }
+              style={styles.presentAllButton}
+              onPress={markAllPresent}
             >
               <Ionicons
                 name="checkmark-circle-outline"
-                size={16}
+                size={18}
                 color="#2FA66A"
               />
 
-              <Text
-                style={
-                  styles.markAllPresentText
-                }
-              >
+              <Text style={styles.presentAllText}>
                 Mark All Present
               </Text>
             </Pressable>
 
             <Pressable
-              style={
-                styles.markAllAbsent
-              }
-              onPress={
-                markAllAbsent
-              }
+              style={styles.absentAllButton}
+              onPress={markAllAbsent}
             >
               <Ionicons
                 name="close-circle-outline"
-                size={16}
+                size={18}
                 color="#D64545"
               />
 
-              <Text
-                style={
-                  styles.markAllAbsentText
-                }
-              >
+              <Text style={styles.absentAllText}>
                 Mark All Absent
               </Text>
             </Pressable>
           </View>
 
-          <View
-            style={
-              styles.studentList
-            }
-          >
-            {students.map(
-              (
-                student,
-                index,
-              ) => {
-                const status =
-                  studentAttendance[
-                    student.id
-                  ] ||
-                  'present';
+          {/* STUDENT LIST */}
 
-                return (
-                  <StudentAttendanceRow
-                    key={
-                      student.id
+          {students.map(
+            (student) => {
+              const isPresent =
+                attendance[
+                  student.id
+                ] === true;
+
+              const initials =
+                student.name
+                  .split(' ')
+                  .map(
+                    (part) =>
+                      part[0],
+                  )
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase();
+
+              return (
+                <View
+                  key={student.id}
+                  style={styles.studentRow}
+                >
+                  <View style={styles.avatar}>
+                    <Text
+                      style={
+                        styles.avatarText
+                      }
+                    >
+                      {initials}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.studentInfo
                     }
-                    student={
-                      student
-                    }
-                    status={
-                      status
-                    }
-                    onToggle={() =>
-                      toggleStudentAttendance(
+                  >
+                    <Text
+                      style={
+                        styles.studentName
+                      }
+                    >
+                      {student.name}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.studentId
+                      }
+                    >
+                      Student ID: {student.studentId}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    style={[
+                      styles.attendanceButton,
+                      isPresent
+                        ? styles.presentButton
+                        : styles.absentButton,
+                    ]}
+                    onPress={() =>
+                      toggleStudent(
                         student.id,
                       )
                     }
-                    showDivider={
-                      index !==
-                      students.length -
-                        1
-                    }
-                  />
-                );
-              },
-            )}
-          </View>
+                  >
+                    <Ionicons
+                      name={
+                        isPresent
+                          ? 'checkmark'
+                          : 'close'
+                      }
+                      size={18}
+                      color="#FFFFFF"
+                    />
 
-          <View
-            style={
-              styles.attendanceSummary
-            }
-          >
-            <View
-              style={
-                styles.attendanceSummaryItem
-              }
-            >
+                    <Text
+                      style={
+                        styles.attendanceButtonText
+                      }
+                    >
+                      {isPresent
+                        ? 'Present'
+                        : 'Absent'}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            },
+          )}
+
+          {/* COUNTS */}
+
+          <View style={styles.countsCard}>
+            <View style={styles.countItem}>
               <View
-                style={[
-                  styles.summaryDot,
-                  styles.presentDot,
-                ]}
+                style={styles.presentDot}
               />
 
-              <Text
-                style={
-                  styles.summaryLabel
-                }
-              >
+              <Text style={styles.countLabel}>
                 Present
               </Text>
 
               <Text
                 style={[
-                  styles.summaryNumber,
+                  styles.countNumber,
                   styles.presentNumber,
                 ]}
               >
@@ -1204,35 +880,20 @@ export default function MarkAttendance({
               </Text>
             </View>
 
-            <View
-              style={
-                styles.summaryDivider
-              }
-            />
+            <View style={styles.countDivider} />
 
-            <View
-              style={
-                styles.attendanceSummaryItem
-              }
-            >
+            <View style={styles.countItem}>
               <View
-                style={[
-                  styles.summaryDot,
-                  styles.absentDot,
-                ]}
+                style={styles.absentDot}
               />
 
-              <Text
-                style={
-                  styles.summaryLabel
-                }
-              >
+              <Text style={styles.countLabel}>
                 Absent
               </Text>
 
               <Text
                 style={[
-                  styles.summaryNumber,
+                  styles.countNumber,
                   styles.absentNumber,
                 ]}
               >
@@ -1242,210 +903,116 @@ export default function MarkAttendance({
           </View>
         </View>
 
-        <View
-          style={
-            styles.section
-          }
-        >
-          <View
-            style={
-              styles.sectionHeader
-            }
-          >
-            <View
-              style={
-                styles.studentHeaderText
-              }
-            >
-              <Text
-                style={
-                  styles.sectionTitle
-                }
-              >
-                Lecture Log
-              </Text>
+        {/* LECTURE LOG */}
 
-              <Text
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Add a short note about today's lecture
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.logIcon
-              }
-            >
+        <View style={styles.card}>
+          <View style={styles.logHeader}>
+            <View style={styles.logIcon}>
               <Ionicons
                 name="document-text-outline"
                 size={20}
                 color="#5420D8"
               />
             </View>
+
+            <View style={styles.logHeaderText}>
+              <Text style={styles.cardTitle}>
+                Lecture Log
+              </Text>
+
+              <Text style={styles.cardSubtitle}>
+                Optional description of this lecture
+              </Text>
+            </View>
           </View>
 
           <TextInput
-            value={
-              lectureLog
-            }
+            value={lectureDescription}
             onChangeText={
-              setLectureLog
-            }
-            placeholder="Example: Completed Newton's Laws and solved numerical problems."
-            placeholderTextColor="#9B9FAA"
-            style={
-              styles.lectureInput
+              setLectureDescription
             }
             multiline
+            maxLength={500}
             textAlignVertical="top"
-            maxLength={300}
+            placeholder="Write a short description about what you taught..."
+            placeholderTextColor="#999DA8"
+            style={styles.descriptionInput}
           />
 
-          <Text
-            style={
-              styles.characterCount
-            }
-          >
-            {lectureLog.length}
-            /300
+          <Text style={styles.characterCount}>
+            {lectureDescription.length}/500
           </Text>
-        </View>
 
-        {!submitted ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.submitButton,
-              pressed &&
-                styles.submitButtonPressed,
-            ]}
-            onPress={
-              handleSubmit
-            }
-          >
+          <View style={styles.connectionInfo}>
             <Ionicons
-              name="checkmark-done"
-              size={21}
-              color="#FFFFFF"
-            />
-
-            <Text
-              style={
-                styles.submitButtonText
-              }
-            >
-              Submit Attendance
-            </Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            style={({ pressed }) => [
-              styles.newAttendanceButton,
-              pressed &&
-                styles.submitButtonPressed,
-            ]}
-            onPress={
-              startNewAttendance
-            }
-          >
-            <Ionicons
-              name="refresh-outline"
-              size={21}
+              name="link-outline"
+              size={15}
               color="#5420D8"
             />
 
             <Text
-              style={
-                styles.newAttendanceButtonText
-              }
+              style={styles.connectionText}
             >
-              Start New Attendance
+              This description will also appear in Lecture History.
             </Text>
-          </Pressable>
-        )}
+          </View>
+        </View>
 
-        <View
-          style={
-            styles.bottomSpace
-          }
-        />
-      </ScrollView>
+        {/* SUBMIT */}
 
-      <Modal
-        visible={
-          dropdownVisible
-        }
-        transparent
-        animationType="fade"
-        onRequestClose={
-          closeDropdown
-        }
-      >
-        <View
-          style={
-            styles.dropdownOverlay
-          }
+        <Pressable
+          style={styles.submitButton}
+          onPress={submitAttendance}
         >
-          <Pressable
-            style={
-              styles.dropdownBackground
-            }
-            onPress={
-              closeDropdown
-            }
+          <Ionicons
+            name="checkmark-circle-outline"
+            size={21}
+            color="#FFFFFF"
           />
 
-          <View
-            style={[
-              styles.dropdownModal,
-              dropdownType === null &&
-                styles.calendarModal,
-            ]}
-          >
-            <View
-              style={
-                styles.dropdownHeader
-              }
-            >
-              <View
-                style={
-                  styles.dropdownHeaderText
-                }
-              >
-                <Text
-                  style={
-                    styles.dropdownTitle
-                  }
-                >
-                  {dropdownType ===
-                  null
-                    ? 'Select Date'
-                    : getDropdownTitle(
-                        dropdownType,
-                      )}
+          <Text style={styles.submitText}>
+            Submit Attendance
+          </Text>
+        </Pressable>
+
+        <View style={styles.bottomSpace} />
+      </ScrollView>
+
+      {/* SELECTOR MODAL */}
+
+      <Modal
+        visible={selectorVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeSelector}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={styles.modalBackground}
+            onPress={closeSelector}
+          />
+
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>
+                  {selectorType === 'batch'
+                    ? 'Select Batch'
+                    : selectorType === 'subject'
+                      ? 'Select Subject'
+                      : selectorType === 'date'
+                        ? 'Select Date'
+                        : 'Select Time Slot'}
                 </Text>
 
-                {dropdownType ===
-                  null && (
-                  <Text
-                    style={
-                      styles.dropdownSubtitle
-                    }
-                  >
-                    Choose a day from the calendar
-                  </Text>
-                )}
+                <Text style={styles.modalSubtitle}>
+                  Choose an option
+                </Text>
               </View>
 
               <Pressable
-                style={
-                  styles.dropdownClose
-                }
-                onPress={
-                  closeDropdown
-                }
+                style={styles.closeButton}
+                onPress={closeSelector}
               >
                 <Ionicons
                   name="close"
@@ -1455,139 +1022,51 @@ export default function MarkAttendance({
               </Pressable>
             </View>
 
-            {dropdownType ===
-            null ? (
-              <CalendarPicker
-                selectedDay={
-                  selectedDay
-                }
-                selectedMonth={
-                  selectedMonth
-                }
-                selectedYear={
-                  selectedYear
-                }
-                calendarMonth={
-                  calendarMonth
-                }
-                calendarYear={
-                  calendarYear
-                }
-                yearInput={
-                  yearInput
-                }
-                setYearInput={
-                  setYearInput
-                }
-                onMonthChange={(
-                  month,
-                  year,
-                ) => {
-                  setCalendarMonth(
-                    month,
-                  );
+            <ScrollView
+              showsVerticalScrollIndicator={
+                false
+              }
+            >
+              {selectorItems.map(
+                (item) => {
+                  const selected =
+                    item ===
+                    selectedSelectorValue;
 
-                  setCalendarYear(
-                    year,
-                  );
-
-                  setYearInput(
-                    String(year),
-                  );
-                }}
-                onDateSelect={
-                  handleDateChange
-                }
-                onClose={
-                  closeDropdown
-                }
-              />
-            ) : (
-              <ScrollView
-                showsVerticalScrollIndicator={
-                  false
-                }
-                style={
-                  styles.dropdownList
-                }
-              >
-                {getDropdownOptions(
-                  dropdownType,
-                ).map(
-                  (option) => {
-                    const selected =
-                      isOptionSelected(
-                        dropdownType,
-                        option,
-                        selectedBatch,
-                        selectedSubject,
-                        selectedTimeSlot,
-                      );
-
-                    return (
-                      <Pressable
-                        key={
-                          option
-                        }
+                  return (
+                    <Pressable
+                      key={`${selectorType}-${item}`}
+                      style={[
+                        styles.modalOption,
+                        selected &&
+                          styles.modalOptionSelected,
+                      ]}
+                      onPress={() =>
+                        selectValue(item)
+                      }
+                    >
+                      <Text
                         style={[
-                          styles.dropdownOption,
+                          styles.modalOptionText,
                           selected &&
-                            styles.dropdownOptionSelected,
+                            styles.modalOptionTextSelected,
                         ]}
-                        onPress={() => {
-                          if (
-                            dropdownType ===
-                            'batch'
-                          ) {
-                            handleBatchChange(
-                              option,
-                            );
-                          }
-
-                          if (
-                            dropdownType ===
-                            'subject'
-                          ) {
-                            handleSubjectChange(
-                              option,
-                            );
-                          }
-
-                          if (
-                            dropdownType ===
-                            'time'
-                          ) {
-                            handleTimeChange(
-                              option,
-                            );
-                          }
-                        }}
                       >
-                        <Text
-                          style={[
-                            styles.dropdownOptionText,
-                            selected &&
-                              styles.dropdownOptionTextSelected,
-                          ]}
-                        >
-                          {
-                            option
-                          }
-                        </Text>
+                        {item}
+                      </Text>
 
-                        {selected && (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={21}
-                            color="#5420D8"
-                          />
-                        )}
-                      </Pressable>
-                    );
-                  },
-                )}
-              </ScrollView>
-            )}
+                      {selected && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={21}
+                          color="#5420D8"
+                        />
+                      )}
+                    </Pressable>
+                  );
+                },
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1595,763 +1074,8 @@ export default function MarkAttendance({
   );
 }
 
-/* ============================================================
-   CALENDAR PICKER
-   ============================================================ */
-
-type CalendarPickerProps = {
-  selectedDay: number;
-  selectedMonth: number;
-  selectedYear: number;
-
-  calendarMonth: number;
-  calendarYear: number;
-
-  yearInput: string;
-
-  setYearInput: (
-    value: string,
-  ) => void;
-
-  onMonthChange: (
-    month: number,
-    year: number,
-  ) => void;
-
-  onDateSelect: (
-    day: number,
-    month: number,
-    year: number,
-  ) => void;
-
-  onClose: () => void;
-};
-
-function CalendarPicker({
-  selectedDay,
-  selectedMonth,
-  selectedYear,
-  calendarMonth,
-  calendarYear,
-  yearInput,
-  setYearInput,
-  onMonthChange,
-  onDateSelect,
-  onClose,
-}: CalendarPickerProps) {
-  const firstDay =
-    new Date(
-      calendarYear,
-      calendarMonth,
-      1,
-    ).getDay();
-
-  const daysInMonth =
-    getDaysInMonth(
-      calendarMonth,
-      calendarYear,
-    );
-
-  const previousMonth =
-    calendarMonth ===
-    0
-      ? 11
-      : calendarMonth - 1;
-
-  const previousYear =
-    calendarMonth ===
-    0
-      ? calendarYear - 1
-      : calendarYear;
-
-  const previousMonthDays =
-    getDaysInMonth(
-      previousMonth,
-      previousYear,
-    );
-
-  const calendarCells:
-    (
-      | number
-      | null
-    )[] = [];
-
-  for (
-    let i = firstDay - 1;
-    i >= 0;
-    i--
-  ) {
-    calendarCells.push(
-      previousMonthDays -
-        i,
-    );
-  }
-
-  for (
-    let day = 1;
-    day <= daysInMonth;
-    day++
-  ) {
-    calendarCells.push(day);
-  }
-
-  while (
-    calendarCells.length %
-      7 !==
-    0
-  ) {
-    calendarCells.push(
-      null,
-    );
-  }
-
-  const changeMonth = (
-    direction: number,
-  ) => {
-    let nextMonth =
-      calendarMonth +
-      direction;
-
-    let nextYear =
-      calendarYear;
-
-    if (
-      nextMonth >
-      11
-    ) {
-      nextMonth = 0;
-      nextYear += 1;
-    }
-
-    if (
-      nextMonth <
-      0
-    ) {
-      nextMonth = 11;
-      nextYear -= 1;
-    }
-
-    onMonthChange(
-      nextMonth,
-      nextYear,
-    );
-  };
-
-  const goToToday = () => {
-    const today =
-      new Date();
-
-    onDateSelect(
-      today.getDate(),
-      today.getMonth(),
-      today.getFullYear(),
-    );
-  };
-
-  const applyYear = () => {
-    const cleanYear =
-      yearInput.replace(
-        /\D/g,
-        '',
-      );
-
-    if (
-      cleanYear.length !==
-      4
-    ) {
-      return;
-    }
-
-    const newYear =
-      Number(
-        cleanYear,
-      );
-
-    if (
-      newYear < 1 ||
-      newYear > 9999
-    ) {
-      return;
-    }
-
-    let validDay =
-      selectedDay;
-
-    const maxDays =
-      getDaysInMonth(
-        selectedMonth,
-        newYear,
-      );
-
-    if (
-      validDay >
-      maxDays
-    ) {
-      validDay =
-        maxDays;
-    }
-
-    onDateSelect(
-      validDay,
-      selectedMonth,
-      newYear,
-    );
-  };
-
-  return (
-    <View
-      style={
-        styles.calendarContainer
-      }
-    >
-      <View
-        style={
-          styles.calendarTopRow
-        }
-      >
-        <Pressable
-          style={
-            styles.calendarArrow
-          }
-          onPress={() =>
-            changeMonth(
-              -1,
-            )
-          }
-        >
-          <Ionicons
-            name="chevron-back"
-            size={21}
-            color="#5420D8"
-          />
-        </Pressable>
-
-        <View
-          style={
-            styles.monthYearContainer
-          }
-        >
-          <Text
-            style={
-              styles.calendarMonth
-            }
-          >
-            {
-              MONTHS[
-                calendarMonth
-              ]
-            }
-          </Text>
-
-          <View
-            style={
-              styles.yearInputWrapper
-            }
-          >
-            <TextInput
-              value={
-                yearInput
-              }
-              onChangeText={(
-                text,
-              ) => {
-                setYearInput(
-                  text
-                    .replace(
-                      /\D/g,
-                      '',
-                    )
-                    .slice(
-                      0,
-                      4,
-                    ),
-                );
-              }}
-              onSubmitEditing={
-                applyYear
-              }
-              keyboardType="number-pad"
-              maxLength={
-                4
-              }
-              style={
-                styles.yearInput
-              }
-            />
-
-            <Ionicons
-              name="create-outline"
-              size={14}
-              color="#777C89"
-            />
-          </View>
-        </View>
-
-        <Pressable
-          style={
-            styles.calendarArrow
-          }
-          onPress={() =>
-            changeMonth(
-              1,
-            )
-          }
-        >
-          <Ionicons
-            name="chevron-forward"
-            size={21}
-            color="#5420D8"
-          />
-        </Pressable>
-      </View>
-
-      <Text
-        style={
-          styles.yearHelper
-        }
-      >
-        Use the arrows to move through any month and year, or enter a year directly.
-      </Text>
-
-      <View
-        style={
-          styles.weekHeader
-        }
-      >
-        {[
-          'SUN',
-          'MON',
-          'TUE',
-          'WED',
-          'THU',
-          'FRI',
-          'SAT',
-        ].map(
-          (day) => (
-            <View
-              key={`weekday-${day}`}
-              style={
-                styles.weekDay
-              }
-            >
-              <Text
-                style={
-                  styles.weekDayText
-                }
-              >
-                {day}
-              </Text>
-            </View>
-          ),
-        )}
-      </View>
-
-      <View
-        style={
-          styles.calendarGrid
-        }
-      >
-        {calendarCells.map(
-          (
-            day,
-            index,
-          ) => {
-            if (
-              day ===
-              null
-            ) {
-              return (
-                <View
-                  key={`calendar-empty-${index}`}
-                  style={
-                    styles.calendarDay
-                  }
-                />
-              );
-            }
-
-            const isSelected =
-              day ===
-                selectedDay &&
-              calendarMonth ===
-                selectedMonth &&
-              calendarYear ===
-                selectedYear;
-
-            const todayDate =
-              new Date();
-
-            const isToday =
-              day ===
-                todayDate.getDate() &&
-              calendarMonth ===
-                todayDate.getMonth() &&
-              calendarYear ===
-                todayDate.getFullYear();
-
-            return (
-              <Pressable
-                key={`calendar-cell-${index}`}
-                style={[
-                  styles.calendarDay,
-                  isSelected &&
-                    styles.calendarDaySelected,
-                  isToday &&
-                    !isSelected &&
-                    styles.calendarDayToday,
-                ]}
-                onPress={() =>
-                  onDateSelect(
-                    day,
-                    calendarMonth,
-                    calendarYear,
-                  )
-                }
-              >
-                <Text
-                  style={[
-                    styles.calendarDayText,
-                    isSelected &&
-                      styles.calendarDayTextSelected,
-                    isToday &&
-                      !isSelected &&
-                      styles.calendarDayTextToday,
-                  ]}
-                >
-                  {day}
-                </Text>
-
-                {isToday &&
-                  !isSelected && (
-                    <View
-                      style={
-                        styles.todayDot
-                      }
-                    />
-                  )}
-              </Pressable>
-            );
-          },
-        )}
-      </View>
-
-      <View
-        style={
-          styles.selectedDateBox
-        }
-      >
-        <View
-          style={
-            styles.selectedDateIcon
-          }
-        >
-          <Ionicons
-            name="calendar"
-            size={18}
-            color="#5420D8"
-          />
-        </View>
-
-        <View
-          style={
-            styles.selectedDateTextContainer
-          }
-        >
-          <Text
-            style={
-              styles.selectedDateLabel
-            }
-          >
-            Selected Date
-          </Text>
-
-          <Text
-            style={
-              styles.selectedDateValue
-            }
-          >
-            {formatSelectedDate(
-              selectedDay,
-              selectedMonth,
-              selectedYear,
-            )}
-          </Text>
-        </View>
-      </View>
-
-      <View
-        style={
-          styles.calendarActions
-        }
-      >
-        <Pressable
-          style={
-            styles.todayButton
-          }
-          onPress={
-            goToToday
-          }
-        >
-          <Text
-            style={
-              styles.todayButtonText
-            }
-          >
-            Today
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={
-            styles.applyDateButton
-          }
-          onPress={
-            onClose
-          }
-        >
-          <Ionicons
-            name="checkmark"
-            size={18}
-            color="#FFFFFF"
-          />
-
-          <Text
-            style={
-              styles.applyDateButtonText
-            }
-          >
-            Apply Date
-          </Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-/* ============================================================
-   DROPDOWN FIELD
-   ============================================================ */
-
-type DropdownFieldProps = {
-  label: string;
-  value: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
-  helperText?: string;
-};
-
-function DropdownField({
-  label,
-  value,
-  icon,
-  onPress,
-  helperText,
-}: DropdownFieldProps) {
-  return (
-    <View
-      style={
-        styles.fieldGroup
-      }
-    >
-      <Text
-        style={
-          styles.fieldLabel
-        }
-      >
-        {label}
-      </Text>
-
-      <Pressable
-        style={({ pressed }) => [
-          styles.dropdownField,
-          pressed &&
-            styles.dropdownFieldPressed,
-        ]}
-        onPress={
-          onPress
-        }
-      >
-        <Ionicons
-          name={icon}
-          size={19}
-          color="#5420D8"
-        />
-
-        <Text
-          style={
-            styles.dropdownValue
-          }
-          numberOfLines={
-            1
-          }
-        >
-          {value}
-        </Text>
-
-        <Ionicons
-          name="chevron-down"
-          size={19}
-          color="#777C89"
-        />
-      </Pressable>
-
-      {helperText && (
-        <Text
-          style={
-            styles.fieldHelper
-          }
-        >
-          {helperText}
-        </Text>
-      )}
-    </View>
-  );
-}
-
-/* ============================================================
-   STUDENT ROW
-   ============================================================ */
-
-type StudentAttendanceRowProps = {
-  student: Student;
-  status: AttendanceStatus;
-  onToggle: () => void;
-  showDivider: boolean;
-};
-
-function StudentAttendanceRow({
-  student,
-  status,
-  onToggle,
-  showDivider,
-}: StudentAttendanceRowProps) {
-  const isPresent =
-    status === 'present';
-
-  return (
-    <Pressable
-      style={[
-        styles.studentRow,
-        !showDivider &&
-          styles.studentRowNoDivider,
-      ]}
-      onPress={
-        onToggle
-      }
-    >
-      <View
-        style={
-          styles.studentAvatar
-        }
-      >
-        <Text
-          style={
-            styles.studentAvatarText
-          }
-        >
-          {getInitials(
-            student.name,
-          )}
-        </Text>
-      </View>
-
-      <View
-        style={
-          styles.studentInfo
-        }
-      >
-        <Text
-          style={
-            styles.studentName
-          }
-        >
-          {student.name}
-        </Text>
-
-        <Text
-          style={
-            styles.studentId
-          }
-        >
-          Student ID:{' '}
-          {student.studentId}
-        </Text>
-      </View>
-
-      <View
-        style={[
-          styles.attendanceToggle,
-          isPresent
-            ? styles.presentToggle
-            : styles.absentToggle,
-        ]}
-      >
-        <Ionicons
-          name={
-            isPresent
-              ? 'checkmark'
-              : 'close'
-          }
-          size={16}
-          color="#FFFFFF"
-        />
-
-        <Text
-          style={
-            styles.attendanceToggleText
-          }
-        >
-          {isPresent
-            ? 'Present'
-            : 'Absent'}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
-/* ============================================================
-   HELPERS
-   ============================================================ */
-
-function getInitials(
-  name: string,
-): string {
-  return name
-    .split(' ')
-    .map(
-      (word) =>
-        word[0],
-    )
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-function getDaysInMonth(
-  month: number,
-  year: number,
-): number {
-  return new Date(
-    year,
-    month + 1,
-    0,
-  ).getDate();
-}
-
-function formatSelectedDate(
-  day: number,
-  month: number,
-  year: number,
-): string {
-  const date =
-    new Date(
-      year,
-      month,
-      day,
-    );
-
-  return date.toLocaleDateString(
+function getTodayDate(): string {
+  return new Date().toLocaleDateString(
     'en-GB',
     {
       day: '2-digit',
@@ -2361,535 +1085,333 @@ function formatSelectedDate(
   );
 }
 
-function getDefaultTimeSlot(
-  batch: string,
-): string {
-  if (
-    batch ===
-      '11th Science B' ||
-    batch ===
-      '11th Science A'
+function getDateOptions(): string[] {
+  const dates: string[] = [];
+
+  const today = new Date();
+
+  for (
+    let i = 0;
+    i < 60;
+    i++
   ) {
-    return '11:00 AM - 12:00 PM';
-  }
+    const date =
+      new Date(today);
 
-  if (
-    batch ===
-      '12th Science B' ||
-    batch ===
-      '12th Science A'
-  ) {
-    return '02:00 PM - 03:00 PM';
-  }
+    date.setDate(
+      today.getDate() - i,
+    );
 
-  if (
-    batch ===
-    '10th Standard'
-  ) {
-    return '10:00 AM - 11:00 AM';
-  }
-
-  if (
-    batch ===
-    '9th Standard'
-  ) {
-    return '09:00 AM - 10:00 AM';
-  }
-
-  return '08:00 AM - 09:00 AM';
-}
-
-function getDropdownTitle(
-  type:
-    | 'batch'
-    | 'subject'
-    | 'time',
-): string {
-  switch (type) {
-    case 'batch':
-      return 'Select Batch';
-
-    case 'subject':
-      return 'Select Subject';
-
-    case 'time':
-      return 'Select Time Slot';
-
-    default:
-      return 'Select';
-  }
-}
-
-function getDropdownOptions(
-  type:
-    | 'batch'
-    | 'subject'
-    | 'time',
-): string[] {
-  switch (type) {
-    case 'batch':
-      return BATCHES;
-
-    case 'subject':
-      return SUBJECTS;
-
-    case 'time':
-      return TIME_SLOTS;
-
-    default:
-      return [];
-  }
-}
-
-function isOptionSelected(
-  type:
-    | 'batch'
-    | 'subject'
-    | 'time',
-  option: string,
-  selectedBatch: string,
-  selectedSubject: string,
-  selectedTimeSlot: string,
-): boolean {
-  if (
-    type === 'batch'
-  ) {
-    return (
-      option ===
-      selectedBatch
+    dates.push(
+      date.toLocaleDateString(
+        'en-GB',
+        {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        },
+      ),
     );
   }
 
-  if (
-    type === 'subject'
-  ) {
-    return (
-      option ===
-      selectedSubject
-    );
-  }
-
-  if (
-    type === 'time'
-  ) {
-    return (
-      option ===
-      selectedTimeSlot
-    );
-  }
-
-  return false;
+  return dates;
 }
-
-/* ============================================================
-   STYLES
-   ============================================================ */
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor:
-      '#F6F6F9',
+    backgroundColor: '#F6F6F9',
   },
 
   content: {
     paddingHorizontal: 14,
     paddingTop: 12,
-    paddingBottom: 20,
+    paddingBottom: 110,
   },
 
-  pageHeader: {
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    backgroundColor:
-      '#FFFFFF',
+  headerCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 10,
   },
 
-  pageHeaderIcon: {
+  headerIcon: {
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor:
-      '#EEE7FF',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 11,
   },
 
-  pageHeaderText: {
+  headerText: {
     flex: 1,
   },
 
-  pageTitle: {
+  headerTitle: {
     color: '#111528',
-    fontFamily:
-      'PoppinsBold',
+    fontFamily: 'PoppinsBold',
     fontSize: 19,
   },
 
-  pageSubtitle: {
+  headerSubtitle: {
     color: '#777C89',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 11.5,
-    marginTop: 1,
-  },
-
-  successCard: {
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    backgroundColor:
-      '#EAF8F0',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor:
-      '#CDEEDB',
-    padding: 13,
-    marginBottom: 10,
-  },
-
-  successIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor:
-      '#2FA66A',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    marginRight: 10,
-  },
-
-  successContent: {
-    flex: 1,
-  },
-
-  successTitle: {
-    color: '#1D7D4E',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 13,
-  },
-
-  successSubtitle: {
-    color: '#367A59',
-    fontFamily:
-      'PoppinsMedium',
+    fontFamily: 'PoppinsRegular',
     fontSize: 10.5,
-    marginTop: 1,
   },
 
-  successTime: {
-    color: '#6C8F7B',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 9.5,
-    marginTop: 1,
-  },
-
-  section: {
-    backgroundColor:
-      '#FFFFFF',
+  teacherCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 13,
+    padding: 14,
     marginBottom: 10,
   },
 
-  sectionHeader: {
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'space-between',
-    marginBottom: 12,
-  },
-
-  sectionTitle: {
-    color: '#111528',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 15,
-  },
-
-  sectionSubtitle: {
-    color: '#858996',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 10.5,
-    marginTop: 1,
+  teacherTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
   teacherIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor:
-      '#F1EBFF',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
+    width: 43,
+    height: 43,
+    borderRadius: 13,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
 
-  teacherAttendanceRow: {
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'space-between',
-  },
-
-  teacherInfo: {
+  teacherText: {
     flex: 1,
   },
 
-  teacherName: {
-    color: '#171A2B',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 13,
+  teacherTitle: {
+    color: '#111528',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 14,
   },
 
-  teacherRole: {
+  teacherSubtitle: {
     color: '#858996',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 10.5,
-    marginTop: 1,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
   },
 
-  statusButtons: {
-    flexDirection:
-      'row',
-    gap: 7,
-    marginLeft: 8,
+  teacherButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
   },
 
-  statusButton: {
-    height: 38,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+  teacherButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor:
-      '#DDE0E6',
-    backgroundColor:
-      '#FAFAFB',
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    gap: 4,
+    borderColor: '#DDE5E0',
+    backgroundColor: '#F5FAF7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
   },
 
-  presentButtonActive: {
-    backgroundColor:
-      '#2FA66A',
-    borderColor:
-      '#2FA66A',
+  teacherPresent: {
+    backgroundColor: '#2FA66A',
+    borderColor: '#2FA66A',
   },
 
-  absentButtonActive: {
-    backgroundColor:
-      '#D64545',
-    borderColor:
-      '#D64545',
+  teacherAbsent: {
+    backgroundColor: '#D64545',
+    borderColor: '#D64545',
   },
 
-  statusButtonText: {
-    color: '#555B69',
-    fontFamily:
-      'PoppinsMedium',
-    fontSize: 10,
+  teacherButtonText: {
+    color: '#2FA66A',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11,
   },
 
-  statusButtonTextActive: {
+  teacherButtonTextActive: {
     color: '#FFFFFF',
-    fontFamily:
-      'PoppinsSemiBold',
   },
 
-  fieldGroup: {
-    marginBottom: 11,
+  teacherButtonTextAbsent: {
+    color: '#FFFFFF',
   },
 
-  fieldLabel: {
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 10,
+  },
+
+  cardTitle: {
+    color: '#111528',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 16,
+  },
+
+  cardSubtitle: {
+    color: '#858996',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    marginBottom: 12,
+  },
+
+  label: {
     color: '#343848',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 11.5,
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11,
     marginBottom: 5,
   },
 
-  dropdownField: {
-    height: 46,
-    borderRadius: 11,
+  spacedLabel: {
+    marginTop: 10,
+  },
+
+  selector: {
+    minHeight: 50,
     borderWidth: 1,
-    borderColor:
-      '#E2E0E7',
-    backgroundColor:
-      '#F8F7FA',
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    paddingHorizontal: 12,
+    borderColor: '#E3E1E8',
+    borderRadius: 12,
+    backgroundColor: '#F8F7FA',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
-  dropdownFieldPressed: {
-    opacity: 0.7,
+  selectorIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  dropdownValue: {
+  selectorText: {
     flex: 1,
     color: '#171A2B',
-    fontFamily:
-      'PoppinsMedium',
+    fontFamily: 'PoppinsMedium',
     fontSize: 12,
     marginLeft: 9,
   },
 
-  fieldHelper: {
-    color: '#9296A2',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 9.5,
-    marginTop: 4,
+  studentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 10,
   },
 
-  studentHeaderText: {
-    flex: 1,
+  studentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  studentTitle: {
+    color: '#111528',
+    fontFamily: 'PoppinsBold',
+    fontSize: 17,
+  },
+
+  studentSubtitle: {
+    color: '#858996',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    marginTop: 2,
   },
 
   studentCountBadge: {
-    minWidth: 32,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor:
-      '#EEE7FF',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   studentCountText: {
     color: '#5420D8',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 11,
+    fontFamily: 'PoppinsBold',
+    fontSize: 14,
   },
 
-  quickMarkRow: {
-    flexDirection:
-      'row',
+  allButtons: {
+    flexDirection: 'row',
     gap: 8,
-    marginBottom: 8,
+    marginTop: 13,
+    marginBottom: 7,
   },
 
-  markAllPresent: {
+  presentAllButton: {
     flex: 1,
-    height: 36,
-    borderRadius: 9,
-    backgroundColor:
-      '#EAF8F0',
+    height: 43,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor:
-      '#CDEEDB',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    flexDirection:
-      'row',
+    borderColor: '#CDEBDD',
+    backgroundColor: '#EFFAF4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
   },
 
-  markAllPresentText: {
-    color: '#258357',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 9.5,
+  presentAllText: {
+    color: '#2A875B',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
   },
 
-  markAllAbsent: {
+  absentAllButton: {
     flex: 1,
-    height: 36,
-    borderRadius: 9,
-    backgroundColor:
-      '#FDECEC',
+    height: 43,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor:
-      '#F4D1D1',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    flexDirection:
-      'row',
+    borderColor: '#F0D2D2',
+    backgroundColor: '#FFF2F2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
   },
 
-  markAllAbsentText: {
-    color: '#C33D3D',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 9.5,
-  },
-
-  studentList: {
-    borderTopWidth: 1,
-    borderTopColor:
-      '#EEEEF2',
+  absentAllText: {
+    color: '#B94848',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
   },
 
   studentRow: {
-    minHeight: 59,
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    borderBottomWidth: 1,
-    borderBottomColor:
-      '#EEEEF2',
+    minHeight: 69,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEF2',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
-  studentRowNoDivider: {
-    borderBottomWidth: 0,
-  },
-
-  studentAvatar: {
-    width: 37,
-    height: 37,
-    borderRadius: 19,
-    backgroundColor:
-      '#EEE7FF',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
+  avatar: {
+    width: 39,
+    height: 39,
+    borderRadius: 20,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 9,
   },
 
-  studentAvatarText: {
+  avatarText: {
     color: '#5420D8',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 10.5,
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
   },
 
   studentInfo: {
@@ -2899,101 +1421,87 @@ const styles = StyleSheet.create({
 
   studentName: {
     color: '#171A2B',
-    fontFamily:
-      'PoppinsMedium',
+    fontFamily: 'PoppinsMedium',
     fontSize: 12,
   },
 
   studentId: {
-    color: '#9296A2',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 9.5,
+    color: '#858996',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
     marginTop: 1,
   },
 
-  attendanceToggle: {
-    minWidth: 77,
-    height: 32,
-    borderRadius: 9,
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    gap: 4,
+  attendanceButton: {
+    width: 105,
+    height: 40,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
   },
 
-  presentToggle: {
-    backgroundColor:
-      '#2FA66A',
+  presentButton: {
+    backgroundColor: '#2FA66A',
   },
 
-  absentToggle: {
-    backgroundColor:
-      '#D64545',
+  absentButton: {
+    backgroundColor: '#D64545',
   },
 
-  attendanceToggleText: {
+  attendanceButtonText: {
     color: '#FFFFFF',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 9.5,
-  },
-
-  attendanceSummary: {
-    marginTop: 12,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor:
-      '#F7F6FA',
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-  },
-
-  attendanceSummaryItem: {
-    flex: 1,
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    gap: 6,
-  },
-
-  summaryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-
-  presentDot: {
-    backgroundColor:
-      '#2FA66A',
-  },
-
-  absentDot: {
-    backgroundColor:
-      '#D64545',
-  },
-
-  summaryLabel: {
-    color: '#666B78',
-    fontFamily:
-      'PoppinsMedium',
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 10.5,
   },
 
-  summaryNumber: {
-    fontFamily:
-      'PoppinsBold',
-    fontSize: 15,
+  countsCard: {
+    backgroundColor: '#F8F7FA',
+    borderRadius: 13,
+    minHeight: 59,
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  countItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+
+  countDivider: {
+    width: 1,
+    height: 31,
+    backgroundColor: '#E2E1E7',
+  },
+
+  presentDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: '#2FA66A',
+  },
+
+  absentDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: '#D64545',
+  },
+
+  countLabel: {
+    color: '#777C89',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10,
+  },
+
+  countNumber: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 12,
   },
 
   presentNumber: {
@@ -3004,468 +1512,156 @@ const styles = StyleSheet.create({
     color: '#D64545',
   },
 
-  summaryDivider: {
-    width: 1,
-    height: 25,
-    backgroundColor:
-      '#E0DFE5',
+  logHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
   },
 
   logIcon: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 11,
-    backgroundColor:
-      '#F1EBFF',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
   },
 
-  lectureInput: {
-    minHeight: 85,
+  logHeaderText: {
+    flex: 1,
+  },
+
+  descriptionInput: {
+    minHeight: 115,
     borderWidth: 1,
-    borderColor:
-      '#E2E0E7',
-    backgroundColor:
-      '#F8F7FA',
+    borderColor: '#E3E1E8',
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingTop: 11,
-    paddingBottom: 10,
+    backgroundColor: '#F8F7FA',
     color: '#171A2B',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 11.5,
-    lineHeight: 18,
+    fontFamily: 'PoppinsMedium',
+    fontSize: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
   },
 
   characterCount: {
-    color: '#A0A3AD',
-    fontFamily:
-      'PoppinsRegular',
+    color: '#999DA8',
+    fontFamily: 'PoppinsRegular',
     fontSize: 9,
-    textAlign:
-      'right',
+    textAlign: 'right',
     marginTop: 3,
   },
 
+  connectionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1EBFF',
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    marginTop: 9,
+  },
+
+  connectionText: {
+    flex: 1,
+    color: '#65558E',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+    marginLeft: 6,
+  },
+
   submitButton: {
-    height: 52,
+    height: 51,
     borderRadius: 13,
-    backgroundColor:
-      '#5420D8',
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
+    backgroundColor: '#5420D8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 7,
-    marginTop: 2,
+    marginBottom: 10,
   },
 
-  submitButtonPressed: {
-    opacity: 0.7,
-  },
-
-  submitButtonText: {
+  submitText: {
     color: '#FFFFFF',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 13,
-  },
-
-  newAttendanceButton: {
-    height: 52,
-    borderRadius: 13,
-    backgroundColor:
-      '#EEE7FF',
-    borderWidth: 1,
-    borderColor:
-      '#D8CCFF',
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    gap: 7,
-    marginTop: 2,
-  },
-
-  newAttendanceButtonText: {
-    color: '#5420D8',
-    fontFamily:
-      'PoppinsSemiBold',
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 13,
   },
 
   bottomSpace: {
-    height: 110,
+    height: 100,
   },
 
-  dropdownOverlay: {
+  modalOverlay: {
     flex: 1,
-    justifyContent:
-      'center',
+    justifyContent: 'center',
     paddingHorizontal: 22,
   },
 
-  dropdownBackground: {
+  modalBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor:
-      'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
 
-  dropdownModal: {
-    maxHeight: '78%',
-    backgroundColor:
-      '#FFFFFF',
+  modalCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    padding: 15,
+    maxHeight: '70%',
     elevation: 20,
   },
 
-  calendarModal: {
-    maxHeight: '82%',
-  },
-
-  dropdownHeader: {
-    flexDirection:
-      'row',
-    alignItems:
-      'flex-start',
-    justifyContent:
-      'space-between',
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: 10,
   },
 
-  dropdownHeaderText: {
-    flex: 1,
-  },
-
-  dropdownTitle: {
+  modalTitle: {
     color: '#111528',
-    fontFamily:
-      'PoppinsBold',
+    fontFamily: 'PoppinsBold',
     fontSize: 18,
   },
 
-  dropdownSubtitle: {
+  modalSubtitle: {
     color: '#858996',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 10,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
     marginTop: 1,
   },
 
-  dropdownClose: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor:
-      '#F4F4F7',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
+  closeButton: {
+    width: 35,
+    height: 35,
+    borderRadius: 18,
+    backgroundColor: '#F4F4F7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  dropdownList: {
-    maxHeight: 420,
-  },
-
-  dropdownOption: {
-    minHeight: 49,
+  modalOption: {
+    minHeight: 52,
     borderRadius: 11,
-    paddingHorizontal: 12,
-    marginBottom: 5,
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'space-between',
-  },
-
-  dropdownOptionSelected: {
-    backgroundColor:
-      '#F1EBFF',
-  },
-
-  dropdownOptionText: {
-    color: '#343848',
-    fontFamily:
-      'PoppinsMedium',
-    fontSize: 12,
-  },
-
-  dropdownOptionTextSelected: {
-    color: '#5420D8',
-    fontFamily:
-      'PoppinsSemiBold',
-  },
-
-  calendarContainer: {
-    paddingBottom: 3,
-  },
-
-  calendarTopRow: {
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'space-between',
-    marginBottom: 5,
-  },
-
-  calendarArrow: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor:
-      '#F1EBFF',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-  },
-
-  monthYearContainer: {
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-  },
-
-  calendarMonth: {
-    color: '#111528',
-    fontFamily:
-      'PoppinsBold',
-    fontSize: 17,
-  },
-
-  yearInputWrapper: {
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    marginTop: 1,
-  },
-
-  yearInput: {
-    color: '#5420D8',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 12,
-    paddingVertical: 0,
-    paddingHorizontal: 3,
-    textAlign:
-      'center',
-    minWidth: 46,
-    height: 25,
-  },
-
-  yearHelper: {
-    color: '#9296A2',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 9,
-    textAlign:
-      'center',
-    marginBottom: 10,
-  },
-
-  weekHeader: {
-    flexDirection:
-      'row',
-    marginBottom: 4,
-  },
-
-  weekDay: {
-    width: '14.2857%',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    height: 30,
-  },
-
-  weekDayText: {
-    color: '#9296A2',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 8.5,
-  },
-
-  calendarGrid: {
-    flexDirection:
-      'row',
-    flexWrap:
-      'wrap',
-  },
-
-  calendarDay: {
-    width: '14.2857%',
-    height: 42,
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    position:
-      'relative',
-  },
-
-  calendarDaySelected: {
-    width: '14.2857%',
-  },
-
-  calendarDayToday: {
-    borderRadius: 21,
-  },
-
-  calendarDayText: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    textAlign:
-      'center',
-    textAlignVertical:
-      'center',
-    color: '#343848',
-    fontFamily:
-      'PoppinsMedium',
-    fontSize: 11.5,
-    paddingTop: 7,
-  },
-
-  calendarDayTextSelected: {
-    backgroundColor:
-      '#5420D8',
-    color: '#FFFFFF',
-    fontFamily:
-      'PoppinsSemiBold',
-  },
-
-  calendarDayTextToday: {
-    color: '#5420D8',
-    fontFamily:
-      'PoppinsBold',
-    borderWidth: 1,
-    borderColor:
-      '#5420D8',
-  },
-
-  todayDot: {
-    position:
-      'absolute',
-    bottom: 1,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor:
-      '#5420D8',
-  },
-
-  selectedDateBox: {
-    height: 54,
-    borderRadius: 12,
-    backgroundColor:
-      '#F1EBFF',
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
     paddingHorizontal: 11,
-    marginTop: 8,
-    marginBottom: 10,
+    marginBottom: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
-  selectedDateIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor:
-      '#FFFFFF',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
+  modalOptionSelected: {
+    backgroundColor: '#F1EBFF',
   },
 
-  selectedDateTextContainer: {
-    marginLeft: 8,
-  },
-
-  selectedDateLabel: {
-    color: '#777C89',
-    fontFamily:
-      'PoppinsRegular',
-    fontSize: 8.5,
-  },
-
-  selectedDateValue: {
-    color: '#5420D8',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 12,
-    marginTop: 1,
-  },
-
-  calendarActions: {
-    flexDirection:
-      'row',
-    gap: 8,
-  },
-
-  todayButton: {
-    width: 80,
-    height: 45,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor:
-      '#D8CCFF',
-    backgroundColor:
-      '#FFFFFF',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-  },
-
-  todayButtonText: {
-    color: '#5420D8',
-    fontFamily:
-      'PoppinsSemiBold',
+  modalOptionText: {
+    color: '#343848',
+    fontFamily: 'PoppinsMedium',
     fontSize: 11.5,
   },
 
-  applyDateButton: {
-    flex: 1,
-    height: 45,
-    borderRadius: 11,
-    backgroundColor:
-      '#5420D8',
-    flexDirection:
-      'row',
-    alignItems:
-      'center',
-    justifyContent:
-      'center',
-    gap: 6,
-  },
-
-  applyDateButtonText: {
-    color: '#FFFFFF',
-    fontFamily:
-      'PoppinsSemiBold',
-    fontSize: 12,
+  modalOptionTextSelected: {
+    color: '#5420D8',
+    fontFamily: 'PoppinsSemiBold',
   },
 });
