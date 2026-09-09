@@ -1,0 +1,4085 @@
+import React, { useMemo, useState } from 'react';
+
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+
+type AssignmentStatus =
+  | 'Active'
+  | 'Upcoming'
+  | 'Due Today'
+  | 'Completed'
+  | 'Evaluation Pending';
+
+type SubmissionStatus =
+  | 'Submitted'
+  | 'Pending'
+  | 'Late';
+
+type Assignment = {
+  id: number;
+  title: string;
+  code: string;
+  course: string;
+  batch: string;
+  branch: string;
+  assignedDate: string;
+  dueDate: string;
+  dueTime: string;
+  students: number;
+  submitted: number;
+  pending: number;
+  late: number;
+  maxMarks: number;
+  description: string;
+  status: AssignmentStatus;
+};
+
+type StudentSubmission = {
+  id: number;
+  studentName: string;
+  studentId: string;
+  submissionDate: string;
+  status: SubmissionStatus;
+  marks: number | null;
+  grade: string;
+};
+
+const assignments: Assignment[] = [
+  {
+    id: 1,
+    title: 'Professional Makeup Lookbook',
+    code: 'VLCC-ASG-001',
+    course: 'Professional Makeup',
+    batch: 'PM-2026-Morning',
+    branch: 'Pune Branch',
+    assignedDate: '01 Sep 2026',
+    dueDate: '10 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 42,
+    submitted: 28,
+    pending: 12,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Create a professional makeup lookbook containing three complete makeup looks with step-by-step procedures, product details and before/after photographs.',
+    status: 'Active',
+  },
+  {
+    id: 2,
+    title: 'Beauty Therapy Skin Analysis',
+    code: 'VLCC-ASG-002',
+    course: 'Beauty Therapy',
+    batch: 'BT-2026-Evening',
+    branch: 'Mumbai Branch',
+    assignedDate: '02 Sep 2026',
+    dueDate: '08 Sep 2026',
+    dueTime: '06:00 PM',
+    students: 38,
+    submitted: 24,
+    pending: 10,
+    late: 4,
+    maxMarks: 100,
+    description:
+      'Prepare a detailed skin analysis report covering skin type, concerns, recommended treatment and home-care routine.',
+    status: 'Due Today',
+  },
+  {
+    id: 3,
+    title: 'Hair Styling Practical Report',
+    code: 'VLCC-ASG-003',
+    course: 'Hair Dressing',
+    batch: 'HD-2026-Morning',
+    branch: 'Pune Branch',
+    assignedDate: '28 Aug 2026',
+    dueDate: '06 Sep 2026',
+    dueTime: '05:00 PM',
+    students: 31,
+    submitted: 27,
+    pending: 3,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Submit a practical report describing the hair styling procedure, tools used, safety precautions and final result.',
+    status: 'Evaluation Pending',
+  },
+  {
+    id: 4,
+    title: 'Skin Care Treatment Plan',
+    code: 'VLCC-ASG-004',
+    course: 'Skin Care Specialist',
+    batch: 'SC-2026-Nashik',
+    branch: 'Nashik Branch',
+    assignedDate: '20 Aug 2026',
+    dueDate: '30 Aug 2026',
+    dueTime: '11:59 PM',
+    students: 27,
+    submitted: 27,
+    pending: 0,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Prepare a complete client treatment plan including consultation, skin assessment, treatment procedure and after-care recommendations.',
+    status: 'Completed',
+  },
+  {
+    id: 5,
+    title: 'Nail Art Design Portfolio',
+    code: 'VLCC-ASG-005',
+    course: 'Nail Art Professional',
+    batch: 'NA-2026-Nagpur',
+    branch: 'Nagpur Branch',
+    assignedDate: '05 Sep 2026',
+    dueDate: '15 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 22,
+    submitted: 9,
+    pending: 13,
+    late: 0,
+    maxMarks: 100,
+    description:
+      'Create a nail art portfolio with five original designs, material list, design inspiration and step-by-step execution.',
+    status: 'Active',
+  },
+  {
+    id: 6,
+    title: 'Advanced Facial Techniques',
+    code: 'VLCC-ASG-006',
+    course: 'Advanced Beauty Therapy',
+    batch: 'ABT-2026-Mumbai',
+    branch: 'Mumbai Branch',
+    assignedDate: '12 Sep 2026',
+    dueDate: '20 Sep 2026',
+    dueTime: '06:00 PM',
+    students: 34,
+    submitted: 0,
+    pending: 34,
+    late: 0,
+    maxMarks: 100,
+    description:
+      'Prepare a detailed assignment on advanced facial techniques, treatment protocols, contraindications and client after-care.',
+    status: 'Upcoming',
+  },
+];
+
+const submissions: Record<
+  string,
+  StudentSubmission[]
+> = {
+  'VLCC-ASG-001': [
+    {
+      id: 1,
+      studentName: 'Kavya Mehta',
+      studentId: 'VLCC-STU-001',
+      submissionDate: '07 Sep 2026',
+      status: 'Submitted',
+      marks: 92,
+      grade: 'A+',
+    },
+    {
+      id: 2,
+      studentName: 'Pooja Verma',
+      studentId: 'VLCC-STU-002',
+      submissionDate: '08 Sep 2026',
+      status: 'Submitted',
+      marks: 86,
+      grade: 'A',
+    },
+    {
+      id: 3,
+      studentName: 'Sneha Deshmukh',
+      studentId: 'VLCC-STU-003',
+      submissionDate: '09 Sep 2026',
+      status: 'Submitted',
+      marks: 78,
+      grade: 'B+',
+    },
+    {
+      id: 4,
+      studentName: 'Riya Kulkarni',
+      studentId: 'VLCC-STU-004',
+      submissionDate: '-',
+      status: 'Pending',
+      marks: null,
+      grade: '-',
+    },
+    {
+      id: 5,
+      studentName: 'Ananya Patil',
+      studentId: 'VLCC-STU-005',
+      submissionDate: '10 Sep 2026',
+      status: 'Late',
+      marks: 72,
+      grade: 'B',
+    },
+  ],
+
+  'VLCC-ASG-002': [
+    {
+      id: 1,
+      studentName: 'Aarav Sharma',
+      studentId: 'VLCC-STU-006',
+      submissionDate: '06 Sep 2026',
+      status: 'Submitted',
+      marks: 89,
+      grade: 'A',
+    },
+    {
+      id: 2,
+      studentName: 'Neha Joshi',
+      studentId: 'VLCC-STU-007',
+      submissionDate: '07 Sep 2026',
+      status: 'Submitted',
+      marks: 84,
+      grade: 'A',
+    },
+    {
+      id: 3,
+      studentName: 'Ishita Shah',
+      studentId: 'VLCC-STU-008',
+      submissionDate: '08 Sep 2026',
+      status: 'Late',
+      marks: 76,
+      grade: 'B+',
+    },
+  ],
+};
+
+const statusColors: Record<
+  AssignmentStatus,
+  {
+    bg: string;
+    text: string;
+    icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  }
+> = {
+  Active: {
+    bg: '#E7F8EF',
+    text: '#35B878',
+    icon: 'check-circle-outline',
+  },
+
+  Upcoming: {
+    bg: '#F1EAFF',
+    text: '#7040D5',
+    icon: 'calendar-clock',
+  },
+
+  'Due Today': {
+    bg: '#FFF1E2',
+    text: '#F7941D',
+    icon: 'clock-alert-outline',
+  },
+
+  Completed: {
+    bg: '#EAF2FF',
+    text: '#2675E8',
+    icon: 'check-all',
+  },
+
+  'Evaluation Pending': {
+    bg: '#FFE9F0',
+    text: '#E95386',
+    icon: 'clipboard-check-outline',
+  },
+};
+
+export default function AssignmentsPage() {
+  const insets = useSafeAreaInsets();
+
+  const { width } = useWindowDimensions();
+
+  const isDesktop = width >= 900;
+
+  const [search, setSearch] = useState('');
+
+  const [filter, setFilter] = useState<
+    'All' | AssignmentStatus
+  >('All');
+
+  const [selectedAssignment, setSelectedAssignment] =
+    useState<Assignment | null>(null);
+
+  const [showActions, setShowActions] =
+    useState(false);
+
+  const [showViewModal, setShowViewModal] =
+    useState(false);
+
+  const [showEditModal, setShowEditModal] =
+    useState(false);
+
+  const [showSubmissionsModal, setShowSubmissionsModal] =
+    useState(false);
+
+  const [showEvaluationModal, setShowEvaluationModal] =
+    useState(false);
+
+  const [selectedStudent, setSelectedStudent] =
+    useState<StudentSubmission | null>(null);
+
+  const [marks, setMarks] = useState('');
+
+  const [remarks, setRemarks] = useState('');
+
+  /* =====================================================
+     FILTER
+     ===================================================== */
+
+  const filteredAssignments = useMemo(() => {
+    const value = search.trim().toLowerCase();
+
+    return assignments.filter((assignment) => {
+      const matchesSearch =
+        !value ||
+        assignment.title
+          .toLowerCase()
+          .includes(value) ||
+        assignment.code
+          .toLowerCase()
+          .includes(value) ||
+        assignment.course
+          .toLowerCase()
+          .includes(value) ||
+        assignment.batch
+          .toLowerCase()
+          .includes(value) ||
+        assignment.branch
+          .toLowerCase()
+          .includes(value);
+
+      const matchesFilter =
+        filter === 'All' ||
+        assignment.status === filter;
+
+      return (
+        matchesSearch &&
+        matchesFilter
+      );
+    });
+  }, [search, filter]);
+
+  /* =====================================================
+     SUMMARY
+     ===================================================== */
+
+  const totalAssignments =
+    assignments.length;
+
+  const activeAssignments =
+    assignments.filter(
+      (item) => item.status === 'Active'
+    ).length;
+
+  const upcomingAssignments =
+    assignments.filter(
+      (item) => item.status === 'Upcoming'
+    ).length;
+
+  const dueToday =
+    assignments.filter(
+      (item) => item.status === 'Due Today'
+    ).length;
+
+  const totalSubmitted = assignments.reduce(
+    (sum, item) =>
+      sum + item.submitted,
+    0
+  );
+
+  const pendingEvaluation =
+    assignments.filter(
+      (item) =>
+        item.status ===
+        'Evaluation Pending'
+    ).length;
+
+  /* =====================================================
+     ACTIONS
+     ===================================================== */
+
+  const openActions = (
+    assignment: Assignment
+  ) => {
+    setSelectedAssignment(
+      assignment
+    );
+
+    setShowActions(true);
+  };
+
+  const openView = (
+    assignment: Assignment
+  ) => {
+    setSelectedAssignment(
+      assignment
+    );
+
+    setShowActions(false);
+    setShowViewModal(true);
+  };
+
+  const openEdit = (
+    assignment: Assignment
+  ) => {
+    setSelectedAssignment(
+      assignment
+    );
+
+    setShowActions(false);
+    setShowEditModal(true);
+  };
+
+  const openSubmissions = (
+    assignment: Assignment
+  ) => {
+    setSelectedAssignment(
+      assignment
+    );
+
+    setShowActions(false);
+    setShowSubmissionsModal(true);
+  };
+
+  const openEvaluation = (
+    assignment: Assignment
+  ) => {
+    setSelectedAssignment(
+      assignment
+    );
+
+    setShowActions(false);
+    setShowSubmissionsModal(true);
+  };
+
+  /* =====================================================
+     DELETE
+     ===================================================== */
+
+  const deleteAssignment = (
+    assignment: Assignment
+  ) => {
+    setShowActions(false);
+
+    Alert.alert(
+      'Delete Assignment',
+      `Are you sure you want to delete "${assignment.title}"?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Deleted',
+              'The assignment has been deleted successfully.'
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  /* =====================================================
+     PDF HTML
+     ===================================================== */
+
+  const createAssignmentHtml = (
+    assignment: Assignment
+  ) => {
+    const assignmentSubmissions =
+      submissions[assignment.code] ?? [];
+
+    const submitted =
+      assignmentSubmissions.filter(
+        (item) =>
+          item.status ===
+            'Submitted' ||
+          item.status === 'Late'
+      ).length;
+
+    const pending =
+      assignment.students -
+      submitted;
+
+    const late =
+      assignmentSubmissions.filter(
+        (item) =>
+          item.status === 'Late'
+      ).length;
+
+    const submissionRate =
+      assignment.students > 0
+        ? (
+            (submitted /
+              assignment.students) *
+            100
+          ).toFixed(1)
+        : '0';
+
+    const submissionRows =
+      assignmentSubmissions
+        .map(
+          (student, index) => `
+            <tr>
+              <td>${index + 1}</td>
+
+              <td>
+                <strong>
+                  ${student.studentName}
+                </strong>
+
+                <br />
+
+                <span class="student-id">
+                  ${student.studentId}
+                </span>
+              </td>
+
+              <td>
+                ${student.submissionDate}
+              </td>
+
+              <td>
+                <span class="${
+                  student.status ===
+                  'Submitted'
+                    ? 'submitted'
+                    : student.status ===
+                      'Late'
+                    ? 'late'
+                    : 'pending'
+                }">
+                  ${student.status}
+                </span>
+              </td>
+
+              <td>
+                ${
+                  student.marks !==
+                  null
+                    ? student.marks
+                    : '-'
+                }
+              </td>
+
+              <td>
+                ${student.grade}
+              </td>
+            </tr>
+          `
+        )
+        .join('');
+
+    return `
+      <!DOCTYPE html>
+
+      <html>
+
+        <head>
+
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+          />
+
+          <style>
+
+            body {
+              font-family: Arial, sans-serif;
+              padding: 30px;
+              color: #172033;
+            }
+
+            .header {
+              background: #7040D5;
+              color: white;
+              padding: 24px;
+              border-radius: 12px;
+              margin-bottom: 25px;
+            }
+
+            .brand {
+              font-size: 13px;
+              opacity: 0.85;
+              margin-bottom: 6px;
+            }
+
+            h1 {
+              margin: 0;
+              font-size: 25px;
+            }
+
+            h2 {
+              font-size: 18px;
+              margin-top: 25px;
+            }
+
+            .details {
+              border: 1px solid #e6e8ef;
+              border-radius: 10px;
+              padding: 18px;
+              margin-bottom: 20px;
+            }
+
+            .detail {
+              margin-bottom: 9px;
+            }
+
+            .label {
+              color: #748096;
+              font-size: 11px;
+            }
+
+            .value {
+              font-size: 13px;
+              font-weight: bold;
+            }
+
+            .description {
+              background: #f7f8fc;
+              border-radius: 10px;
+              padding: 15px;
+              margin-top: 12px;
+              line-height: 1.5;
+              font-size: 12px;
+            }
+
+            .summary {
+              display: flex;
+              gap: 10px;
+              margin-bottom: 20px;
+            }
+
+            .summary-card {
+              flex: 1;
+              background: #f7f8fc;
+              border-radius: 10px;
+              padding: 15px;
+              text-align: center;
+            }
+
+            .summary-value {
+              font-size: 20px;
+              font-weight: bold;
+            }
+
+            .summary-label {
+              color: #748096;
+              font-size: 10px;
+              margin-top: 4px;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 15px;
+              font-size: 10px;
+            }
+
+            th {
+              background: #f1eaff;
+              color: #7040D5;
+              padding: 10px;
+              text-align: left;
+            }
+
+            td {
+              border-bottom: 1px solid #eeeeee;
+              padding: 10px;
+            }
+
+            .student-id {
+              color: #748096;
+              font-size: 8px;
+            }
+
+            .submitted {
+              color: #35B878;
+              font-weight: bold;
+            }
+
+            .late {
+              color: #F7941D;
+              font-weight: bold;
+            }
+
+            .pending {
+              color: #E95386;
+              font-weight: bold;
+            }
+
+            .footer {
+              margin-top: 30px;
+              text-align: center;
+              color: #9aa3b2;
+              font-size: 9px;
+            }
+
+          </style>
+
+        </head>
+
+        <body>
+
+          <div class="header">
+
+            <div class="brand">
+              VLCC ERP PORTAL
+            </div>
+
+            <h1>
+              Assignment Details
+            </h1>
+
+          </div>
+
+          <div class="details">
+
+            <div class="detail">
+
+              <span class="label">
+                Assignment
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.title}
+              </span>
+
+            </div>
+
+            <div class="detail">
+
+              <span class="label">
+                Assignment Code
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.code}
+              </span>
+
+            </div>
+
+            <div class="detail">
+
+              <span class="label">
+                Course
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.course}
+              </span>
+
+            </div>
+
+            <div class="detail">
+
+              <span class="label">
+                Batch
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.batch}
+              </span>
+
+            </div>
+
+            <div class="detail">
+
+              <span class="label">
+                Branch
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.branch}
+              </span>
+
+            </div>
+
+            <div class="detail">
+
+              <span class="label">
+                Assigned Date
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.assignedDate}
+              </span>
+
+            </div>
+
+            <div class="detail">
+
+              <span class="label">
+                Due Date
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.dueDate}
+                -
+                ${assignment.dueTime}
+              </span>
+
+            </div>
+
+            <div class="detail">
+
+              <span class="label">
+                Maximum Marks
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.maxMarks}
+              </span>
+
+            </div>
+
+            <div class="description">
+
+              <strong>
+                Assignment Description
+              </strong>
+
+              <br />
+
+              ${assignment.description}
+
+            </div>
+
+          </div>
+
+          <div class="summary">
+
+            <div class="summary-card">
+
+              <div class="summary-value">
+                ${assignment.students}
+              </div>
+
+              <div class="summary-label">
+                Students
+              </div>
+
+            </div>
+
+            <div class="summary-card">
+
+              <div class="summary-value">
+                ${submitted}
+              </div>
+
+              <div class="summary-label">
+                Submitted
+              </div>
+
+            </div>
+
+            <div class="summary-card">
+
+              <div class="summary-value">
+                ${pending}
+              </div>
+
+              <div class="summary-label">
+                Pending
+              </div>
+
+            </div>
+
+            <div class="summary-card">
+
+              <div class="summary-value">
+                ${late}
+              </div>
+
+              <div class="summary-label">
+                Late
+              </div>
+
+            </div>
+
+            <div class="summary-card">
+
+              <div class="summary-value">
+                ${submissionRate}%
+              </div>
+
+              <div class="summary-label">
+                Submission Rate
+              </div>
+
+            </div>
+
+          </div>
+
+          <h2>
+            Student Submission Details
+          </h2>
+
+          ${
+            assignmentSubmissions.length >
+            0
+              ? `
+                <table>
+
+                  <thead>
+
+                    <tr>
+                      <th>#</th>
+                      <th>Student</th>
+                      <th>Submission Date</th>
+                      <th>Status</th>
+                      <th>Marks</th>
+                      <th>Grade</th>
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+                    ${submissionRows}
+                  </tbody>
+
+                </table>
+              `
+              : `
+                <p>
+                  No student submission data is currently available.
+                </p>
+              `
+          }
+
+          <div class="footer">
+            Generated by VLCC ERP Portal
+          </div>
+
+        </body>
+
+      </html>
+    `;
+  };
+
+  /* =====================================================
+     DOWNLOAD PDF
+     ===================================================== */
+
+  const downloadAssignmentPDF = async (
+    assignment: Assignment
+  ) => {
+    try {
+      const { uri } =
+        await Print.printToFileAsync({
+          html:
+            createAssignmentHtml(
+              assignment
+            ),
+        });
+
+      const available =
+        await Sharing.isAvailableAsync();
+
+      if (!available) {
+        Alert.alert(
+          'PDF Generated',
+          'The assignment PDF was generated successfully.'
+        );
+
+        return;
+      }
+
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle:
+          `${assignment.title} - Assignment PDF`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (error) {
+      console.error(
+        'Assignment PDF error:',
+        error
+      );
+
+      Alert.alert(
+        'PDF Error',
+        'Unable to generate the assignment PDF.'
+      );
+    }
+  };
+
+  /* =====================================================
+     STAT CARD
+     ===================================================== */
+
+  const renderSummaryCard = (
+    title: string,
+    value: number,
+    icon: keyof typeof MaterialCommunityIcons.glyphMap,
+    type:
+      | 'purple'
+      | 'blue'
+      | 'green'
+      | 'orange'
+      | 'pink'
+  ) => {
+    const backgrounds = {
+      purple: '#F1EAFF',
+      blue: '#EAF2FF',
+      green: '#E7F8EF',
+      orange: '#FFF1E2',
+      pink: '#FFE9F0',
+    };
+
+    const icons = {
+      purple: '#7040D5',
+      blue: '#2675E8',
+      green: '#35B878',
+      orange: '#F7941D',
+      pink: '#E95386',
+    };
+
+    return (
+      <View
+        style={[
+          styles.summaryCard,
+          {
+            width: isDesktop
+              ? '31.8%'
+              : '48%',
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.summaryIcon,
+            {
+              backgroundColor:
+                backgrounds[type],
+            },
+          ]}
+        >
+          <MaterialCommunityIcons
+            name={icon}
+            size={21}
+            color={icons[type]}
+          />
+        </View>
+
+        <Text style={styles.summaryValue}>
+          {value}
+        </Text>
+
+        <Text style={styles.summaryLabel}>
+          {title}
+        </Text>
+      </View>
+    );
+  };
+
+  /* =====================================================
+     ASSIGNMENT CARD
+     ===================================================== */
+
+  const renderAssignmentCard = (
+    assignment: Assignment
+  ) => {
+    const status =
+      statusColors[
+        assignment.status
+      ];
+
+    const submissionPercentage =
+      assignment.students > 0
+        ? Math.round(
+            (assignment.submitted /
+              assignment.students) *
+              100
+          )
+        : 0;
+
+    return (
+      <View
+        key={assignment.id}
+        style={[
+          styles.assignmentCard,
+          {
+            width: isDesktop
+              ? '48.9%'
+              : '100%',
+          },
+        ]}
+      >
+        <View
+          style={styles.assignmentTop}
+        >
+          <View
+            style={styles.assignmentIcon}
+          >
+            <MaterialCommunityIcons
+              name="clipboard-text-outline"
+              size={24}
+              color="#7040D5"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.moreButton}
+            onPress={() =>
+              openActions(
+                assignment
+              )
+            }
+          >
+            <MaterialCommunityIcons
+              name="dots-vertical"
+              size={21}
+              color="#748096"
+            />
+          </TouchableOpacity>
+        </View>
+
+        <Text
+          style={styles.assignmentTitle}
+          numberOfLines={2}
+        >
+          {assignment.title}
+        </Text>
+
+        <Text
+          style={styles.assignmentCode}
+        >
+          {assignment.code}
+        </Text>
+
+        <View style={styles.infoRow}>
+          <MaterialCommunityIcons
+            name="book-open-outline"
+            size={15}
+            color="#748096"
+          />
+
+          <Text style={styles.infoText}>
+            {assignment.course}
+          </Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <MaterialCommunityIcons
+            name="account-group-outline"
+            size={15}
+            color="#748096"
+          />
+
+          <Text style={styles.infoText}>
+            {assignment.batch}
+          </Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <MaterialCommunityIcons
+            name="office-building-outline"
+            size={15}
+            color="#748096"
+          />
+
+          <Text style={styles.infoText}>
+            {assignment.branch}
+          </Text>
+        </View>
+
+        <View
+          style={styles.dateRow}
+        >
+          <View
+            style={styles.dateItem}
+          >
+            <MaterialCommunityIcons
+              name="calendar-arrow-right"
+              size={15}
+              color="#7040D5"
+            />
+
+            <Text
+              style={styles.dateText}
+            >
+              {assignment.assignedDate}
+            </Text>
+          </View>
+
+          <View
+            style={styles.dateItem}
+          >
+            <MaterialCommunityIcons
+              name="calendar-alert"
+              size={15}
+              color="#E95386"
+            />
+
+            <Text
+              style={styles.dateText}
+            >
+              {assignment.dueDate}
+            </Text>
+          </View>
+        </View>
+
+        <View
+          style={styles.progressSection}
+        >
+          <View
+            style={styles.progressHeader}
+          >
+            <Text
+              style={
+                styles.progressLabel
+              }
+            >
+              Submission Progress
+            </Text>
+
+            <Text
+              style={
+                styles.progressPercentage
+              }
+            >
+              {submissionPercentage}%
+            </Text>
+          </View>
+
+          <View
+            style={styles.progressTrack}
+          >
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${submissionPercentage}%`,
+                },
+              ]}
+            />
+          </View>
+        </View>
+
+        <View
+          style={styles.assignmentBottom}
+        >
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor:
+                  status.bg,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={status.icon}
+              size={13}
+              color={status.text}
+            />
+
+            <Text
+              style={[
+                styles.statusText,
+                {
+                  color: status.text,
+                },
+              ]}
+            >
+              {assignment.status}
+            </Text>
+          </View>
+
+          <Text
+            style={styles.studentCount}
+          >
+            {assignment.submitted}/
+            {assignment.students} Submitted
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={
+            styles.downloadSmallButton
+          }
+          onPress={() =>
+            downloadAssignmentPDF(
+              assignment
+            )
+          }
+        >
+          <MaterialCommunityIcons
+            name="file-pdf-box"
+            size={17}
+            color="#7040D5"
+          />
+
+          <Text
+            style={
+              styles.downloadSmallText
+            }
+          >
+            Download Assignment PDF
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  /* =====================================================
+     SUBMISSIONS
+     ===================================================== */
+
+  const assignmentSubmissions =
+    selectedAssignment
+      ? submissions[
+          selectedAssignment.code
+        ] ?? []
+      : [];
+
+  const submittedCount =
+    assignmentSubmissions.filter(
+      (item) =>
+        item.status ===
+          'Submitted' ||
+        item.status === 'Late'
+    ).length;
+
+  const pendingCount =
+    selectedAssignment
+      ? Math.max(
+          selectedAssignment.students -
+            submittedCount,
+          0
+        )
+      : 0;
+
+  const lateCount =
+    assignmentSubmissions.filter(
+      (item) =>
+        item.status === 'Late'
+    ).length;
+
+  /* =====================================================
+     EVALUATION
+     ===================================================== */
+
+  const openStudentEvaluation = (
+    student: StudentSubmission
+  ) => {
+    setSelectedStudent(student);
+
+    setMarks(
+      student.marks !== null
+        ? String(student.marks)
+        : ''
+    );
+
+    setRemarks('');
+
+    setShowEvaluationModal(true);
+  };
+
+  const saveEvaluation = () => {
+    if (!selectedStudent) {
+      return;
+    }
+
+    if (!marks.trim()) {
+      Alert.alert(
+        'Marks Required',
+        'Please enter marks before saving.'
+      );
+
+      return;
+    }
+
+    const numericMarks =
+      Number(marks);
+
+    if (
+      Number.isNaN(numericMarks) ||
+      numericMarks < 0 ||
+      numericMarks > 100
+    ) {
+      Alert.alert(
+        'Invalid Marks',
+        'Marks must be between 0 and 100.'
+      );
+
+      return;
+    }
+
+    setShowEvaluationModal(
+      false
+    );
+
+    Alert.alert(
+      'Evaluation Saved',
+      `Evaluation saved for ${selectedStudent.studentName}.`
+    );
+  };
+
+  return (
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+        },
+      ]}
+    >
+      {/* =====================================================
+          HEADER
+          ===================================================== */}
+
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() =>
+            router.back()
+          }
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons
+            name="arrow-left"
+            size={22}
+            color="#FFFFFF"
+          />
+        </TouchableOpacity>
+
+        <View
+          style={styles.headerTextContainer}
+        >
+          <Text
+            style={styles.headerTitle}
+          >
+            Assignments
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() =>
+            Alert.alert(
+              'Add Assignment',
+              'Assignment creation form will be available here.'
+            )
+          }
+          activeOpacity={0.85}
+        >
+          <MaterialCommunityIcons
+            name="plus"
+            size={17}
+            color="#7040D5"
+          />
+
+          <Text
+            style={styles.addButtonText}
+            numberOfLines={1}
+          >
+            Add Assignment
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom:
+              insets.bottom + 30,
+          },
+        ]}
+      >
+        {/* =====================================================
+            TITLE
+            ===================================================== */}
+
+        <Text
+          style={styles.managementTitle}
+        >
+          Assignment Management
+        </Text>
+
+        <Text
+          style={styles.managementSubtitle}
+        >
+          Create assignments, track student submissions and evaluate work.
+        </Text>
+
+        {/* =====================================================
+            SUMMARY
+            ===================================================== */}
+
+        <View
+          style={styles.summaryGrid}
+        >
+          {renderSummaryCard(
+            'Total Assignments',
+            totalAssignments,
+            'clipboard-text-multiple-outline',
+            'purple'
+          )}
+
+          {renderSummaryCard(
+            'Active',
+            activeAssignments,
+            'clipboard-check-outline',
+            'green'
+          )}
+
+          {renderSummaryCard(
+            'Upcoming',
+            upcomingAssignments,
+            'calendar-clock',
+            'blue'
+          )}
+
+          {renderSummaryCard(
+            'Due Today',
+            dueToday,
+            'clock-alert-outline',
+            'orange'
+          )}
+
+          {renderSummaryCard(
+            'Submitted',
+            totalSubmitted,
+            'file-check-outline',
+            'green'
+          )}
+
+          {renderSummaryCard(
+            'Pending Evaluation',
+            pendingEvaluation,
+            'clipboard-alert-outline',
+            'pink'
+          )}
+        </View>
+
+        {/* =====================================================
+            SEARCH
+            ===================================================== */}
+
+        <View
+          style={styles.searchContainer}
+        >
+          <View
+            style={styles.searchBox}
+          >
+            <MaterialCommunityIcons
+              name="magnify"
+              size={20}
+              color="#9AA3B2"
+            />
+
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search assignment, course, batch or branch..."
+              placeholderTextColor="#A0A8B5"
+              style={styles.searchInput}
+            />
+
+            {search.length > 0 && (
+              <TouchableOpacity
+                onPress={() =>
+                  setSearch('')
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close-circle"
+                  size={18}
+                  color="#9AA3B2"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* =====================================================
+            FILTERS
+            ===================================================== */}
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.filterContainer
+          }
+        >
+          {[
+            'All',
+            'Active',
+            'Upcoming',
+            'Due Today',
+            'Completed',
+            'Evaluation Pending',
+          ].map((item) => {
+            const active =
+              filter === item;
+
+            return (
+              <TouchableOpacity
+                key={item}
+                style={[
+                  styles.filterButton,
+                  active &&
+                    styles.filterButtonActive,
+                ]}
+                onPress={() =>
+                  setFilter(
+                    item as
+                      | 'All'
+                      | AssignmentStatus
+                  )
+                }
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    active &&
+                      styles.filterTextActive,
+                  ]}
+                >
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* =====================================================
+            LIST
+            ===================================================== */}
+
+        {filteredAssignments.length ===
+        0 ? (
+          <View
+            style={styles.emptyState}
+          >
+            <MaterialCommunityIcons
+              name="clipboard-search-outline"
+              size={48}
+              color="#B1B8C5"
+            />
+
+            <Text
+              style={styles.emptyTitle}
+            >
+              No assignments found
+            </Text>
+
+            <Text
+              style={styles.emptySubtitle}
+            >
+              Try changing your search or filter.
+            </Text>
+          </View>
+        ) : (
+          <View
+            style={styles.assignmentGrid}
+          >
+            {filteredAssignments.map(
+              renderAssignmentCard
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* =====================================================
+          ACTION MODAL
+          ===================================================== */}
+
+      <Modal
+        visible={showActions}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setShowActions(false)
+        }
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() =>
+            setShowActions(false)
+          }
+        >
+          <Pressable
+            style={styles.actionModal}
+            onPress={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <View
+              style={styles.modalHandle}
+            />
+
+            <Text
+              style={styles.modalTitle}
+            >
+              Assignment Actions
+            </Text>
+
+            <Text
+              style={styles.modalSubtitle}
+              numberOfLines={2}
+            >
+              {selectedAssignment?.title}
+            </Text>
+
+            {/* VIEW */}
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => {
+                if (
+                  selectedAssignment
+                ) {
+                  openView(
+                    selectedAssignment
+                  );
+                }
+              }}
+            >
+              <View
+                style={styles.actionIcon}
+              >
+                <MaterialCommunityIcons
+                  name="eye-outline"
+                  size={20}
+                  color="#7040D5"
+                />
+              </View>
+
+              <Text
+                style={styles.actionText}
+              >
+                View Assignment
+              </Text>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#A0A8B5"
+              />
+            </TouchableOpacity>
+
+            {/* EDIT */}
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => {
+                if (
+                  selectedAssignment
+                ) {
+                  openEdit(
+                    selectedAssignment
+                  );
+                }
+              }}
+            >
+              <View
+                style={styles.actionIcon}
+              >
+                <MaterialCommunityIcons
+                  name="pencil-outline"
+                  size={20}
+                  color="#2675E8"
+                />
+              </View>
+
+              <Text
+                style={styles.actionText}
+              >
+                Edit Assignment
+              </Text>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#A0A8B5"
+              />
+            </TouchableOpacity>
+
+            {/* SUBMISSIONS */}
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => {
+                if (
+                  selectedAssignment
+                ) {
+                  openSubmissions(
+                    selectedAssignment
+                  );
+                }
+              }}
+            >
+              <View
+                style={styles.actionIcon}
+              >
+                <MaterialCommunityIcons
+                  name="file-document-multiple-outline"
+                  size={20}
+                  color="#35B878"
+                />
+              </View>
+
+              <Text
+                style={styles.actionText}
+              >
+                View Submissions
+              </Text>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#A0A8B5"
+              />
+            </TouchableOpacity>
+
+            {/* EVALUATE */}
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => {
+                if (
+                  selectedAssignment
+                ) {
+                  openEvaluation(
+                    selectedAssignment
+                  );
+                }
+              }}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  {
+                    backgroundColor:
+                      '#FFF1E2',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="clipboard-check-outline"
+                  size={20}
+                  color="#F7941D"
+                />
+              </View>
+
+              <Text
+                style={styles.actionText}
+              >
+                Evaluate
+              </Text>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#A0A8B5"
+              />
+            </TouchableOpacity>
+
+            {/* DOWNLOAD PDF */}
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => {
+                if (
+                  selectedAssignment
+                ) {
+                  setShowActions(
+                    false
+                  );
+
+                  downloadAssignmentPDF(
+                    selectedAssignment
+                  );
+                }
+              }}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  {
+                    backgroundColor:
+                      '#F1EAFF',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="file-pdf-box"
+                  size={20}
+                  color="#7040D5"
+                />
+              </View>
+
+              <Text
+                style={styles.actionText}
+              >
+                Download Assignment PDF
+              </Text>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#A0A8B5"
+              />
+            </TouchableOpacity>
+
+            {/* DELETE */}
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => {
+                if (
+                  selectedAssignment
+                ) {
+                  deleteAssignment(
+                    selectedAssignment
+                  );
+                }
+              }}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  {
+                    backgroundColor:
+                      '#FFE9F0',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="delete-outline"
+                  size={20}
+                  color="#E95386"
+                />
+              </View>
+
+              <Text
+                style={[
+                  styles.actionText,
+                  {
+                    color: '#E95386',
+                  },
+                ]}
+              >
+                Delete Assignment
+              </Text>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#A0A8B5"
+              />
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* =====================================================
+          VIEW ASSIGNMENT
+          ===================================================== */}
+
+      <Modal
+        visible={showViewModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setShowViewModal(false)
+        }
+      >
+        <View
+          style={styles.modalOverlay}
+        >
+          <View
+            style={[
+              styles.largeModal,
+              {
+                maxHeight: '90%',
+                width: isDesktop
+                  ? 650
+                  : '94%',
+              },
+            ]}
+          >
+            <View
+              style={styles.modalHeader}
+            >
+              <View
+                style={{ flex: 1 }}
+              >
+                <Text
+                  style={styles.modalTitle}
+                >
+                  Assignment Details
+                </Text>
+
+                <Text
+                  style={styles.modalSubtitle}
+                >
+                  {
+                    selectedAssignment?.code
+                  }
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setShowViewModal(
+                    false
+                  )
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={24}
+                  color="#748096"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {selectedAssignment && (
+              <ScrollView
+                showsVerticalScrollIndicator={
+                  false
+                }
+              >
+                <View
+                  style={
+                    styles.viewAssignmentHeader
+                  }
+                >
+                  <View
+                    style={
+                      styles.viewAssignmentIcon
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name="clipboard-text-outline"
+                      size={27}
+                      color="#7040D5"
+                    />
+                  </View>
+
+                  <View
+                    style={{ flex: 1 }}
+                  >
+                    <Text
+                      style={
+                        styles.detailTitle
+                      }
+                    >
+                      {
+                        selectedAssignment.title
+                      }
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.assignmentCode
+                      }
+                    >
+                      {
+                        selectedAssignment.code
+                      }
+                    </Text>
+                  </View>
+                </View>
+
+                <View
+                  style={
+                    styles.detailGrid
+                  }
+                >
+                  <View
+                    style={
+                      styles.detailBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Course
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailValue
+                      }
+                    >
+                      {
+                        selectedAssignment.course
+                      }
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.detailBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Batch
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailValue
+                      }
+                    >
+                      {
+                        selectedAssignment.batch
+                      }
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.detailBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Branch
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailValue
+                      }
+                    >
+                      {
+                        selectedAssignment.branch
+                      }
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.detailBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Maximum Marks
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailValue
+                      }
+                    >
+                      {
+                        selectedAssignment.maxMarks
+                      }
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.detailBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Assigned Date
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailValue
+                      }
+                    >
+                      {
+                        selectedAssignment.assignedDate
+                      }
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.detailBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailLabel
+                      }
+                    >
+                      Due Date
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailValue
+                      }
+                    >
+                      {
+                        selectedAssignment.dueDate
+                      }
+                    </Text>
+                  </View>
+                </View>
+
+                <Text
+                  style={
+                    styles.descriptionTitle
+                  }
+                >
+                  Assignment Description
+                </Text>
+
+                <View
+                  style={
+                    styles.descriptionBox
+                  }
+                >
+                  <Text
+                    style={
+                      styles.descriptionText
+                    }
+                  >
+                    {
+                      selectedAssignment.description
+                    }
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.submissionOverview
+                  }
+                >
+                  <View
+                    style={
+                      styles.overviewItem
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.overviewValue
+                      }
+                    >
+                      {
+                        selectedAssignment.students
+                      }
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.overviewLabel
+                      }
+                    >
+                      Students
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.overviewItem
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.overviewValue,
+                        {
+                          color:
+                            '#35B878',
+                        },
+                      ]}
+                    >
+                      {
+                        selectedAssignment.submitted
+                      }
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.overviewLabel
+                      }
+                    >
+                      Submitted
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.overviewItem
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.overviewValue,
+                        {
+                          color:
+                            '#E95386',
+                        },
+                      ]}
+                    >
+                      {
+                        selectedAssignment.pending
+                      }
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.overviewLabel
+                      }
+                    >
+                      Pending
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.overviewItem
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.overviewValue,
+                        {
+                          color:
+                            '#F7941D',
+                        },
+                      ]}
+                    >
+                      {
+                        selectedAssignment.late
+                      }
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.overviewLabel
+                      }
+                    >
+                      Late
+                    </Text>
+                  </View>
+                </View>
+
+                {/* DOWNLOAD BUTTON */}
+                <TouchableOpacity
+                  style={
+                    styles.downloadResultButton
+                  }
+                  onPress={() =>
+                    downloadAssignmentPDF(
+                      selectedAssignment
+                    )
+                  }
+                >
+                  <MaterialCommunityIcons
+                    name="file-pdf-box"
+                    size={21}
+                    color="#FFFFFF"
+                  />
+
+                  <Text
+                    style={
+                      styles.downloadResultButtonText
+                    }
+                  >
+                    Download Assignment PDF
+                  </Text>
+                </TouchableOpacity>
+
+                {/* SUBMISSIONS BUTTON */}
+                <TouchableOpacity
+                  style={
+                    styles.viewSubmissionsButton
+                  }
+                  onPress={() =>
+                    openSubmissions(
+                      selectedAssignment
+                    )
+                  }
+                >
+                  <MaterialCommunityIcons
+                    name="file-document-multiple-outline"
+                    size={19}
+                    color="#7040D5"
+                  />
+
+                  <Text
+                    style={
+                      styles.viewSubmissionsButtonText
+                    }
+                  >
+                    View Submissions
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* =====================================================
+          EDIT MODAL
+          ===================================================== */}
+
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setShowEditModal(false)
+        }
+      >
+        <View
+          style={styles.modalOverlay}
+        >
+          <View
+            style={[
+              styles.largeModal,
+              {
+                width: isDesktop
+                  ? 600
+                  : '94%',
+              },
+            ]}
+          >
+            <View
+              style={styles.modalHeader}
+            >
+              <View>
+                <Text
+                  style={styles.modalTitle}
+                >
+                  Edit Assignment
+                </Text>
+
+                <Text
+                  style={styles.modalSubtitle}
+                >
+                  Update assignment information
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setShowEditModal(
+                    false
+                  )
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={24}
+                  color="#748096"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {selectedAssignment && (
+              <ScrollView
+                showsVerticalScrollIndicator={
+                  false
+                }
+              >
+                <Text
+                  style={styles.inputLabel}
+                >
+                  Assignment Title
+                </Text>
+
+                <TextInput
+                  defaultValue={
+                    selectedAssignment.title
+                  }
+                  style={styles.input}
+                />
+
+                <Text
+                  style={styles.inputLabel}
+                >
+                  Course
+                </Text>
+
+                <TextInput
+                  defaultValue={
+                    selectedAssignment.course
+                  }
+                  style={styles.input}
+                />
+
+                <Text
+                  style={styles.inputLabel}
+                >
+                  Batch
+                </Text>
+
+                <TextInput
+                  defaultValue={
+                    selectedAssignment.batch
+                  }
+                  style={styles.input}
+                />
+
+                <Text
+                  style={styles.inputLabel}
+                >
+                  Branch
+                </Text>
+
+                <TextInput
+                  defaultValue={
+                    selectedAssignment.branch
+                  }
+                  style={styles.input}
+                />
+
+                <Text
+                  style={styles.inputLabel}
+                >
+                  Description
+                </Text>
+
+                <TextInput
+                  defaultValue={
+                    selectedAssignment.description
+                  }
+                  multiline
+                  textAlignVertical="top"
+                  style={[
+                    styles.input,
+                    {
+                      minHeight: 90,
+                      paddingTop: 11,
+                    },
+                  ]}
+                />
+
+                <View
+                  style={styles.twoInputs}
+                >
+                  <View
+                    style={{ flex: 1 }}
+                  >
+                    <Text
+                      style={
+                        styles.inputLabel
+                      }
+                    >
+                      Assigned Date
+                    </Text>
+
+                    <TextInput
+                      defaultValue={
+                        selectedAssignment.assignedDate
+                      }
+                      style={styles.input}
+                    />
+                  </View>
+
+                  <View
+                    style={{ flex: 1 }}
+                  >
+                    <Text
+                      style={
+                        styles.inputLabel
+                      }
+                    >
+                      Due Date
+                    </Text>
+
+                    <TextInput
+                      defaultValue={
+                        selectedAssignment.dueDate
+                      }
+                      style={styles.input}
+                    />
+                  </View>
+                </View>
+
+                <Text
+                  style={styles.inputLabel}
+                >
+                  Maximum Marks
+                </Text>
+
+                <TextInput
+                  defaultValue={String(
+                    selectedAssignment.maxMarks
+                  )}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+
+                <TouchableOpacity
+                  style={
+                    styles.saveButton
+                  }
+                  onPress={() => {
+                    setShowEditModal(
+                      false
+                    );
+
+                    Alert.alert(
+                      'Updated',
+                      'Assignment details have been updated successfully.'
+                    );
+                  }}
+                >
+                  <Text
+                    style={
+                      styles.saveButtonText
+                    }
+                  >
+                    Save Changes
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* =====================================================
+          SUBMISSIONS MODAL
+          ===================================================== */}
+
+      <Modal
+        visible={
+          showSubmissionsModal
+        }
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setShowSubmissionsModal(
+            false
+          )
+        }
+      >
+        <View
+          style={styles.modalOverlay}
+        >
+          <View
+            style={[
+              styles.resultsModal,
+              {
+                width: isDesktop
+                  ? 760
+                  : '96%',
+                maxHeight: '92%',
+              },
+            ]}
+          >
+            <View
+              style={styles.modalHeader}
+            >
+              <View
+                style={{ flex: 1 }}
+              >
+                <Text
+                  style={styles.modalTitle}
+                >
+                  Student Submissions
+                </Text>
+
+                <Text
+                  style={styles.modalSubtitle}
+                  numberOfLines={2}
+                >
+                  {
+                    selectedAssignment?.title
+                  }
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setShowSubmissionsModal(
+                    false
+                  )
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={27}
+                  color="#748096"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* SUBMISSION SUMMARY */}
+            <View
+              style={
+                styles.resultSummaryContainer
+              }
+            >
+              <View
+                style={
+                  styles.resultSummaryCard
+                }
+              >
+                <Text
+                  style={
+                    styles.resultSummaryValue
+                  }
+                >
+                  {
+                    selectedAssignment?.students ??
+                    0
+                  }
+                </Text>
+
+                <Text
+                  style={
+                    styles.resultSummaryLabel
+                  }
+                >
+                  Students
+                </Text>
+              </View>
+
+              <View
+                style={
+                  styles.resultSummaryCard
+                }
+              >
+                <Text
+                  style={[
+                    styles.resultSummaryValue,
+                    {
+                      color:
+                        '#35B878',
+                    },
+                  ]}
+                >
+                  {submittedCount}
+                </Text>
+
+                <Text
+                  style={
+                    styles.resultSummaryLabel
+                  }
+                >
+                  Submitted
+                </Text>
+              </View>
+
+              <View
+                style={
+                  styles.resultSummaryCard
+                }
+              >
+                <Text
+                  style={[
+                    styles.resultSummaryValue,
+                    {
+                      color:
+                        '#E95386',
+                    },
+                  ]}
+                >
+                  {pendingCount}
+                </Text>
+
+                <Text
+                  style={
+                    styles.resultSummaryLabel
+                  }
+                >
+                  Pending
+                </Text>
+              </View>
+
+              <View
+                style={
+                  styles.resultSummaryCard
+                }
+              >
+                <Text
+                  style={[
+                    styles.resultSummaryValue,
+                    {
+                      color:
+                        '#F7941D',
+                    },
+                  ]}
+                >
+                  {lateCount}
+                </Text>
+
+                <Text
+                  style={
+                    styles.resultSummaryLabel
+                  }
+                >
+                  Late
+                </Text>
+              </View>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={
+                false
+              }
+              contentContainerStyle={{
+                paddingBottom: 10,
+              }}
+            >
+              {assignmentSubmissions.length >
+              0 ? (
+                assignmentSubmissions.map(
+                  (student) => (
+                    <View
+                      key={
+                        student.id
+                      }
+                      style={
+                        styles.submissionCard
+                      }
+                    >
+                      <View
+                        style={
+                          styles.submissionTop
+                        }
+                      >
+                        <View
+                          style={
+                            styles.studentAvatar
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.studentAvatarText
+                            }
+                          >
+                            {student.studentName
+                              .charAt(
+                                0
+                              )
+                              .toUpperCase()}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={
+                            styles.studentInfo
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.studentName
+                            }
+                          >
+                            {
+                              student.studentName
+                            }
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.studentId
+                            }
+                          >
+                            {
+                              student.studentId
+                            }
+                          </Text>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.submissionStatus,
+                            {
+                              backgroundColor:
+                                student.status ===
+                                'Submitted'
+                                  ? '#E7F8EF'
+                                  : student.status ===
+                                    'Late'
+                                  ? '#FFF1E2'
+                                  : '#FFE9F0',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.submissionStatusText,
+                              {
+                                color:
+                                  student.status ===
+                                  'Submitted'
+                                    ? '#35B878'
+                                    : student.status ===
+                                      'Late'
+                                    ? '#F7941D'
+                                    : '#E95386',
+                              },
+                            ]}
+                          >
+                            {
+                              student.status
+                            }
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={
+                          styles.submissionBottom
+                        }
+                      >
+                        <View
+                          style={
+                            styles.submissionDetail
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.submissionLabel
+                            }
+                          >
+                            Submitted
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.submissionValue
+                            }
+                          >
+                            {
+                              student.submissionDate
+                            }
+                          </Text>
+                        </View>
+
+                        <View
+                          style={
+                            styles.submissionDetail
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.submissionLabel
+                            }
+                          >
+                            Marks
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.submissionValue
+                            }
+                          >
+                            {student.marks ??
+                              '-'}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={
+                            styles.submissionDetail
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.submissionLabel
+                            }
+                          >
+                            Grade
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.submissionValue,
+                              {
+                                color:
+                                  '#7040D5',
+                              },
+                            ]}
+                          >
+                            {
+                              student.grade
+                            }
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          style={
+                            styles.evaluateButton
+                          }
+                          onPress={() =>
+                            openStudentEvaluation(
+                              student
+                            )
+                          }
+                        >
+                          <MaterialCommunityIcons
+                            name="clipboard-check-outline"
+                            size={16}
+                            color="#FFFFFF"
+                          />
+
+                          <Text
+                            style={
+                              styles.evaluateButtonText
+                            }
+                          >
+                            Evaluate
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )
+                )
+              ) : (
+                <View
+                  style={
+                    styles.noSubmissionState
+                  }
+                >
+                  <MaterialCommunityIcons
+                    name="file-clock-outline"
+                    size={42}
+                    color="#AAB2C0"
+                  />
+
+                  <Text
+                    style={
+                      styles.noSubmissionTitle
+                    }
+                  >
+                    No submissions yet
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.noSubmissionText
+                    }
+                  >
+                    Students have not submitted this assignment yet.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* =====================================================
+          EVALUATION MODAL
+          ===================================================== */}
+
+      <Modal
+        visible={
+          showEvaluationModal
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setShowEvaluationModal(
+            false
+          )
+        }
+      >
+        <View
+          style={styles.modalOverlay}
+        >
+          <View
+            style={[
+              styles.evaluationModal,
+              {
+                width: isDesktop
+                  ? 480
+                  : '92%',
+              },
+            ]}
+          >
+            <View
+              style={styles.modalHeader}
+            >
+              <View>
+                <Text
+                  style={styles.modalTitle}
+                >
+                  Evaluate Student
+                </Text>
+
+                <Text
+                  style={styles.modalSubtitle}
+                >
+                  {
+                    selectedStudent?.studentName
+                  }
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setShowEvaluationModal(
+                    false
+                  )
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={24}
+                  color="#748096"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <Text
+              style={styles.inputLabel}
+            >
+              Marks
+            </Text>
+
+            <TextInput
+              value={marks}
+              onChangeText={setMarks}
+              keyboardType="numeric"
+              placeholder="Enter marks out of 100"
+              placeholderTextColor="#A0A8B5"
+              style={styles.input}
+            />
+
+            <Text
+              style={styles.inputLabel}
+            >
+              Remarks
+            </Text>
+
+            <TextInput
+              value={remarks}
+              onChangeText={setRemarks}
+              multiline
+              textAlignVertical="top"
+              placeholder="Add evaluation remarks..."
+              placeholderTextColor="#A0A8B5"
+              style={[
+                styles.input,
+                {
+                  minHeight: 90,
+                  paddingTop: 11,
+                },
+              ]}
+            />
+
+            <TouchableOpacity
+              style={
+                styles.saveButton
+              }
+              onPress={
+                saveEvaluation
+              }
+            >
+              <Text
+                style={
+                  styles.saveButtonText
+                }
+              >
+                Save Evaluation
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  /* =====================================================
+     MAIN
+     ===================================================== */
+
+  container: {
+    flex: 1,
+    backgroundColor: '#F7F8FC',
+  },
+
+  /* =====================================================
+     HEADER
+     ===================================================== */
+
+  header: {
+    minHeight: 72,
+    backgroundColor: '#7040D5',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  backButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 7,
+  },
+
+  headerTextContainer: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 7,
+    justifyContent: 'center',
+  },
+
+  headerTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 20,
+    color: '#FFFFFF',
+  },
+
+  addButton: {
+    minHeight: 34,
+    width: 126,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    paddingHorizontal: 9,
+    marginLeft: 8,
+  },
+
+  addButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 9.5,
+    color: '#7040D5',
+    marginLeft: 4,
+    flexShrink: 1,
+  },
+
+  /* =====================================================
+     CONTENT
+     ===================================================== */
+
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+
+  managementTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 20,
+    color: '#172033',
+  },
+
+  managementSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    color: '#748096',
+    marginTop: 3,
+    marginBottom: 17,
+  },
+
+  /* =====================================================
+     SUMMARY
+     ===================================================== */
+
+  summaryGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+
+  summaryCard: {
+    minHeight: 105,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+    padding: 13,
+
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 7,
+    elevation: 2,
+  },
+
+  summaryIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  summaryValue: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 19,
+    color: '#172033',
+    marginTop: 7,
+  },
+
+  summaryLabel: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 8.5,
+    color: '#748096',
+    marginTop: 1,
+  },
+
+  /* =====================================================
+     SEARCH
+     ===================================================== */
+
+  searchContainer: {
+    marginTop: 18,
+  },
+
+  searchBox: {
+    minHeight: 45,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7EAF0',
+    borderRadius: 11,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  searchInput: {
+    flex: 1,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    color: '#172033',
+    marginLeft: 8,
+    paddingVertical: 8,
+  },
+
+  /* =====================================================
+     FILTER
+     ===================================================== */
+
+  filterContainer: {
+    paddingVertical: 14,
+    gap: 8,
+  },
+
+  filterButton: {
+    paddingHorizontal: 14,
+    minHeight: 34,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#E3E6ED',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+  },
+
+  filterButtonActive: {
+    backgroundColor: '#7040D5',
+    borderColor: '#7040D5',
+  },
+
+  filterText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9,
+    color: '#748096',
+  },
+
+  filterTextActive: {
+    color: '#FFFFFF',
+  },
+
+  /* =====================================================
+     ASSIGNMENT CARD
+     ===================================================== */
+
+  assignmentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 13,
+    justifyContent: 'space-between',
+  },
+
+  assignmentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+    padding: 15,
+
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
+  assignmentTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  assignmentIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 13,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  moreButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: '#F7F8FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  assignmentTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#172033',
+    marginTop: 12,
+  },
+
+  assignmentCode: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 8.5,
+    color: '#7040D5',
+    marginTop: 2,
+  },
+
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+
+  infoText: {
+    flex: 1,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+    color: '#748096',
+    marginLeft: 7,
+  },
+
+  dateRow: {
+    marginTop: 13,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F1F5',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  dateItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  dateText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 7.8,
+    color: '#566176',
+    marginLeft: 5,
+  },
+
+  progressSection: {
+    marginTop: 13,
+  },
+
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  progressLabel: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 7.8,
+    color: '#748096',
+  },
+
+  progressPercentage: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 8,
+    color: '#7040D5',
+  },
+
+  progressTrack: {
+    height: 6,
+    borderRadius: 5,
+    backgroundColor: '#ECEEF3',
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#7040D5',
+    borderRadius: 5,
+  },
+
+  assignmentBottom: {
+    marginTop: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  statusBadge: {
+    minHeight: 27,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  statusText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 7.8,
+    marginLeft: 4,
+  },
+
+  studentCount: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 8,
+    color: '#748096',
+  },
+
+  downloadSmallButton: {
+    height: 36,
+    borderRadius: 9,
+    backgroundColor: '#F1EAFF',
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  downloadSmallText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 8.3,
+    color: '#7040D5',
+    marginLeft: 5,
+  },
+
+  /* =====================================================
+     EMPTY
+     ===================================================== */
+
+  emptyState: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    minHeight: 250,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+  },
+
+  emptyTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 14,
+    color: '#172033',
+    marginTop: 12,
+  },
+
+  emptySubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    color: '#748096',
+    marginTop: 3,
+  },
+
+  /* =====================================================
+     MODALS
+     ===================================================== */
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor:
+      'rgba(20, 24, 35, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+
+  actionModal: {
+    width: '94%',
+    maxWidth: 500,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+  },
+
+  modalHandle: {
+    width: 35,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: '#D9DDE5',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+
+  modalTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 17,
+    color: '#172033',
+  },
+
+  modalSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
+    color: '#748096',
+    marginTop: 2,
+  },
+
+  actionItem: {
+    minHeight: 54,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F1F5',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  actionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  actionText: {
+    flex: 1,
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10,
+    color: '#172033',
+    marginLeft: 11,
+  },
+
+  largeModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 19,
+  },
+
+  detailTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 16,
+    color: '#172033',
+  },
+
+  detailGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 15,
+  },
+
+  detailBox: {
+    width: '48%',
+    minHeight: 70,
+    backgroundColor: '#F7F8FC',
+    borderRadius: 11,
+    padding: 11,
+  },
+
+  detailLabel: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 8,
+    color: '#748096',
+  },
+
+  detailValue: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
+    color: '#172033',
+    marginTop: 5,
+  },
+
+  viewAssignmentHeader: {
+    backgroundColor: '#F7F4FF',
+    borderRadius: 13,
+    padding: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  viewAssignmentIcon: {
+    width: 49,
+    height: 49,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  descriptionTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+    color: '#172033',
+    marginTop: 18,
+    marginBottom: 8,
+  },
+
+  descriptionBox: {
+    backgroundColor: '#F7F8FC',
+    borderRadius: 11,
+    padding: 13,
+  },
+
+  descriptionText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
+    lineHeight: 16,
+    color: '#566176',
+  },
+
+  submissionOverview: {
+    flexDirection: 'row',
+    marginTop: 14,
+    gap: 8,
+  },
+
+  overviewItem: {
+    flex: 1,
+    minHeight: 68,
+    borderRadius: 10,
+    backgroundColor: '#F7F8FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  overviewValue: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 17,
+    color: '#172033',
+  },
+
+  overviewLabel: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 7.5,
+    color: '#748096',
+    marginTop: 2,
+  },
+
+  downloadResultButton: {
+    height: 45,
+    borderRadius: 10,
+    backgroundColor: '#7040D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginTop: 16,
+  },
+
+  downloadResultButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 9.5,
+    color: '#FFFFFF',
+    marginLeft: 6,
+  },
+
+  viewSubmissionsButton: {
+    height: 43,
+    borderRadius: 10,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+
+  viewSubmissionsButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 9.5,
+    color: '#7040D5',
+    marginLeft: 6,
+  },
+
+  /* =====================================================
+     EDIT
+     ===================================================== */
+
+  inputLabel: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9,
+    color: '#566176',
+    marginBottom: 5,
+    marginTop: 8,
+  },
+
+  input: {
+    minHeight: 43,
+    borderWidth: 1,
+    borderColor: '#E3E6ED',
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    color: '#172033',
+  },
+
+  twoInputs: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  saveButton: {
+    height: 45,
+    borderRadius: 10,
+    backgroundColor: '#7040D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+
+  saveButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+
+  /* =====================================================
+     SUBMISSIONS
+     ===================================================== */
+
+  resultsModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+  },
+
+  resultSummaryContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 2,
+    marginBottom: 12,
+  },
+
+  resultSummaryCard: {
+    flex: 1,
+    minHeight: 68,
+    borderRadius: 11,
+    backgroundColor: '#F7F8FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  resultSummaryValue: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 17,
+    color: '#172033',
+  },
+
+  resultSummaryLabel: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 7.5,
+    color: '#748096',
+    marginTop: 2,
+  },
+
+  submissionCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+    borderRadius: 12,
+    padding: 11,
+    marginBottom: 9,
+  },
+
+  submissionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  studentAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  studentAvatarText: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 12,
+    color: '#7040D5',
+  },
+
+  studentInfo: {
+    flex: 1,
+    marginLeft: 9,
+  },
+
+  studentName: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
+    color: '#172033',
+  },
+
+  studentId: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 7.5,
+    color: '#8B94A5',
+    marginTop: 1,
+  },
+
+  submissionStatus: {
+    minWidth: 56,
+    height: 25,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+  },
+
+  submissionStatusText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 7.5,
+  },
+
+  submissionBottom: {
+    marginTop: 10,
+    paddingTop: 9,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F1F5',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  submissionDetail: {
+    flex: 1,
+  },
+
+  submissionLabel: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 7,
+    color: '#8B94A5',
+  },
+
+  submissionValue: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 9,
+    color: '#172033',
+    marginTop: 2,
+  },
+
+  evaluateButton: {
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#7040D5',
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  evaluateButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 7.5,
+    color: '#FFFFFF',
+    marginLeft: 4,
+  },
+
+  noSubmissionState: {
+    minHeight: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+
+  noSubmissionTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 13,
+    color: '#172033',
+    marginTop: 10,
+  },
+
+  noSubmissionText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
+    color: '#748096',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+
+  /* =====================================================
+     EVALUATION
+     ===================================================== */
+
+  evaluationModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 19,
+  },
+});

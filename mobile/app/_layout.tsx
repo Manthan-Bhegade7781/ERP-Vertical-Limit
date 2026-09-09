@@ -31,14 +31,11 @@ import {
   useAuth,
 } from '@/context/AuthContext';
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const {
+    user,
     isLoading,
     isAuthenticated,
   } = useAuth();
@@ -53,31 +50,49 @@ function RootNavigator() {
 
     const firstSegment = segments[0];
 
-    const inAuthGroup =
-      firstSegment === '(auth)';
+    const inAuthGroup = firstSegment === '(auth)';
+    const inTabsGroup = firstSegment === '(tabs)';
+    const inSuperAdminRoute = firstSegment === '(super_admin)';
 
-    const inTabsGroup =
-      firstSegment === '(tabs)';
+    const isSuperAdmin =
+      user?.roles?.includes('super_admin') ?? false;
 
-    // Logged in → don't allow Auth screens
-    if (
-      isAuthenticated &&
-      inAuthGroup
-    ) {
-      router.replace('/(tabs)');
+    const isTeacher =
+      user?.roles?.includes('teacher') ?? false;
+
+    // Not authenticated → only allow Auth screens
+    if (!isAuthenticated) {
+      if (!inAuthGroup) {
+        router.replace('/(auth)');
+      }
+
       return;
     }
 
-    // Logged out → don't allow Dashboard
-    if (
-      !isAuthenticated &&
-      inTabsGroup
-    ) {
-      router.replace('/(auth)');
+    // Super Admin → only allow Super Admin Dashboard
+    if (isSuperAdmin) {
+      if (!inSuperAdminRoute) {
+        router.replace('/(super_admin)');
+      }
+
+      return;
     }
+
+    // Teacher → only allow Teacher Dashboard
+    if (isTeacher) {
+      if (!inTabsGroup) {
+        router.replace('/(tabs)');
+      }
+
+      return;
+    }
+
+    // Authenticated user with an unsupported role
+    router.replace('/(auth)');
   }, [
     isLoading,
     isAuthenticated,
+    user,
     segments,
     router,
   ]);
@@ -97,6 +112,13 @@ function RootNavigator() {
 
       <Stack.Screen
         name="(tabs)"
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="(super_admin)"
         options={{
           headerShown: false,
         }}
