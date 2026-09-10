@@ -27,13 +27,18 @@ import AddLectureLog from './QuickActions/AddLectureLog';
 
 import BatchesPage from './Batches/BatchesPage';
 
+import StudentsPage from './Students/StudentsPage';
+
+import ReportsPage from './Reports/ReportsPage';
+
 type TabName =
   | 'home'
   | 'batches'
   | 'students'
   | 'profile'
   | 'attendance'
-  | 'lectureLog';
+  | 'lectureLog'
+  | 'reports';
 
 export default function TeacherDashboard() {
   const insets = useSafeAreaInsets();
@@ -55,6 +60,16 @@ export default function TeacherDashboard() {
     useState('+91 98765 43210');
 
   /* =====================================
+     SELECTED STUDENT FOR REPORT
+  ===================================== */
+
+  const [selectedStudentId, setSelectedStudentId] =
+    useState<string | undefined>(undefined);
+
+  const [selectedStudentName, setSelectedStudentName] =
+    useState<string | undefined>(undefined);
+
+  /* =====================================
      BOTTOM NAV ANIMATION
   ===================================== */
 
@@ -71,10 +86,7 @@ export default function TeacherDashboard() {
     82 + insets.bottom;
 
   /* =====================================
-     SCROLL HANDLER
-     
-     Scroll down page -> hide bottom nav
-     Scroll up page   -> show bottom nav
+     LINKEDIN STYLE SCROLL
   ===================================== */
 
   const handleContentScroll = (
@@ -86,11 +98,6 @@ export default function TeacherDashboard() {
     const difference =
       currentScrollY -
       lastScrollY.current;
-
-    /*
-      Always show navbar when the user
-      reaches the top of the page.
-    */
 
     if (currentScrollY <= 5) {
       if (isBottomNavHidden.current) {
@@ -112,18 +119,11 @@ export default function TeacherDashboard() {
       return;
     }
 
-    /*
-      Ignore tiny movements.
-    */
-
     if (Math.abs(difference) < 4) {
       return;
     }
 
-    /*
-      User is scrolling DOWN the content.
-      Hide bottom navigation.
-    */
+    /* Scroll DOWN -> hide */
 
     if (difference > 0) {
       if (!isBottomNavHidden.current) {
@@ -140,10 +140,7 @@ export default function TeacherDashboard() {
       }
     }
 
-    /*
-      User is scrolling UP the content.
-      Show bottom navigation.
-    */
+    /* Scroll UP -> show */
 
     else {
       if (isBottomNavHidden.current) {
@@ -165,7 +162,7 @@ export default function TeacherDashboard() {
   };
 
   /* =====================================
-     RESET BOTTOM NAV
+     RESET NAVBAR
   ===================================== */
 
   const resetBottomNav = () => {
@@ -177,7 +174,7 @@ export default function TeacherDashboard() {
   };
 
   /* =====================================
-     TAB CHANGE
+     CHANGE TAB
   ===================================== */
 
   const handleTabChange = (
@@ -186,6 +183,23 @@ export default function TeacherDashboard() {
     resetBottomNav();
 
     setActiveTab(tab);
+  };
+
+  /* =====================================
+     OPEN STUDENT REPORT
+  ===================================== */
+
+  const handleStudentReportPress = (
+    studentId: string,
+    studentName: string,
+  ) => {
+    setSelectedStudentId(studentId);
+
+    setSelectedStudentName(studentName);
+
+    resetBottomNav();
+
+    setActiveTab('reports');
   };
 
   /* =====================================
@@ -234,10 +248,6 @@ export default function TeacherDashboard() {
         }}
 
         onProfilePress={() => {
-          console.log(
-            'HEADER PROFILE PRESSED',
-          );
-
           resetBottomNav();
 
           setActiveTab('profile');
@@ -245,7 +255,7 @@ export default function TeacherDashboard() {
       />
 
       {/* =================================
-          HOME PAGE
+          HOME
       ================================= */}
 
       {activeTab === 'home' && (
@@ -270,7 +280,6 @@ export default function TeacherDashboard() {
             handleContentScroll
           }
         >
-
           <OverviewSection />
 
           <ScheduleSection
@@ -282,7 +291,6 @@ export default function TeacherDashboard() {
           />
 
           <QuickActionsSection
-
             onAttendancePress={() => {
               handleTabChange(
                 'attendance',
@@ -302,8 +310,20 @@ export default function TeacherDashboard() {
             }}
 
             onReportsPress={() => {
-              console.log(
-                'View Reports pressed',
+              /*
+                Quick Actions -> View Reports
+              */
+
+              setSelectedStudentId(
+                undefined,
+              );
+
+              setSelectedStudentName(
+                undefined,
+              );
+
+              handleTabChange(
+                'reports',
               );
             }}
           />
@@ -315,20 +335,15 @@ export default function TeacherDashboard() {
               );
             }}
           />
-
         </ScrollView>
       )}
 
       {/* =================================
-          PROFILE PAGE
+          PROFILE
       ================================= */}
 
       {activeTab === 'profile' && (
-        <View
-          style={
-            styles.profileContainer
-          }
-        >
+        <View style={styles.pageContainer}>
           <ProfilePage
             name={profileName}
             email={profileEmail}
@@ -344,15 +359,11 @@ export default function TeacherDashboard() {
       )}
 
       {/* =================================
-          BATCHES PAGE
+          BATCHES
       ================================= */}
 
       {activeTab === 'batches' && (
-        <View
-          style={
-            styles.pageContainer
-          }
-        >
+        <View style={styles.pageContainer}>
           <BatchesPage
             onContentScroll={
               handleContentScroll
@@ -362,13 +373,31 @@ export default function TeacherDashboard() {
       )}
 
       {/* =================================
-          ATTENDANCE PAGE
+          STUDENTS
+      ================================= */}
+
+      {activeTab === 'students' && (
+        <View style={styles.pageContainer}>
+          <StudentsPage
+            onContentScroll={
+              handleContentScroll
+            }
+
+            onStudentReportPress={
+              handleStudentReportPress
+            }
+          />
+        </View>
+      )}
+
+      {/* =================================
+          ATTENDANCE
       ================================= */}
 
       {activeTab === 'attendance' && (
         <View
           style={
-            styles.attendanceContainer
+            styles.pageContainer
           }
         >
           <MarkAttendance
@@ -380,13 +409,13 @@ export default function TeacherDashboard() {
       )}
 
       {/* =================================
-          ADD LECTURE LOG PAGE
+          LECTURE LOG
       ================================= */}
 
       {activeTab === 'lectureLog' && (
         <View
           style={
-            styles.lectureLogContainer
+            styles.pageContainer
           }
         >
           <AddLectureLog
@@ -398,29 +427,49 @@ export default function TeacherDashboard() {
       )}
 
       {/* =================================
-          STUDENTS PAGE
+          REPORTS
       ================================= */}
 
-      {activeTab === 'students' && (
+      {activeTab === 'reports' && (
         <View
           style={
-            styles.placeholderContainer
+            styles.pageContainer
           }
         >
-          {/* Students page coming soon */}
+          <ReportsPage
+            studentId={
+              selectedStudentId
+            }
+
+            studentName={
+              selectedStudentName
+            }
+
+            onContentScroll={
+              handleContentScroll
+            }
+          />
         </View>
       )}
+
+      {/* =================================
+          STUDENTS PLACEHOLDER
+      ================================= */}
+
+      {/* 
+        This is intentionally not used because
+        StudentsPage is now connected above.
+      */}
 
       {/* =================================
           BOTTOM NAVIGATION
           
           IMPORTANT:
-          TeacherBottomNav only supports:
+          TeacherBottomNav supports only:
           home / batches / students / profile
           
-          Attendance and lectureLog are
-          subpages, so we map them to home
-          for the bottom-nav component.
+          attendance, lectureLog and reports
+          are internal subpages.
       ================================= */}
 
       <Animated.View
@@ -440,7 +489,6 @@ export default function TeacherDashboard() {
           },
         ]}
       >
-
         <TeacherBottomNav
           activeTab={
             activeTab === 'batches'
@@ -462,9 +510,7 @@ export default function TeacherDashboard() {
             );
           }}
         />
-
       </Animated.View>
-
     </View>
   );
 }
@@ -474,7 +520,6 @@ export default function TeacherDashboard() {
 ===================================== */
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: '#F7F7FA',
@@ -489,27 +534,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
 
-  profileContainer: {
-    flex: 1,
-    backgroundColor: '#F6F6F9',
-  },
-
-  attendanceContainer: {
-    flex: 1,
-    backgroundColor: '#F6F6F9',
-  },
-
-  lectureLogContainer: {
-    flex: 1,
-    backgroundColor: '#F6F6F9',
-  },
-
   pageContainer: {
-    flex: 1,
-    backgroundColor: '#F6F6F9',
-  },
-
-  placeholderContainer: {
     flex: 1,
     backgroundColor: '#F6F6F9',
   },
@@ -541,5 +566,4 @@ const styles = StyleSheet.create({
 
     shadowRadius: 6,
   },
-
 });
