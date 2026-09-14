@@ -55,84 +55,12 @@ type ResultStudent = {
 };
 
 const examinations: Examination[] = [
-  {
-    id: 1,
-    name: 'Professional Makeup Final Assessment',
-    code: 'VLCC-EXM-001',
-    course: 'Professional Makeup',
-    batch: 'PM-2026-Morning',
-    branch: 'Pune Branch',
-    date: '15 Sep 2026',
-    time: '09:30 AM',
-    duration: '3 Hours',
-    students: 42,
-    status: 'Upcoming',
-  },
-  {
-    id: 2,
-    name: 'Beauty Therapy Mid-Term Examination',
-    code: 'VLCC-EXM-002',
-    course: 'Beauty Therapy',
-    batch: 'BT-2026-Evening',
-    branch: 'Mumbai Branch',
-    date: '08 Sep 2026',
-    time: '05:30 PM',
-    duration: '2 Hours',
-    students: 38,
-    status: 'Upcoming',
-  },
-  {
-    id: 3,
-    name: 'Hair Dressing Practical Assessment',
-    code: 'VLCC-EXM-003',
-    course: 'Hair Dressing',
-    batch: 'HD-2026-Morning',
-    branch: 'Pune Branch',
-    date: '05 Sep 2026',
-    time: '10:00 AM',
-    duration: '2.5 Hours',
-    students: 31,
-    status: 'Ongoing',
-  },
-  {
-    id: 4,
-    name: 'Skin Care Specialist Assessment',
-    code: 'VLCC-EXM-004',
-    course: 'Skin Care Specialist',
-    batch: 'SC-2026-Nashik',
-    branch: 'Nashik Branch',
-    date: '28 Aug 2026',
-    time: '11:00 AM',
-    duration: '3 Hours',
-    students: 27,
-    status: 'Completed',
-  },
-  {
-    id: 5,
-    name: 'Nail Art Professional Final Exam',
-    code: 'VLCC-EXM-005',
-    course: 'Nail Art Professional',
-    batch: 'NA-2026-Nagpur',
-    branch: 'Nagpur Branch',
-    date: '25 Aug 2026',
-    time: '10:30 AM',
-    duration: '2 Hours',
-    students: 22,
-    status: 'Results Published',
-  },
-  {
-    id: 6,
-    name: 'Advanced Beauty Therapy Examination',
-    code: 'VLCC-EXM-006',
-    course: 'Advanced Beauty Therapy',
-    batch: 'ABT-2026-Mumbai',
-    branch: 'Mumbai Branch',
-    date: '20 Aug 2026',
-    time: '09:00 AM',
-    duration: '3 Hours',
-    students: 34,
-    status: 'Results Published',
-  },
+  { id: 1, name: 'JEE Full Syllabus Mock Test - 01', code: 'VLCC-EXM-001', course: 'JEE Main & Advanced Preparation', batch: '12th JEE - Morning', branch: 'Pune Branch', date: '15 Sep 2026', time: '09:00 AM', duration: '3 Hours', students: 72, status: 'Upcoming' },
+  { id: 2, name: 'NEET Full Syllabus Mock Test - 01', code: 'VLCC-EXM-002', course: 'NEET Preparation', batch: '12th NEET - Morning', branch: 'Mumbai Branch', date: '18 Sep 2026', time: '09:00 AM', duration: '3 Hours 20 Min', students: 68, status: 'Upcoming' },
+  { id: 3, name: 'MHT-CET PCM Mock Test - 02', code: 'VLCC-EXM-003', course: 'MHT-CET PCM Preparation', batch: '11th MHT-CET - Evening', branch: 'Pune Branch', date: '20 Sep 2026', time: '02:00 PM', duration: '3 Hours', students: 64, status: 'Upcoming' },
+  { id: 4, name: 'Class 10 Science Unit Test', code: 'VLCC-EXM-004', course: 'Foundation - Classes 8 to 10', batch: '10th Foundation - Afternoon', branch: 'Nashik Branch', date: '12 Sep 2026', time: '03:00 PM', duration: '2 Hours', students: 58, status: 'Ongoing' },
+  { id: 5, name: 'Class 9 Mathematics Unit Test', code: 'VLCC-EXM-005', course: 'Foundation - Classes 8 to 10', batch: '9th Foundation - Evening', branch: 'Nagpur Branch', date: '05 Sep 2026', time: '06:00 PM', duration: '90 Minutes', students: 52, status: 'Completed' },
+  { id: 6, name: 'Class 8 Foundation Assessment', code: 'VLCC-EXM-006', course: 'Foundation - Classes 8 to 10', batch: '8th Foundation - Evening', branch: 'Main Branch', date: '02 Sep 2026', time: '05:30 PM', duration: '90 Minutes', students: 48, status: 'Results Published' },
 ];
 
 const publishedResults: Record<string, ResultStudent[]> = {
@@ -1506,12 +1434,12 @@ export default function ExaminationsPage() {
         {/* SMALL ADD EXAMINATION BUTTON */}
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() =>
-            Alert.alert(
-              'Add Examination',
-              'Examination creation form will be available here.'
-            )
-          }
+          onPress={() => {
+            router.push({
+              pathname: '/(tabs)/explore',
+              params: { feature: 'Add Examination' },
+            });
+          }}
           activeOpacity={0.85}
         >
           <MaterialCommunityIcons

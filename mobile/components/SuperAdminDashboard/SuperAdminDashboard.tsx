@@ -1,10 +1,13 @@
 import React, { useRef, useState } from 'react';
 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 import {
   Animated,
   Modal,
   Pressable,
   ScrollView,
+  Text,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -13,15 +16,194 @@ import {
 import DashboardHeader from './DashboardHeader';
 import Sidebar from './Sidebar';
 import StatCard from './StatCard';
-import StudentGrowth from './StudentGrowth';
-import FeeCollection from './FeeCollection';
-import RecentAnnouncements from './RecentAnnouncements';
-import TopCourses from './TopCourses';
-import BatchOverview from './BatchOverview';
-import QuickActions from './QuickActions';
+
 import DashboardFooter from './DashboardFooter';
 
 import { openDashboardFeature } from '@/utils/dashboardNavigation';
+
+type SectionCardProps = {
+  title: string;
+  subtitle: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  children: React.ReactNode;
+};
+
+function SectionCard({ title, subtitle, icon, children }: SectionCardProps) {
+  return (
+    <View style={styles.educationCard}>
+      <View style={styles.educationHeader}>
+        <View style={styles.educationTitleRow}>
+          <View style={styles.educationIconBox}>
+            <MaterialCommunityIcons name={icon} size={20} color="#7040D5" />
+          </View>
+          <View style={styles.educationTitleContainer}>
+            <Text style={styles.educationTitle}>{title}</Text>
+            <Text style={styles.educationSubtitle}>{subtitle}</Text>
+          </View>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={19} color="#A0A9B8" />
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function AcademicEnrollment() {
+  const data = [
+    ['8th Standard', '356'],
+    ['9th Standard', '372'],
+    ['10th Standard', '296'],
+    ['11th Standard', '714'],
+    ['12th Standard', '830'],
+  ];
+  return (
+    <SectionCard title="Students by Standard" subtitle="Current academic year enrollment" icon="school-outline">
+      <View style={styles.metricList}>
+        {data.map(([label, value]) => (
+          <View key={label} style={styles.metricRow}>
+            <Text style={styles.metricLabel}>{label}</Text>
+            <View style={styles.metricBarTrack}>
+              <View style={[styles.metricBar, { width: `${Math.max(25, Number(value) / 9)}%` }]} />
+            </View>
+            <Text style={styles.metricValue}>{value}</Text>
+          </View>
+        ))}
+      </View>
+    </SectionCard>
+  );
+}
+
+function ExamPreparation() {
+  const data = [
+    ['JEE', '684', 'atom'],
+    ['NEET', '592', 'medical-bag'],
+    ['MHT-CET', '812', 'school-outline'],
+    ['Foundation', '480', 'lightbulb-on-outline'],
+  ] as const;
+  return (
+    <SectionCard title="Exam Preparation" subtitle="Students enrolled by preparation track" icon="trophy-outline">
+      <View style={styles.examGrid}>
+        {data.map(([name, count, icon]) => (
+          <View key={name} style={styles.examItem}>
+            <View style={styles.examIconBox}>
+              <MaterialCommunityIcons name={icon} size={18} color="#7040D5" />
+            </View>
+            <Text style={styles.examName}>{name}</Text>
+            <Text style={styles.examCount}>{count}</Text>
+            <Text style={styles.examCaption}>students</Text>
+          </View>
+        ))}
+      </View>
+    </SectionCard>
+  );
+}
+
+function AcademicAnnouncements() {
+  const items = [
+    ['MHT-CET Mock Test Series – September', '12 Sep 2026', 'bullhorn-outline'],
+    ['JEE Advanced Practice Test – Physics', '14 Sep 2026', 'atom'],
+    ['NEET Biology Revision Session', '16 Sep 2026', 'medical-bag'],
+    ['Parent–Teacher Meeting for 11th & 12th', '18 Sep 2026', 'account-group-outline'],
+  ] as const;
+  return (
+    <SectionCard title="Academic Announcements" subtitle="Important updates for students and faculty" icon="bullhorn-outline">
+      <View style={styles.announcementList}>
+        {items.map(([title, date, icon]) => (
+          <View key={title} style={styles.announcementItem}>
+            <View style={styles.announcementIconBox}>
+              <MaterialCommunityIcons name={icon} size={17} color="#7040D5" />
+            </View>
+            <View style={styles.announcementText}>
+              <Text style={styles.announcementTitle} numberOfLines={2}>{title}</Text>
+              <Text style={styles.announcementDate}>{date}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </SectionCard>
+  );
+}
+
+function TopSubjects() {
+  const subjects = [
+    ['Physics', '92%', 'atom'],
+    ['Chemistry', '89%', 'flask-outline'],
+    ['Mathematics', '88%', 'sigma'],
+    ['Biology', '86%', 'leaf'],
+  ] as const;
+  return (
+    <SectionCard title="Top Performing Subjects" subtitle="Average student performance" icon="book-open-variant">
+      <View style={styles.subjectList}>
+        {subjects.map(([subject, score, icon]) => (
+          <View key={subject} style={styles.subjectRow}>
+            <View style={styles.subjectIconBox}>
+              <MaterialCommunityIcons name={icon} size={17} color="#7040D5" />
+            </View>
+            <View style={styles.subjectText}>
+              <Text style={styles.subjectName}>{subject}</Text>
+              <View style={styles.subjectTrack}><View style={[styles.subjectBar, { width: score }]} /></View>
+            </View>
+            <Text style={styles.subjectScore}>{score}</Text>
+          </View>
+        ))}
+      </View>
+    </SectionCard>
+  );
+}
+
+function ClassBatchOverview() {
+  const batches = [
+    ['8th Science A', '42', 'Foundation'],
+    ['10th Science A', '56', 'Foundation'],
+    ['11th JEE A', '64', 'JEE'],
+    ['12th NEET A', '58', 'NEET'],
+  ];
+  return (
+    <SectionCard title="Class & Batch Overview" subtitle="Active classes across standards 8–12" icon="account-multiple-outline">
+      <View style={styles.batchList}>
+        {batches.map(([name, students, track]) => (
+          <View key={name} style={styles.batchItem}>
+            <View>
+              <Text style={styles.batchName}>{name}</Text>
+              <Text style={styles.batchTrack}>{track} preparation</Text>
+            </View>
+            <View style={styles.batchCountBox}>
+              <Text style={styles.batchCount}>{students}</Text>
+              <Text style={styles.batchCaption}>students</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </SectionCard>
+  );
+}
+
+function AcademicQuickActions() {
+  const actions = [
+    ['Add Student', 'account-plus-outline', 'Add Student', '#7040D5'],
+    ['Add Teacher', 'account-tie-outline', 'Add Teacher', '#2675E8'],
+    ['Create Batch', 'account-multiple-plus-outline', 'Add Batch', '#35B878'],
+    ['Add Subject', 'book-plus-outline', 'Add Subject', '#F7941D'],
+    ['Schedule Test', 'file-document-edit-outline', 'Add Examination', '#7040D5'],
+    ['Publish Result', 'clipboard-check-outline', 'Add Performance', '#2675E8'],
+    ['Academic Event', 'calendar-plus-outline', 'Academic Event', '#35B878'],
+    ['Announcement', 'bullhorn-outline', 'Announcement', '#F7941D'],
+  ] as const;
+  return (
+    <SectionCard title="Academic Quick Actions" subtitle="Common Super Admin academic operations" icon="flash-outline">
+      <View style={styles.quickGrid}>
+        {actions.map(([title, icon, feature, color]) => (
+          <Pressable key={title} style={styles.quickItem} onPress={() => openDashboardFeature(feature)} android_ripple={{ color: '#F1EAFF' }}>
+            <View style={[styles.quickIconBox, { backgroundColor: color === '#7040D5' ? '#F1EAFF' : color === '#2675E8' ? '#EAF2FF' : color === '#35B878' ? '#E7F8EF' : '#FFF1E2' }]}>
+              <MaterialCommunityIcons name={icon} size={18} color={color} />
+            </View>
+            <Text style={styles.quickText} numberOfLines={2}>{title}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </SectionCard>
+  );
+}
 
 export default function SuperAdminDashboard() {
   const { width } = useWindowDimensions();
@@ -211,7 +393,7 @@ export default function SuperAdminDashboard() {
               />
             </View>
 
-            {/* 2. TOTAL TEACHERS */}
+            {/* 2. TOTAL FACULTY */}
 
             <View
               style={[
@@ -220,7 +402,7 @@ export default function SuperAdminDashboard() {
               ]}
             >
               <StatCard
-                title="Total Teachers"
+                title="Total Faculty"
                 value="156"
                 change="8.3%"
                 icon="account-tie"
@@ -231,7 +413,7 @@ export default function SuperAdminDashboard() {
               />
             </View>
 
-            {/* 3. TOTAL COURSES */}
+            {/* 3. ACTIVE BATCHES */}
 
             <View
               style={[
@@ -240,18 +422,18 @@ export default function SuperAdminDashboard() {
               ]}
             >
               <StatCard
-                title="Total Courses"
-                value="68"
-                change="5.7%"
-                icon="book-open-variant"
+                title="Active Batches"
+                value="32"
+                change="7.4%"
+                icon="account-multiple-outline"
                 type="green"
                 onPress={() =>
-                  openDashboardFeature('Courses')
+                  openDashboardFeature('Batches')
                 }
               />
             </View>
 
-            {/* 4. ACTIVE BRANCHES */}
+            {/* 4. ACTIVE SUBJECTS */}
 
             <View
               style={[
@@ -260,98 +442,18 @@ export default function SuperAdminDashboard() {
               ]}
             >
               <StatCard
-                title="Active Branches"
-                value="12"
-                change="10.2%"
-                icon="office-building"
-                type="orange"
-                onPress={() =>
-                  openDashboardFeature('Branches')
-                }
-              />
-            </View>
-
-            {/* 5. PENDING FEES */}
-
-            <View
-              style={[
-                styles.statItem,
-                isDesktop && styles.statItemDesktop,
-              ]}
-            >
-              <StatCard
-                title="Pending Fees"
-                value="₹ 18,25,000"
-                change="8.5%"
-                icon="cash-clock"
-                type="pink"
-                onPress={() =>
-                  openDashboardFeature('Fee Collection')
-                }
-              />
-            </View>
-
-            {/* 6. TIMETABLE */}
-
-            <View
-              style={[
-                styles.statItem,
-                isDesktop && styles.statItemDesktop,
-              ]}
-            >
-              <StatCard
-                title="My Timetable"
-                value="24"
-                change="6.4%"
-                icon="calendar-clock"
-                type="purple"
-                onPress={() =>
-                  openDashboardFeature('Timetable')
-                }
-              />
-            </View>
-
-            {/* 7. STAFF ON LEAVE */}
-
-            <View
-              style={[
-                styles.statItem,
-                isDesktop && styles.statItemDesktop,
-              ]}
-            >
-              <StatCard
-                title="Staff on Leave"
-                value="8"
-                change="3.2%"
-                icon="account-off"
-                type="blue"
-                onPress={() =>
-                  openDashboardFeature('Staff on Leave')
-                }
-              />
-            </View>
-
-            {/* 8. ACADEMICS */}
-
-            <View
-              style={[
-                styles.statItem,
-                isDesktop && styles.statItemDesktop,
-              ]}
-            >
-              <StatCard
-                title="Academics"
+                title="Active Subjects"
                 value="18"
-                change="7.8%"
-                icon="school-outline"
-                type="green"
+                change="6.8%"
+                icon="book-open-variant"
+                type="orange"
                 onPress={() =>
                   openDashboardFeature('Academics')
                 }
               />
             </View>
 
-            {/* 9. ACCOUNTS */}
+            {/* 5. 8TH–10TH STUDENTS */}
 
             <View
               style={[
@@ -360,18 +462,52 @@ export default function SuperAdminDashboard() {
               ]}
             >
               <StatCard
-                title="Accounts"
-                value="₹ 32,50,000"
-                change="11.4%"
-                icon="calculator-variant"
-                type="orange"
+                title="8th–10th Students"
+                value="1,024"
+                change="9.2%"
+                icon="school-outline"
+                type="pink"
+              />
+            </View>
+
+            {/* 6. 11TH–12TH STUDENTS */}
+
+            <View
+              style={[
+                styles.statItem,
+                isDesktop && styles.statItemDesktop,
+              ]}
+            >
+              <StatCard
+                title="11th–12th Students"
+                value="1,544"
+                change="11.6%"
+                icon="school-outline"
+                type="purple"
+              />
+            </View>
+
+            {/* 7. JEE PREPARATION */}
+
+            <View
+              style={[
+                styles.statItem,
+                isDesktop && styles.statItemDesktop,
+              ]}
+            >
+              <StatCard
+                title="JEE Preparation"
+                value="684"
+                change="8.7%"
+                icon="atom"
+                type="blue"
                 onPress={() =>
-                  openDashboardFeature('Accounts')
+                  openDashboardFeature('Students')
                 }
               />
             </View>
 
-            {/* 10. ACADEMIC CALENDAR */}
+            {/* 8. NEET PREPARATION */}
 
             <View
               style={[
@@ -380,13 +516,53 @@ export default function SuperAdminDashboard() {
               ]}
             >
               <StatCard
-                title="Academic Calendar"
-                value="24"
-                change="6.2%"
-                icon="calendar-month-outline"
+                title="NEET Preparation"
+                value="592"
+                change="7.9%"
+                icon="medical-bag"
+                type="green"
+                onPress={() =>
+                  openDashboardFeature('Students')
+                }
+              />
+            </View>
+
+            {/* 9. MHT-CET PREPARATION */}
+
+            <View
+              style={[
+                styles.statItem,
+                isDesktop && styles.statItemDesktop,
+              ]}
+            >
+              <StatCard
+                title="MHT-CET Preparation"
+                value="812"
+                change="10.4%"
+                icon="school-outline"
+                type="orange"
+                onPress={() =>
+                  openDashboardFeature('Students')
+                }
+              />
+            </View>
+
+            {/* 10. AVERAGE ATTENDANCE */}
+
+            <View
+              style={[
+                styles.statItem,
+                isDesktop && styles.statItemDesktop,
+              ]}
+            >
+              <StatCard
+                title="Avg. Attendance"
+                value="94%"
+                change="2.8%"
+                icon="calendar-check"
                 type="purple"
                 onPress={() =>
-                  openDashboardFeature('Academic Calendar')
+                  openDashboardFeature('Attendance')
                 }
               />
             </View>
@@ -394,7 +570,7 @@ export default function SuperAdminDashboard() {
           </View>
 
           {/* =================================================
-              MAIN ANALYTICS
+              ACADEMIC ANALYTICS
           ================================================== */}
 
           <View
@@ -403,19 +579,14 @@ export default function SuperAdminDashboard() {
               !isDesktop && styles.analyticsColumn,
             ]}
           >
-
-            {/* STUDENT GROWTH */}
-
             <View
               style={[
                 styles.growthWrapper,
                 !isDesktop && styles.mobileWrapper,
               ]}
             >
-              <StudentGrowth />
+              <AcademicEnrollment />
             </View>
-
-            {/* FEE COLLECTION */}
 
             <View
               style={[
@@ -423,10 +594,8 @@ export default function SuperAdminDashboard() {
                 !isDesktop && styles.mobileWrapper,
               ]}
             >
-              <FeeCollection />
+              <ExamPreparation />
             </View>
-
-            {/* RECENT ANNOUNCEMENTS */}
 
             <View
               style={[
@@ -434,13 +603,12 @@ export default function SuperAdminDashboard() {
                 !isDesktop && styles.mobileWrapper,
               ]}
             >
-              <RecentAnnouncements />
+              <AcademicAnnouncements />
             </View>
-
           </View>
 
           {/* =================================================
-              BOTTOM SECTION
+              EDUCATIONAL OVERVIEW
           ================================================== */}
 
           <View
@@ -449,19 +617,14 @@ export default function SuperAdminDashboard() {
               !isDesktop && styles.bottomColumn,
             ]}
           >
-
-            {/* TOP COURSES */}
-
             <View
               style={[
                 styles.coursesWrapper,
                 !isDesktop && styles.mobileWrapper,
               ]}
             >
-              <TopCourses />
+              <TopSubjects />
             </View>
-
-            {/* BATCH OVERVIEW */}
 
             <View
               style={[
@@ -469,10 +632,8 @@ export default function SuperAdminDashboard() {
                 !isDesktop && styles.mobileWrapper,
               ]}
             >
-              <BatchOverview />
+              <ClassBatchOverview />
             </View>
-
-            {/* QUICK ACTIONS */}
 
             <View
               style={[
@@ -480,9 +641,8 @@ export default function SuperAdminDashboard() {
                 !isDesktop && styles.mobileWrapper,
               ]}
             >
-              <QuickActions />
+              <AcademicQuickActions />
             </View>
-
           </View>
 
           {/* =================================================
@@ -614,10 +774,113 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  clickableSection: {
+    width: '100%',
+  },
+
   mobileWrapper: {
     width: '100%',
     flex: undefined,
   },
+
+  /* =======================================================
+     EDUCATIONAL DASHBOARD CARDS
+  ======================================================= */
+
+  educationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+    minHeight: 270,
+  },
+
+  educationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+
+  educationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  educationIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  educationTitleContainer: { flex: 1, minWidth: 0 },
+
+  educationTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 15,
+    color: '#172033',
+  },
+
+  educationSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
+    color: '#9AA4B4',
+    marginTop: 2,
+  },
+
+  metricList: { gap: 10 },
+  metricRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metricLabel: { fontFamily: 'PoppinsMedium', fontSize: 10, color: '#4F5B6E', width: 88 },
+  metricBarTrack: { flex: 1, height: 7, borderRadius: 10, backgroundColor: '#F1F3F7', overflow: 'hidden' },
+  metricBar: { height: '100%', borderRadius: 10, backgroundColor: '#7040D5' },
+  metricValue: { fontFamily: 'PoppinsSemiBold', fontSize: 11, color: '#172033', width: 34, textAlign: 'right' },
+
+  examGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  examItem: { width: '47%', minHeight: 92, borderRadius: 12, backgroundColor: '#F9FAFC', padding: 10 },
+  examIconBox: { width: 30, height: 30, borderRadius: 9, backgroundColor: '#F1EAFF', alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
+  examName: { fontFamily: 'PoppinsSemiBold', fontSize: 10, color: '#172033' },
+  examCount: { fontFamily: 'PoppinsBold', fontSize: 17, color: '#7040D5', marginTop: 1 },
+  examCaption: { fontFamily: 'PoppinsRegular', fontSize: 8, color: '#9AA4B4' },
+
+  announcementList: { gap: 9 },
+  announcementItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
+  announcementIconBox: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#F1EAFF', alignItems: 'center', justifyContent: 'center', marginRight: 9 },
+  announcementText: { flex: 1, minWidth: 0 },
+  announcementTitle: { fontFamily: 'PoppinsMedium', fontSize: 10, color: '#172033' },
+  announcementDate: { fontFamily: 'PoppinsRegular', fontSize: 8, color: '#9AA4B4', marginTop: 2 },
+
+  subjectList: { gap: 10 },
+  subjectRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  subjectIconBox: { width: 31, height: 31, borderRadius: 9, backgroundColor: '#F1EAFF', alignItems: 'center', justifyContent: 'center' },
+  subjectText: { flex: 1 },
+  subjectName: { fontFamily: 'PoppinsMedium', fontSize: 10, color: '#172033', marginBottom: 4 },
+  subjectTrack: { height: 5, borderRadius: 10, backgroundColor: '#F1F3F7', overflow: 'hidden' },
+  subjectBar: { height: '100%', borderRadius: 10, backgroundColor: '#7040D5' },
+  subjectScore: { fontFamily: 'PoppinsBold', fontSize: 11, color: '#7040D5', width: 34, textAlign: 'right' },
+
+  batchList: { gap: 8 },
+  batchItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#F1F3F7' },
+  batchName: { fontFamily: 'PoppinsSemiBold', fontSize: 10, color: '#172033' },
+  batchTrack: { fontFamily: 'PoppinsRegular', fontSize: 8, color: '#9AA4B4', marginTop: 2 },
+  batchCountBox: { minWidth: 50, alignItems: 'flex-end' },
+  batchCount: { fontFamily: 'PoppinsBold', fontSize: 15, color: '#2675E8' },
+  batchCaption: { fontFamily: 'PoppinsRegular', fontSize: 7, color: '#9AA4B4' },
+
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  quickItem: { width: '22%', minWidth: 62, alignItems: 'center', paddingVertical: 4 },
+  quickIconBox: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
+  quickText: { fontFamily: 'PoppinsMedium', fontSize: 8, color: '#4F5B6E', textAlign: 'center' },
 
   /* =======================================================
      MOBILE DRAWER

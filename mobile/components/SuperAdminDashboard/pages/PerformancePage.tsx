@@ -1189,12 +1189,12 @@ export default function PerformancePage() {
           style={
             styles.addButton
           }
-          onPress={() =>
-            Alert.alert(
-              'Performance',
-              'Select a student from the performance records to update performance.'
-            )
-          }
+          onPress={() => {
+            router.push({
+              pathname: '/(tabs)/explore',
+              params: { feature: 'Add Performance' },
+            });
+          }}
         >
           <MaterialCommunityIcons
             name="plus"

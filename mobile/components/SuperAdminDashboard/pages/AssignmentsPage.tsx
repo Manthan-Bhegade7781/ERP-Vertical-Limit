@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   Alert,
@@ -15,7 +15,7 @@ import {
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -37,6 +37,7 @@ type Assignment = {
   title: string;
   code: string;
   course: string;
+  chapter?: string;
   batch: string;
   branch: string;
   assignedDate: string;
@@ -48,6 +49,9 @@ type Assignment = {
   late: number;
   maxMarks: number;
   description: string;
+  instructions?: string;
+  pdfUri?: string;
+  pdfName?: string;
   status: AssignmentStatus;
 };
 
@@ -61,119 +65,599 @@ type StudentSubmission = {
   grade: string;
 };
 
-const assignments: Assignment[] = [
+const initialAssignments: Assignment[] = [
   {
     id: 1,
-    title: 'Professional Makeup Lookbook',
-    code: 'VLCC-ASG-001',
-    course: 'Professional Makeup',
-    batch: 'PM-2026-Morning',
+    title: 'Chapter 1 - Electric Charges and Fields Assignment',
+    code: 'PHY12-ASG-001',
+    course: 'Physics',
+    chapter: 'Electric Charges and Fields',
+    batch: '12th Science - 2026',
     branch: 'Pune Branch',
     assignedDate: '01 Sep 2026',
-    dueDate: '10 Sep 2026',
-    dueTime: '11:59 PM',
-    students: 42,
-    submitted: 28,
-    pending: 12,
-    late: 2,
-    maxMarks: 100,
-    description:
-      'Create a professional makeup lookbook containing three complete makeup looks with step-by-step procedures, product details and before/after photographs.',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    title: 'Beauty Therapy Skin Analysis',
-    code: 'VLCC-ASG-002',
-    course: 'Beauty Therapy',
-    batch: 'BT-2026-Evening',
-    branch: 'Mumbai Branch',
-    assignedDate: '02 Sep 2026',
-    dueDate: '08 Sep 2026',
-    dueTime: '06:00 PM',
-    students: 38,
-    submitted: 24,
-    pending: 10,
-    late: 4,
-    maxMarks: 100,
-    description:
-      'Prepare a detailed skin analysis report covering skin type, concerns, recommended treatment and home-care routine.',
-    status: 'Due Today',
-  },
-  {
-    id: 3,
-    title: 'Hair Styling Practical Report',
-    code: 'VLCC-ASG-003',
-    course: 'Hair Dressing',
-    batch: 'HD-2026-Morning',
-    branch: 'Pune Branch',
-    assignedDate: '28 Aug 2026',
     dueDate: '06 Sep 2026',
-    dueTime: '05:00 PM',
-    students: 31,
-    submitted: 27,
-    pending: 3,
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 3,
+    pending: 37,
     late: 1,
     maxMarks: 100,
     description:
-      'Submit a practical report describing the hair styling procedure, tools used, safety precautions and final result.',
+      'Complete the Physics assignment for Chapter 1: Electric Charges and Fields. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Upcoming',
+  },
+  {
+    id: 2,
+    title: 'Chapter 2 - Electrostatic Potential and Capacitance Assignment',
+    code: 'PHY12-ASG-002',
+    course: 'Physics',
+    chapter: 'Electrostatic Potential and Capacitance',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '02 Sep 2026',
+    dueDate: '07 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 6,
+    pending: 34,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 2: Electrostatic Potential and Capacitance. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
     status: 'Evaluation Pending',
   },
   {
-    id: 4,
-    title: 'Skin Care Treatment Plan',
-    code: 'VLCC-ASG-004',
-    course: 'Skin Care Specialist',
-    batch: 'SC-2026-Nashik',
-    branch: 'Nashik Branch',
-    assignedDate: '20 Aug 2026',
-    dueDate: '30 Aug 2026',
+    id: 3,
+    title: 'Chapter 3 - Current Electricity Assignment',
+    code: 'PHY12-ASG-003',
+    course: 'Physics',
+    chapter: 'Current Electricity',
+    batch: '12th Science - 2026',
+    branch: 'Main Branch',
+    assignedDate: '03 Sep 2026',
+    dueDate: '08 Sep 2026',
     dueTime: '11:59 PM',
-    students: 27,
-    submitted: 27,
+    students: 40,
+    submitted: 40,
+    pending: 0,
+    late: 0,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 3: Current Electricity. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Completed',
+  },
+  {
+    id: 4,
+    title: 'Chapter 4 - Moving Charges and Magnetism Assignment',
+    code: 'PHY12-ASG-004',
+    course: 'Physics',
+    chapter: 'Moving Charges and Magnetism',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '04 Sep 2026',
+    dueDate: '09 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 12,
+    pending: 28,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 4: Moving Charges and Magnetism. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Active',
+  },
+  {
+    id: 5,
+    title: 'Chapter 5 - Magnetism and Matter Assignment',
+    code: 'PHY12-ASG-005',
+    course: 'Physics',
+    chapter: 'Magnetism and Matter',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '05 Sep 2026',
+    dueDate: '10 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 15,
+    pending: 25,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 5: Magnetism and Matter. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Upcoming',
+  },
+  {
+    id: 6,
+    title: 'Chapter 6 - Electromagnetic Induction Assignment',
+    code: 'PHY12-ASG-006',
+    course: 'Physics',
+    chapter: 'Electromagnetic Induction',
+    batch: '12th Science - 2026',
+    branch: 'Main Branch',
+    assignedDate: '06 Sep 2026',
+    dueDate: '11 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 18,
+    pending: 22,
+    late: 0,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 6: Electromagnetic Induction. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Evaluation Pending',
+  },
+  {
+    id: 7,
+    title: 'Chapter 7 - Alternating Current Assignment',
+    code: 'PHY12-ASG-007',
+    course: 'Physics',
+    chapter: 'Alternating Current',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '07 Sep 2026',
+    dueDate: '12 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 40,
+    pending: 0,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 7: Alternating Current. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Completed',
+  },
+  {
+    id: 8,
+    title: 'Chapter 8 - Electromagnetic Waves Assignment',
+    code: 'PHY12-ASG-008',
+    course: 'Physics',
+    chapter: 'Electromagnetic Waves',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '08 Sep 2026',
+    dueDate: '13 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 24,
+    pending: 16,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 8: Electromagnetic Waves. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Active',
+  },
+  {
+    id: 9,
+    title: 'Chapter 9 - Ray Optics and Optical Instruments Assignment',
+    code: 'PHY12-ASG-009',
+    course: 'Physics',
+    chapter: 'Ray Optics and Optical Instruments',
+    batch: '12th Science - 2026',
+    branch: 'Main Branch',
+    assignedDate: '09 Sep 2026',
+    dueDate: '14 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 18,
+    pending: 22,
+    late: 0,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 9: Ray Optics and Optical Instruments. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Upcoming',
+  },
+  {
+    id: 10,
+    title: 'Chapter 10 - Wave Optics Assignment',
+    code: 'PHY12-ASG-010',
+    course: 'Physics',
+    chapter: 'Wave Optics',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '01 Oct 2026',
+    dueDate: '06 Oct 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 0,
+    pending: 40,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 10: Wave Optics. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Evaluation Pending',
+  },
+  {
+    id: 11,
+    title: 'Chapter 11 - Dual Nature of Radiation and Matter Assignment',
+    code: 'PHY12-ASG-011',
+    course: 'Physics',
+    chapter: 'Dual Nature of Radiation and Matter',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '02 Oct 2026',
+    dueDate: '07 Oct 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 40,
     pending: 0,
     late: 2,
     maxMarks: 100,
     description:
-      'Prepare a complete client treatment plan including consultation, skin assessment, treatment procedure and after-care recommendations.',
+      'Complete the Physics assignment for Chapter 11: Dual Nature of Radiation and Matter. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
     status: 'Completed',
   },
   {
-    id: 5,
-    title: 'Nail Art Design Portfolio',
-    code: 'VLCC-ASG-005',
-    course: 'Nail Art Professional',
-    batch: 'NA-2026-Nagpur',
-    branch: 'Nagpur Branch',
-    assignedDate: '05 Sep 2026',
-    dueDate: '15 Sep 2026',
+    id: 12,
+    title: 'Chapter 12 - Atoms Assignment',
+    code: 'PHY12-ASG-012',
+    course: 'Physics',
+    chapter: 'Atoms',
+    batch: '12th Science - 2026',
+    branch: 'Main Branch',
+    assignedDate: '03 Oct 2026',
+    dueDate: '08 Oct 2026',
     dueTime: '11:59 PM',
-    students: 22,
-    submitted: 9,
-    pending: 13,
+    students: 40,
+    submitted: 4,
+    pending: 36,
     late: 0,
     maxMarks: 100,
     description:
-      'Create a nail art portfolio with five original designs, material list, design inspiration and step-by-step execution.',
+      'Complete the Physics assignment for Chapter 12: Atoms. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
     status: 'Active',
   },
   {
-    id: 6,
-    title: 'Advanced Facial Techniques',
-    code: 'VLCC-ASG-006',
-    course: 'Advanced Beauty Therapy',
-    batch: 'ABT-2026-Mumbai',
-    branch: 'Mumbai Branch',
-    assignedDate: '12 Sep 2026',
-    dueDate: '20 Sep 2026',
-    dueTime: '06:00 PM',
-    students: 34,
-    submitted: 0,
+    id: 13,
+    title: 'Chapter 13 - Nuclei Assignment',
+    code: 'PHY12-ASG-013',
+    course: 'Physics',
+    chapter: 'Nuclei',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '04 Oct 2026',
+    dueDate: '09 Oct 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 6,
     pending: 34,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 13: Nuclei. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Upcoming',
+  },
+  {
+    id: 14,
+    title: 'Chapter 14 - Semiconductor Electronics Assignment',
+    code: 'PHY12-ASG-014',
+    course: 'Physics',
+    chapter: 'Semiconductor Electronics',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '05 Oct 2026',
+    dueDate: '10 Oct 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 8,
+    pending: 32,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Complete the Physics assignment for Chapter 14: Semiconductor Electronics. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Evaluation Pending',
+  },
+  {
+    id: 15,
+    title: 'Chapter 1 - Relations and Functions Assignment',
+    code: 'MATH12-ASG-001',
+    course: 'Mathematics',
+    chapter: 'Relations and Functions',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '01 Sep 2026',
+    dueDate: '06 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 3,
+    pending: 37,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 1: Relations and Functions. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Upcoming',
+  },
+  {
+    id: 16,
+    title: 'Chapter 2 - Inverse Trigonometric Functions Assignment',
+    code: 'MATH12-ASG-002',
+    course: 'Mathematics',
+    chapter: 'Inverse Trigonometric Functions',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '02 Sep 2026',
+    dueDate: '07 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 6,
+    pending: 34,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 2: Inverse Trigonometric Functions. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Evaluation Pending',
+  },
+  {
+    id: 17,
+    title: 'Chapter 3 - Matrices Assignment',
+    code: 'MATH12-ASG-003',
+    course: 'Mathematics',
+    chapter: 'Matrices',
+    batch: '12th Science - 2026',
+    branch: 'Main Branch',
+    assignedDate: '03 Sep 2026',
+    dueDate: '08 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 40,
+    pending: 0,
     late: 0,
     maxMarks: 100,
     description:
-      'Prepare a detailed assignment on advanced facial techniques, treatment protocols, contraindications and client after-care.',
+      'Complete the Mathematics assignment for Chapter 3: Matrices. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Completed',
+  },
+  {
+    id: 18,
+    title: 'Chapter 4 - Determinants Assignment',
+    code: 'MATH12-ASG-004',
+    course: 'Mathematics',
+    chapter: 'Determinants',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '04 Sep 2026',
+    dueDate: '09 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 12,
+    pending: 28,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 4: Determinants. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Active',
+  },
+  {
+    id: 19,
+    title: 'Chapter 5 - Continuity and Differentiability Assignment',
+    code: 'MATH12-ASG-005',
+    course: 'Mathematics',
+    chapter: 'Continuity and Differentiability',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '05 Sep 2026',
+    dueDate: '10 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 15,
+    pending: 25,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 5: Continuity and Differentiability. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Upcoming',
+  },
+  {
+    id: 20,
+    title: 'Chapter 6 - Application of Derivatives Assignment',
+    code: 'MATH12-ASG-006',
+    course: 'Mathematics',
+    chapter: 'Application of Derivatives',
+    batch: '12th Science - 2026',
+    branch: 'Main Branch',
+    assignedDate: '06 Sep 2026',
+    dueDate: '11 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 18,
+    pending: 22,
+    late: 0,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 6: Application of Derivatives. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Evaluation Pending',
+  },
+  {
+    id: 21,
+    title: 'Chapter 7 - Integrals Assignment',
+    code: 'MATH12-ASG-007',
+    course: 'Mathematics',
+    chapter: 'Integrals',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '07 Sep 2026',
+    dueDate: '12 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 40,
+    pending: 0,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 7: Integrals. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Completed',
+  },
+  {
+    id: 22,
+    title: 'Chapter 8 - Application of Integrals Assignment',
+    code: 'MATH12-ASG-008',
+    course: 'Mathematics',
+    chapter: 'Application of Integrals',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '08 Sep 2026',
+    dueDate: '13 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 24,
+    pending: 16,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 8: Application of Integrals. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Active',
+  },
+  {
+    id: 23,
+    title: 'Chapter 9 - Differential Equations Assignment',
+    code: 'MATH12-ASG-009',
+    course: 'Mathematics',
+    chapter: 'Differential Equations',
+    batch: '12th Science - 2026',
+    branch: 'Main Branch',
+    assignedDate: '09 Sep 2026',
+    dueDate: '14 Sep 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 18,
+    pending: 22,
+    late: 0,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 9: Differential Equations. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Upcoming',
+  },
+  {
+    id: 24,
+    title: 'Chapter 10 - Vector Algebra Assignment',
+    code: 'MATH12-ASG-010',
+    course: 'Mathematics',
+    chapter: 'Vector Algebra',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '01 Oct 2026',
+    dueDate: '06 Oct 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 0,
+    pending: 40,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 10: Vector Algebra. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Evaluation Pending',
+  },
+  {
+    id: 25,
+    title: 'Chapter 11 - Three Dimensional Geometry Assignment',
+    code: 'MATH12-ASG-011',
+    course: 'Mathematics',
+    chapter: 'Three Dimensional Geometry',
+    batch: '12th Science - 2026',
+    branch: 'Mumbai Branch',
+    assignedDate: '02 Oct 2026',
+    dueDate: '07 Oct 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 40,
+    pending: 0,
+    late: 2,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 11: Three Dimensional Geometry. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Completed',
+  },
+  {
+    id: 26,
+    title: 'Chapter 12 - Linear Programming Assignment',
+    code: 'MATH12-ASG-012',
+    course: 'Mathematics',
+    chapter: 'Linear Programming',
+    batch: '12th Science - 2026',
+    branch: 'Main Branch',
+    assignedDate: '03 Oct 2026',
+    dueDate: '08 Oct 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 4,
+    pending: 36,
+    late: 0,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 12: Linear Programming. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
+    status: 'Active',
+  },
+  {
+    id: 27,
+    title: 'Chapter 13 - Probability Assignment',
+    code: 'MATH12-ASG-013',
+    course: 'Mathematics',
+    chapter: 'Probability',
+    batch: '12th Science - 2026',
+    branch: 'Pune Branch',
+    assignedDate: '04 Oct 2026',
+    dueDate: '09 Oct 2026',
+    dueTime: '11:59 PM',
+    students: 40,
+    submitted: 6,
+    pending: 34,
+    late: 1,
+    maxMarks: 100,
+    description:
+      'Complete the Mathematics assignment for Chapter 13: Probability. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
+    instructions:
+      'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
     status: 'Upcoming',
   },
 ];
@@ -301,6 +785,24 @@ const statusColors: Record<
 };
 
 export default function AssignmentsPage() {
+  const params = useLocalSearchParams<{
+    newAssignment?: string;
+    assignmentTitle?: string;
+    assignmentCode?: string;
+    assignmentStandard?: string;
+    assignmentSubject?: string;
+    assignmentBatch?: string;
+    assignmentType?: string;
+    assignmentAssignedDate?: string;
+    assignmentSubmissionDate?: string;
+    assignmentTotalMarks?: string;
+    assignmentDescription?: string;
+    assignmentInstructions?: string;
+    assignmentPdfUri?: string;
+    assignmentPdfName?: string;
+  }>();
+
+  const processedAssignmentCode = useRef<string | null>(null);
   const insets = useSafeAreaInsets();
 
   const { width } = useWindowDimensions();
@@ -312,6 +814,8 @@ export default function AssignmentsPage() {
   const [filter, setFilter] = useState<
     'All' | AssignmentStatus
   >('All');
+
+  const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments);
 
   const [selectedAssignment, setSelectedAssignment] =
     useState<Assignment | null>(null);
@@ -338,6 +842,43 @@ export default function AssignmentsPage() {
 
   const [remarks, setRemarks] = useState('');
 
+  useEffect(() => {
+    if (params.newAssignment !== 'true') return;
+
+    const title = params.assignmentTitle || '';
+    const code = params.assignmentCode || '';
+
+    if (!title || !code || processedAssignmentCode.current === code) {
+      return;
+    }
+
+    processedAssignmentCode.current = code;
+
+    const newAssignment: Assignment = {
+      id: Date.now(),
+      title,
+      code,
+      course: params.assignmentSubject || 'Subject',
+      batch: params.assignmentBatch || 'Batch',
+      branch: 'Main Branch',
+      assignedDate: params.assignmentAssignedDate || '-',
+      dueDate: params.assignmentSubmissionDate || '-',
+      dueTime: '11:59 PM',
+      students: 0,
+      submitted: 0,
+      pending: 0,
+      late: 0,
+      maxMarks: Number(params.assignmentTotalMarks) || 0,
+      description: params.assignmentDescription || 'No description provided.',
+      instructions: params.assignmentInstructions || '',
+      pdfUri: params.assignmentPdfUri || '',
+      pdfName: params.assignmentPdfName || '',
+      status: 'Active',
+    };
+
+    setAssignments((current) => [newAssignment, ...current]);
+  }, [params.newAssignment, params.assignmentTitle, params.assignmentCode]);
+
   /* =====================================================
      FILTER
      ===================================================== */
@@ -355,6 +896,9 @@ export default function AssignmentsPage() {
           .toLowerCase()
           .includes(value) ||
         assignment.course
+          .toLowerCase()
+          .includes(value) ||
+        (assignment.chapter || '')
           .toLowerCase()
           .includes(value) ||
         assignment.batch
@@ -797,6 +1341,26 @@ export default function AssignmentsPage() {
 
             </div>
 
+            ${
+              assignment.chapter
+                ? `
+            <div class="detail">
+
+              <span class="label">
+                Chapter
+              </span>
+
+              <br />
+
+              <span class="value">
+                ${assignment.chapter}
+              </span>
+
+            </div>
+              `
+                : ''
+            }
+
             <div class="detail">
 
               <span class="label">
@@ -993,6 +1557,31 @@ export default function AssignmentsPage() {
     `;
   };
 
+  const shareLocalNotesPdf = async (assignment: Assignment) => {
+    if (!assignment.pdfUri) {
+      Alert.alert('PDF Not Found', 'No notes PDF is attached to this assignment.');
+      return;
+    }
+
+    try {
+      const available = await Sharing.isAvailableAsync();
+
+      if (!available) {
+        Alert.alert('Sharing Unavailable', 'PDF sharing is not available on this device.');
+        return;
+      }
+
+      await Sharing.shareAsync(assignment.pdfUri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `${assignment.title} - Notes PDF`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (error) {
+      console.error('Local notes PDF sharing error:', error);
+      Alert.alert('PDF Error', 'Unable to open the selected notes PDF.');
+    }
+  };
+
   /* =====================================================
      DOWNLOAD PDF
      ===================================================== */
@@ -1184,6 +1773,40 @@ export default function AssignmentsPage() {
           {assignment.code}
         </Text>
 
+        {assignment.pdfUri ? (
+          <View style={styles.notesPdfCard}>
+            <View style={styles.notesPdfIcon}>
+              <MaterialCommunityIcons
+                name="file-pdf-box"
+                size={20}
+                color="#D84343"
+              />
+            </View>
+
+            <View style={styles.notesPdfContent}>
+              <Text style={styles.notesPdfLabel}>Notes PDF</Text>
+              <Text
+                style={styles.notesPdfName}
+                numberOfLines={1}
+              >
+                {assignment.pdfName || 'Attached PDF'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.notesPdfShareButton}
+              onPress={() => shareLocalNotesPdf(assignment)}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="share-variant-outline"
+                size={17}
+                color="#7040D5"
+              />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <View style={styles.infoRow}>
           <MaterialCommunityIcons
             name="book-open-outline"
@@ -1195,6 +1818,24 @@ export default function AssignmentsPage() {
             {assignment.course}
           </Text>
         </View>
+
+        {assignment.chapter ? (
+          <View style={styles.infoRow}>
+            <MaterialCommunityIcons
+              name="book-education-outline"
+              size={15}
+              color="#748096"
+            />
+
+            <Text
+              style={styles.infoText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {assignment.chapter}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.infoRow}>
           <MaterialCommunityIcons
@@ -1493,12 +2134,12 @@ export default function AssignmentsPage() {
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() =>
-            Alert.alert(
-              'Add Assignment',
-              'Assignment creation form will be available here.'
-            )
-          }
+          onPress={() => {
+            router.push({
+              pathname: '/(tabs)/explore',
+              params: { feature: 'Add Assignment' },
+            });
+          }}
           activeOpacity={0.85}
         >
           <MaterialCommunityIcons
@@ -1611,7 +2252,7 @@ export default function AssignmentsPage() {
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search assignment, course, batch or branch..."
+              placeholder="Search assignment, subject, chapter, batch or branch..."
               placeholderTextColor="#A0A8B5"
               style={styles.searchInput}
             />
@@ -2149,6 +2790,33 @@ export default function AssignmentsPage() {
                       }
                     </Text>
                   </View>
+
+                  {selectedAssignment.chapter ? (
+                    <View
+                      style={
+                        styles.detailBox
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.detailLabel
+                        }
+                      >
+                        Chapter
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.detailValue
+                        }
+                        numberOfLines={2}
+                      >
+                        {
+                          selectedAssignment.chapter
+                        }
+                      </Text>
+                    </View>
+                  ) : null}
 
                   <View
                     style={
@@ -3447,6 +4115,59 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 13,
     justifyContent: 'space-between',
+  },
+
+  notesPdfCard: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: '#E8E0F7',
+    borderRadius: 10,
+    backgroundColor: '#F9F6FE',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    marginTop: 9,
+    marginBottom: 7,
+  },
+
+  notesPdfIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FDEDED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+
+  notesPdfContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  notesPdfLabel: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 9.5,
+    color: '#7040D5',
+  },
+
+  notesPdfName: {
+    marginTop: 1,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    color: '#626675',
+  },
+
+  notesPdfShareButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2D8F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 7,
   },
 
   assignmentCard: {

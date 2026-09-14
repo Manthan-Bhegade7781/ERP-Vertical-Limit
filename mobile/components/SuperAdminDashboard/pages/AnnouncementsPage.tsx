@@ -22,10 +22,7 @@ type AnnouncementStatus =
   | 'Scheduled'
   | 'Expired';
 
-type AnnouncementPriority =
-  | 'High'
-  | 'Medium'
-  | 'Low';
+type AnnouncementPriority = 'High' | 'Medium' | 'Low';
 
 type AnnouncementRecord = {
   id: number;
@@ -47,79 +44,79 @@ const initialAnnouncements: AnnouncementRecord[] = [
   {
     id: 1,
     announcementId: 'VLCC-ANN-001',
-    title: 'Annual Beauty Workshop 2026',
+    title: 'JEE Full Syllabus Mock Test - 01',
     description:
-      'All students are informed that the annual beauty workshop will be conducted at the Main Branch. Students are requested to register before the deadline.',
-    category: 'Events',
+      'The first full syllabus JEE mock test will be conducted for JEE preparation batches. Students should check their batch schedule and report to the assigned test room on time.',
+    category: 'Examination',
     priority: 'High',
-    audience: 'All Students',
+    audience: 'Students',
     branch: 'All Branches',
     status: 'Published',
-    createdBy: 'Vikram Shah',
+    createdBy: 'Academic Office',
     publishedDate: '02 Sep 2026',
     scheduledDate: '',
-    expiryDate: '15 Sep 2026',
+    expiryDate: '20 Sep 2026',
   },
   {
     id: 2,
     announcementId: 'VLCC-ANN-002',
-    title: 'September Examination Schedule',
+    title: 'NEET Full Syllabus Mock Test - 01',
     description:
-      'The examination schedule for September 2026 has been published. Students should check their batch timetable and examination details.',
+      'The NEET full syllabus mock test has been scheduled for NEET preparation batches. Students should carry the required stationery and follow the examination instructions.',
     category: 'Examination',
     priority: 'High',
-    audience: 'Students & Teachers',
+    audience: 'Students',
     branch: 'All Branches',
     status: 'Published',
-    createdBy: 'Rahul Patil',
+    createdBy: 'Examination Cell',
     publishedDate: '01 Sep 2026',
     scheduledDate: '',
-    expiryDate: '30 Sep 2026',
+    expiryDate: '25 Sep 2026',
   },
   {
     id: 3,
     announcementId: 'VLCC-ANN-003',
-    title: 'Fee Payment Reminder',
+    title: 'MHT-CET PCM Mock Test - 02',
     description:
-      'Students with pending fees are requested to complete their payment before the due date to avoid late payment charges.',
-    category: 'Fees',
-    priority: 'Medium',
+      'The second MHT-CET PCM mock test will be conducted for the 11th and 12th preparation batches. Students should review the published syllabus before attending.',
+    category: 'Examination',
+    priority: 'High',
     audience: 'Students',
     branch: 'All Branches',
     status: 'Published',
-    createdBy: 'Karan Malhotra',
+    createdBy: 'Examination Cell',
     publishedDate: '04 Sep 2026',
     scheduledDate: '',
-    expiryDate: '12 Sep 2026',
+    expiryDate: '22 Sep 2026',
   },
   {
     id: 4,
     announcementId: 'VLCC-ANN-004',
-    title: 'Teacher Training Session',
+    title: 'Class 10 Science Unit Test',
     description:
-      'A staff development and teacher training session will be conducted next week. All teaching staff are requested to attend.',
-    category: 'Training',
+      'A Class 10 Science unit test covering the current Physics, Chemistry and Biology topics will be conducted next week. Students should prepare according to the published syllabus.',
+    category: 'Academic',
     priority: 'Medium',
-    audience: 'Teachers',
+    audience: 'Students',
     branch: 'Pune Branch',
     status: 'Scheduled',
-    createdBy: 'Amit Kulkarni',
+    createdBy: 'Academic Coordinator',
     publishedDate: '',
-    scheduledDate: '08 Sep 2026, 10:00 AM',
-    expiryDate: '10 Sep 2026',
+    scheduledDate: '15 Sep 2026, 10:00 AM',
+    expiryDate: '18 Sep 2026',
   },
   {
     id: 5,
     announcementId: 'VLCC-ANN-005',
-    title: 'Updated Attendance Policy',
+    title: 'Attendance Requirement for Examination Eligibility',
     description:
-      'The attendance policy has been updated. Students are requested to maintain the required attendance percentage for examination eligibility.',
-    category: 'Academic',
+      'Students are reminded to maintain the required attendance percentage for examination eligibility. Batch attendance records should be reviewed regularly.',
+    category: 'Attendance',
     priority: 'High',
     audience: 'All Students',
     branch: 'All Branches',
     status: 'Published',
-    createdBy: 'Priya Mehta',
+    createdBy: 'Academic Office',
     publishedDate: '28 Aug 2026',
     scheduledDate: '',
     expiryDate: '30 Sep 2026',
@@ -127,72 +124,57 @@ const initialAnnouncements: AnnouncementRecord[] = [
   {
     id: 6,
     announcementId: 'VLCC-ANN-006',
-    title: 'Nail Art Competition',
+    title: 'Parent-Teacher Guidance Meeting',
     description:
-      'Students interested in participating in the upcoming nail art competition can register with their respective branch coordinators.',
-    category: 'Events',
-    priority: 'Low',
-    audience: 'Students',
+      'A Parent-Teacher Guidance meeting will be organized to discuss student attendance, academic progress, test performance and preparation plans for upcoming examinations.',
+    category: 'PTG',
+    priority: 'Medium',
+    audience: 'Students & Teachers',
     branch: 'Nagpur Branch',
     status: 'Draft',
-    createdBy: 'Sneha Joshi',
+    createdBy: 'Academic Coordinator',
     publishedDate: '',
     scheduledDate: '',
-    expiryDate: '20 Sep 2026',
+    expiryDate: '25 Sep 2026',
   },
   {
     id: 7,
     announcementId: 'VLCC-ANN-007',
-    title: 'Branch Maintenance Notice',
+    title: 'Weekly Test Result Publication',
     description:
-      'The branch premises will undergo scheduled maintenance. Certain facilities may remain unavailable during the maintenance period.',
-    category: 'Notice',
+      'Weekly test results will be published through the ERP portal. Students and teachers should review subject-wise performance and identify topics that require additional practice.',
+    category: 'Results',
     priority: 'Medium',
-    audience: 'Students & Staff',
+    audience: 'Students & Teachers',
     branch: 'Mumbai Branch',
     status: 'Scheduled',
-    createdBy: 'Priya Mehta',
+    createdBy: 'Examination Cell',
     publishedDate: '',
-    scheduledDate: '09 Sep 2026, 08:00 AM',
-    expiryDate: '11 Sep 2026',
+    scheduledDate: '16 Sep 2026, 05:00 PM',
+    expiryDate: '30 Sep 2026',
   },
   {
     id: 8,
     announcementId: 'VLCC-ANN-008',
-    title: 'Independence Day Holiday',
+    title: 'Academic Session Holiday Notice',
     description:
-      'The institute will remain closed on the announced holiday. Regular classes will resume on the next working day.',
+      'The institute will remain closed on the announced academic holiday. Regular classes and batch schedules will resume on the next working day.',
     category: 'Holiday',
     priority: 'Low',
     audience: 'All Users',
     branch: 'All Branches',
     status: 'Expired',
-    createdBy: 'Vikram Shah',
+    createdBy: 'Super Admin',
     publishedDate: '10 Aug 2026',
     scheduledDate: '',
     expiryDate: '16 Aug 2026',
   },
 ];
 
-const priorityColors: Record<
-  AnnouncementPriority,
-  {
-    bg: string;
-    text: string;
-  }
-> = {
-  High: {
-    bg: '#FFE9F0',
-    text: '#E95386',
-  },
-  Medium: {
-    bg: '#FFF1E2',
-    text: '#E88713',
-  },
-  Low: {
-    bg: '#EAF2FF',
-    text: '#2675E8',
-  },
+const priorityColors: Record<AnnouncementPriority, { bg: string; text: string }> = {
+  High: { bg: '#FFE9F0', text: '#E95386' },
+  Medium: { bg: '#FFF1E2', text: '#E88713' },
+  Low: { bg: '#EAF2FF', text: '#2675E8' },
 };
 
 const statusColors: Record<
@@ -228,11 +210,13 @@ const statusColors: Record<
 const categories = [
   'Academic',
   'Examination',
+  'Results',
+  'Attendance',
   'Fees',
+  'PTG',
   'Events',
-  'Training',
-  'Notice',
   'Holiday',
+  'Notice',
   'General',
 ];
 
@@ -242,7 +226,7 @@ const audiences = [
   'Students',
   'Teachers',
   'Students & Teachers',
-  'Students & Staff',
+  'Academic Staff',
   'Staff',
 ];
 
@@ -261,207 +245,100 @@ export default function AnnouncementsPage() {
 
   const contentWidth = width - 32;
   const statGap = 10;
-
-  const statCardWidth =
-    (contentWidth - statGap * 2) / 3;
+  const statCardWidth = (contentWidth - statGap * 2) / 3;
 
   const [announcements, setAnnouncements] =
-    useState<AnnouncementRecord[]>(
-      initialAnnouncements
-    );
-
-  const [search, setSearch] =
-    useState('');
-
+    useState<AnnouncementRecord[]>(initialAnnouncements);
+  const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] =
-    useState<
-      'All' | AnnouncementStatus | 'High Priority'
-    >('All');
+    useState<'All' | AnnouncementStatus | 'High Priority'>('All');
 
   const [selectedAnnouncement, setSelectedAnnouncement] =
-    useState<AnnouncementRecord | null>(
-      null
-    );
+    useState<AnnouncementRecord | null>(null);
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [viewModalVisible, setViewModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
-  const [actionModalVisible, setActionModalVisible] =
-    useState(false);
-
-  const [viewModalVisible, setViewModalVisible] =
-    useState(false);
-
-  const [editModalVisible, setEditModalVisible] =
-    useState(false);
-
-  const [formTitle, setFormTitle] =
-    useState('');
-
-  const [formDescription, setFormDescription] =
-    useState('');
-
-  const [formCategory, setFormCategory] =
-    useState('General');
-
+  const [formTitle, setFormTitle] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formCategory, setFormCategory] = useState('Academic');
   const [formPriority, setFormPriority] =
     useState<AnnouncementPriority>('Medium');
-
-  const [formAudience, setFormAudience] =
-    useState('All Users');
-
-  const [formBranch, setFormBranch] =
-    useState('All Branches');
-
+  const [formAudience, setFormAudience] = useState('All Students');
+  const [formBranch, setFormBranch] = useState('All Branches');
   const [formStatus, setFormStatus] =
     useState<AnnouncementStatus>('Draft');
+  const [formExpiryDate, setFormExpiryDate] = useState('');
 
-  const [formExpiryDate, setFormExpiryDate] =
-    useState('');
+  const totalAnnouncements = announcements.length;
+  const published = announcements.filter(
+    (item) => item.status === 'Published',
+  ).length;
+  const drafts = announcements.filter(
+    (item) => item.status === 'Draft',
+  ).length;
+  const scheduled = announcements.filter(
+    (item) => item.status === 'Scheduled',
+  ).length;
+  const highPriority = announcements.filter(
+    (item) => item.priority === 'High',
+  ).length;
+  const expired = announcements.filter(
+    (item) => item.status === 'Expired',
+  ).length;
 
-  const totalAnnouncements =
-    announcements.length;
+  const filteredAnnouncements = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-  const published =
-    announcements.filter(
-      (item) =>
-        item.status === 'Published'
-    ).length;
+    return announcements.filter((announcement) => {
+      const matchesSearch =
+        !query ||
+        announcement.title.toLowerCase().includes(query) ||
+        announcement.announcementId.toLowerCase().includes(query) ||
+        announcement.category.toLowerCase().includes(query) ||
+        announcement.audience.toLowerCase().includes(query) ||
+        announcement.branch.toLowerCase().includes(query) ||
+        announcement.createdBy.toLowerCase().includes(query);
 
-  const drafts =
-    announcements.filter(
-      (item) =>
-        item.status === 'Draft'
-    ).length;
+      const matchesFilter =
+        activeFilter === 'All' ||
+        announcement.status === activeFilter ||
+        (activeFilter === 'High Priority' &&
+          announcement.priority === 'High');
 
-  const scheduled =
-    announcements.filter(
-      (item) =>
-        item.status === 'Scheduled'
-    ).length;
+      return matchesSearch && matchesFilter;
+    });
+  }, [announcements, search, activeFilter]);
 
-  const highPriority =
-    announcements.filter(
-      (item) =>
-        item.priority === 'High'
-    ).length;
-
-  const expired =
-    announcements.filter(
-      (item) =>
-        item.status === 'Expired'
-    ).length;
-
-  const filteredAnnouncements =
-    useMemo(() => {
-      const query =
-        search.trim().toLowerCase();
-
-      return announcements.filter(
-        (announcement) => {
-          const matchesSearch =
-            !query ||
-            announcement.title
-              .toLowerCase()
-              .includes(query) ||
-            announcement.announcementId
-              .toLowerCase()
-              .includes(query) ||
-            announcement.category
-              .toLowerCase()
-              .includes(query) ||
-            announcement.audience
-              .toLowerCase()
-              .includes(query) ||
-            announcement.branch
-              .toLowerCase()
-              .includes(query) ||
-            announcement.createdBy
-              .toLowerCase()
-              .includes(query);
-
-          const matchesFilter =
-            activeFilter === 'All' ||
-            announcement.status ===
-              activeFilter ||
-            (activeFilter ===
-              'High Priority' &&
-              announcement.priority ===
-                'High');
-
-          return (
-            matchesSearch &&
-            matchesFilter
-          );
-        }
-      );
-    }, [
-      announcements,
-      search,
-      activeFilter,
-    ]);
-
-  const openActions = (
-    announcement: AnnouncementRecord
-  ) => {
-    setSelectedAnnouncement(
-      announcement
-    );
+  const openActions = (announcement: AnnouncementRecord) => {
+    setSelectedAnnouncement(announcement);
     setActionModalVisible(true);
   };
 
-  const openEdit = (
-    announcement: AnnouncementRecord
-  ) => {
-    setSelectedAnnouncement(
-      announcement
-    );
-
-    setFormTitle(
-      announcement.title
-    );
-
-    setFormDescription(
-      announcement.description
-    );
-
-    setFormCategory(
-      announcement.category
-    );
-
-    setFormPriority(
-      announcement.priority
-    );
-
-    setFormAudience(
-      announcement.audience
-    );
-
-    setFormBranch(
-      announcement.branch
-    );
-
-    setFormStatus(
-      announcement.status
-    );
-
-    setFormExpiryDate(
-      announcement.expiryDate
-    );
-
+  const openEdit = (announcement: AnnouncementRecord) => {
+    setSelectedAnnouncement(announcement);
+    setFormTitle(announcement.title);
+    setFormDescription(announcement.description);
+    setFormCategory(announcement.category);
+    setFormPriority(announcement.priority);
+    setFormAudience(announcement.audience);
+    setFormBranch(announcement.branch);
+    setFormStatus(announcement.status);
+    setFormExpiryDate(announcement.expiryDate);
     setActionModalVisible(false);
     setEditModalVisible(true);
   };
 
   const openCreate = () => {
     setSelectedAnnouncement(null);
-
     setFormTitle('');
     setFormDescription('');
-    setFormCategory('General');
+    setFormCategory('Academic');
     setFormPriority('Medium');
-    setFormAudience('All Users');
+    setFormAudience('All Students');
     setFormBranch('All Branches');
     setFormStatus('Draft');
     setFormExpiryDate('');
-
     setEditModalVisible(true);
   };
 
@@ -473,7 +350,7 @@ export default function AnnouncementsPage() {
     ) {
       Alert.alert(
         'Required Fields',
-        'Please enter the title, description and expiry date.'
+        'Please enter the title, description and expiry date.',
       );
       return;
     }
@@ -481,146 +358,97 @@ export default function AnnouncementsPage() {
     if (selectedAnnouncement) {
       setAnnouncements((current) =>
         current.map((item) =>
-          item.id ===
-          selectedAnnouncement.id
+          item.id === selectedAnnouncement.id
             ? {
                 ...item,
-                title:
-                  formTitle.trim(),
-                description:
-                  formDescription.trim(),
-                category:
-                  formCategory,
-                priority:
-                  formPriority,
-                audience:
-                  formAudience,
-                branch:
-                  formBranch,
-                status:
-                  formStatus,
-                expiryDate:
-                  formExpiryDate.trim(),
+                title: formTitle.trim(),
+                description: formDescription.trim(),
+                category: formCategory,
+                priority: formPriority,
+                audience: formAudience,
+                branch: formBranch,
+                status: formStatus,
+                expiryDate: formExpiryDate.trim(),
               }
-            : item
-        )
+            : item,
+        ),
       );
 
       setEditModalVisible(false);
-
       Alert.alert(
         'Announcement Updated',
-        'The announcement has been updated successfully.'
+        'The academic announcement has been updated successfully.',
       );
-
       return;
     }
 
-    const newAnnouncement: AnnouncementRecord =
-      {
-        id:
-          Math.max(
-            0,
-            ...announcements.map(
-              (item) => item.id
-            )
-          ) + 1,
-        announcementId: `VLCC-ANN-${String(
-          announcements.length + 1
-        ).padStart(3, '0')}`,
-        title:
-          formTitle.trim(),
-        description:
-          formDescription.trim(),
-        category:
-          formCategory,
-        priority:
-          formPriority,
-        audience:
-          formAudience,
-        branch:
-          formBranch,
-        status:
-          formStatus,
-        createdBy:
-          'Super Admin',
-        publishedDate:
-          formStatus ===
-          'Published'
-            ? '05 Sep 2026'
-            : '',
-        scheduledDate:
-          formStatus ===
-          'Scheduled'
-            ? '08 Sep 2026, 10:00 AM'
-            : '',
-        expiryDate:
-          formExpiryDate.trim(),
-      };
+    const nextId =
+      Math.max(0, ...announcements.map((item) => item.id)) + 1;
 
-    setAnnouncements(
-      (current) => [
-        newAnnouncement,
-        ...current,
-      ]
-    );
+    const newAnnouncement: AnnouncementRecord = {
+      id: nextId,
+      announcementId: `VLCC-ANN-${String(nextId).padStart(3, '0')}`,
+      title: formTitle.trim(),
+      description: formDescription.trim(),
+      category: formCategory,
+      priority: formPriority,
+      audience: formAudience,
+      branch: formBranch,
+      status: formStatus,
+      createdBy: 'Super Admin',
+      publishedDate:
+        formStatus === 'Published' ? '12 Sep 2026' : '',
+      scheduledDate:
+        formStatus === 'Scheduled'
+          ? '15 Sep 2026, 10:00 AM'
+          : '',
+      expiryDate: formExpiryDate.trim(),
+    };
 
+    setAnnouncements((current) => [newAnnouncement, ...current]);
     setEditModalVisible(false);
 
     Alert.alert(
       'Announcement Created',
-      'The announcement has been created successfully.'
+      'The academic announcement has been created successfully.',
     );
   };
 
-  const publishAnnouncement = (
-    announcement: AnnouncementRecord
-  ) => {
+  const publishAnnouncement = (announcement: AnnouncementRecord) => {
     setActionModalVisible(false);
 
     Alert.alert(
       'Publish Announcement',
       `Publish "${announcement.title}" now?`,
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Publish',
           onPress: () => {
-            setAnnouncements(
-              (current) =>
-                current.map(
-                  (item) =>
-                    item.id ===
-                    announcement.id
-                      ? {
-                          ...item,
-                          status:
-                            'Published',
-                          publishedDate:
-                            '05 Sep 2026',
-                          scheduledDate:
-                            '',
-                        }
-                      : item
-                )
+            setAnnouncements((current) =>
+              current.map((item) =>
+                item.id === announcement.id
+                  ? {
+                      ...item,
+                      status: 'Published',
+                      publishedDate: '12 Sep 2026',
+                      scheduledDate: '',
+                    }
+                  : item,
+              ),
             );
 
             Alert.alert(
               'Published',
-              'Announcement has been published successfully.'
+              'Announcement has been published successfully.',
             );
           },
         },
-      ]
+      ],
     );
   };
 
-  const scheduleAnnouncement = (
-    announcement: AnnouncementRecord
-  ) => {
+  const scheduleAnnouncement = (announcement: AnnouncementRecord) => {
     setActionModalVisible(false);
 
     setAnnouncements((current) =>
@@ -629,90 +457,66 @@ export default function AnnouncementsPage() {
           ? {
               ...item,
               status: 'Scheduled',
-              scheduledDate:
-                '08 Sep 2026, 10:00 AM',
+              scheduledDate: '15 Sep 2026, 10:00 AM',
             }
-          : item
-      )
+          : item,
+      ),
     );
 
     Alert.alert(
       'Announcement Scheduled',
-      'The announcement has been scheduled.'
+      'The announcement has been scheduled.',
     );
   };
 
-  const duplicateAnnouncement = (
-    announcement: AnnouncementRecord
-  ) => {
+  const duplicateAnnouncement = (announcement: AnnouncementRecord) => {
     setActionModalVisible(false);
 
-    const duplicated: AnnouncementRecord =
-      {
-        ...announcement,
-        id:
-          Math.max(
-            0,
-            ...announcements.map(
-              (item) => item.id
-            )
-          ) + 1,
-        announcementId: `VLCC-ANN-${String(
-          announcements.length + 1
-        ).padStart(3, '0')}`,
-        title: `${announcement.title} - Copy`,
-        status: 'Draft',
-        publishedDate: '',
-        scheduledDate: '',
-        createdBy: 'Super Admin',
-      };
+    const nextId =
+      Math.max(0, ...announcements.map((item) => item.id)) + 1;
 
-    setAnnouncements(
-      (current) => [
-        duplicated,
-        ...current,
-      ]
-    );
+    const duplicated: AnnouncementRecord = {
+      ...announcement,
+      id: nextId,
+      announcementId: `VLCC-ANN-${String(nextId).padStart(3, '0')}`,
+      title: `${announcement.title} - Copy`,
+      status: 'Draft',
+      publishedDate: '',
+      scheduledDate: '',
+      createdBy: 'Super Admin',
+    };
+
+    setAnnouncements((current) => [duplicated, ...current]);
 
     Alert.alert(
       'Announcement Duplicated',
-      'A new draft has been created from the announcement.'
+      'A new academic announcement draft has been created.',
     );
   };
 
-  const deleteAnnouncement = (
-    announcement: AnnouncementRecord
-  ) => {
+  const deleteAnnouncement = (announcement: AnnouncementRecord) => {
     setActionModalVisible(false);
 
     Alert.alert(
       'Delete Announcement',
       `Are you sure you want to delete "${announcement.title}"?`,
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            setAnnouncements(
-              (current) =>
-                current.filter(
-                  (item) =>
-                    item.id !==
-                    announcement.id
-                )
+            setAnnouncements((current) =>
+              current.filter((item) => item.id !== announcement.id),
             );
 
             Alert.alert(
               'Deleted',
-              'Announcement has been deleted.'
+              'Announcement has been deleted.',
             );
           },
         },
-      ]
+      ],
     );
   };
 
@@ -720,53 +524,22 @@ export default function AnnouncementsPage() {
     title: string,
     value: string,
     icon: keyof typeof MaterialCommunityIcons.glyphMap,
-    type:
-      | 'purple'
-      | 'blue'
-      | 'green'
-      | 'orange'
-      | 'pink'
+    type: 'purple' | 'blue' | 'green' | 'orange' | 'pink',
   ) => {
     const colors = {
-      purple: {
-        bg: '#F1EAFF',
-        icon: '#7040D5',
-      },
-      blue: {
-        bg: '#EAF2FF',
-        icon: '#2675E8',
-      },
-      green: {
-        bg: '#E7F8EF',
-        icon: '#35B878',
-      },
-      orange: {
-        bg: '#FFF1E2',
-        icon: '#F7941D',
-      },
-      pink: {
-        bg: '#FFE9F0',
-        icon: '#E95386',
-      },
+      purple: { bg: '#F1EAFF', icon: '#7040D5' },
+      blue: { bg: '#EAF2FF', icon: '#2675E8' },
+      green: { bg: '#E7F8EF', icon: '#35B878' },
+      orange: { bg: '#FFF1E2', icon: '#F7941D' },
+      pink: { bg: '#FFE9F0', icon: '#E95386' },
     };
 
     return (
-      <View
-        style={[
-          styles.summaryCard,
-          {
-            width:
-              statCardWidth,
-          },
-        ]}
-      >
+      <View style={[styles.summaryCard, { width: statCardWidth }]}>
         <View
           style={[
             styles.summaryIcon,
-            {
-              backgroundColor:
-                colors[type].bg,
-            },
+            { backgroundColor: colors[type].bg },
           ]}
         >
           <MaterialCommunityIcons
@@ -776,10 +549,7 @@ export default function AnnouncementsPage() {
           />
         </View>
 
-        <Text
-          style={styles.summaryTitle}
-          numberOfLines={2}
-        >
+        <Text style={styles.summaryTitle} numberOfLines={2}>
           {title}
         </Text>
 
@@ -796,34 +566,16 @@ export default function AnnouncementsPage() {
   };
 
   const renderAnnouncementCard = (
-    announcement: AnnouncementRecord
+    announcement: AnnouncementRecord,
   ) => {
-    const priority =
-      priorityColors[
-        announcement.priority
-      ];
-
-    const status =
-      statusColors[
-        announcement.status
-      ];
+    const priority = priorityColors[announcement.priority];
+    const status = statusColors[announcement.status];
 
     return (
-      <View
-        key={announcement.id}
-        style={styles.announcementCard}
-      >
-        <View
-          style={styles.cardTopRow}
-        >
-          <View
-            style={styles.titleArea}
-          >
-            <View
-              style={
-                styles.announcementIcon
-              }
-            >
+      <View key={announcement.id} style={styles.announcementCard}>
+        <View style={styles.cardTopRow}>
+          <View style={styles.titleArea}>
+            <View style={styles.announcementIcon}>
               <MaterialCommunityIcons
                 name="bullhorn-outline"
                 size={20}
@@ -831,43 +583,23 @@ export default function AnnouncementsPage() {
               />
             </View>
 
-            <View
-              style={{
-                flex: 1,
-              }}
-            >
+            <View style={{ flex: 1 }}>
               <Text
-                style={
-                  styles.announcementTitle
-                }
+                style={styles.announcementTitle}
                 numberOfLines={2}
               >
-                {
-                  announcement.title
-                }
+                {announcement.title}
               </Text>
 
-              <Text
-                style={
-                  styles.announcementId
-                }
-              >
-                {
-                  announcement.announcementId
-                }
+              <Text style={styles.announcementId}>
+                {announcement.announcementId}
               </Text>
             </View>
           </View>
 
           <TouchableOpacity
-            style={
-              styles.moreButton
-            }
-            onPress={() =>
-              openActions(
-                announcement
-              )
-            }
+            style={styles.moreButton}
+            onPress={() => openActions(announcement)}
           >
             <MaterialCommunityIcons
               name="dots-vertical"
@@ -877,53 +609,31 @@ export default function AnnouncementsPage() {
           </TouchableOpacity>
         </View>
 
-        <Text
-          style={
-            styles.description
-          }
-          numberOfLines={3}
-        >
-          {
-            announcement.description
-          }
+        <Text style={styles.description} numberOfLines={3}>
+          {announcement.description}
         </Text>
 
-        <View
-          style={
-            styles.badgeRow
-          }
-        >
+        <View style={styles.badgeRow}>
           <View
             style={[
               styles.priorityBadge,
-              {
-                backgroundColor:
-                  priority.bg,
-              },
+              { backgroundColor: priority.bg },
             ]}
           >
             <Text
               style={[
                 styles.priorityText,
-                {
-                  color:
-                    priority.text,
-                },
+                { color: priority.text },
               ]}
             >
-              {
-                announcement.priority
-              }
+              {announcement.priority}
             </Text>
           </View>
 
           <View
             style={[
               styles.statusBadge,
-              {
-                backgroundColor:
-                  status.bg,
-              },
+              { backgroundColor: status.bg },
             ]}
           >
             <MaterialCommunityIcons
@@ -931,78 +641,48 @@ export default function AnnouncementsPage() {
               size={13}
               color={status.text}
             />
-
             <Text
               style={[
                 styles.statusText,
-                {
-                  color:
-                    status.text,
-                },
+                { color: status.text },
               ]}
             >
-              {
-                announcement.status
-              }
+              {announcement.status}
             </Text>
           </View>
 
-          <View
-            style={
-              styles.categoryBadge
-            }
-          >
-            <Text
-              style={
-                styles.categoryText
-              }
-            >
-              {
-                announcement.category
-              }
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryText}>
+              {announcement.category}
             </Text>
           </View>
         </View>
 
-        <View
-          style={
-            styles.detailsBox
-          }
-        >
+        <View style={styles.detailsBox}>
           <InfoRow
             icon="account-group-outline"
-            text={
-              announcement.audience
-            }
+            text={announcement.audience}
           />
-
           <InfoRow
             icon="office-building-outline"
-            text={
-              announcement.branch
-            }
+            text={announcement.branch}
           />
-
           <InfoRow
             icon="account-outline"
             text={`Created by: ${announcement.createdBy}`}
           />
-
           <InfoRow
             icon={
-              announcement.status ===
-              'Scheduled'
+              announcement.status === 'Scheduled'
                 ? 'clock-outline'
                 : 'calendar-outline'
             }
             text={
-              announcement.status ===
-              'Scheduled'
+              announcement.status === 'Scheduled'
                 ? `Scheduled: ${announcement.scheduledDate}`
-                : announcement.status ===
-                  'Published'
-                ? `Published: ${announcement.publishedDate}`
-                : `Expiry: ${announcement.expiryDate}`
+                : announcement.status === 'Published'
+                  ? `Published: ${announcement.publishedDate}`
+                  : `Expiry: ${announcement.expiryDate}`
             }
           />
         </View>
@@ -1014,24 +694,13 @@ export default function AnnouncementsPage() {
     <SafeAreaView
       style={[
         styles.safeArea,
-        {
-          paddingTop:
-            insets.top,
-        },
+        { paddingTop: insets.top },
       ]}
     >
-      {/* HEADER */}
-
-      <View
-        style={styles.header}
-      >
+      <View style={styles.header}>
         <TouchableOpacity
-          style={
-            styles.backButton
-          }
-          onPress={() =>
-            router.back()
-          }
+          style={styles.backButton}
+          onPress={() => router.back()}
         >
           <MaterialCommunityIcons
             name="arrow-left"
@@ -1040,35 +709,18 @@ export default function AnnouncementsPage() {
           />
         </TouchableOpacity>
 
-        <Text
-          style={
-            styles.headerTitle
-          }
-        >
-          Announcements
-        </Text>
+        <Text style={styles.headerTitle}>Announcements</Text>
 
         <TouchableOpacity
-          style={
-            styles.addButton
-          }
-          onPress={
-            openCreate
-          }
+          style={styles.addButton}
+          onPress={openCreate}
         >
           <MaterialCommunityIcons
             name="plus"
             size={16}
             color="#7040D5"
           />
-
-          <Text
-            style={
-              styles.addButtonText
-            }
-          >
-            Create
-          </Text>
+          <Text style={styles.addButtonText}>Create</Text>
         </TouchableOpacity>
       </View>
 
@@ -1076,89 +728,58 @@ export default function AnnouncementsPage() {
         style={styles.container}
         contentContainerStyle={[
           styles.content,
-          {
-            paddingBottom:
-              insets.bottom +
-              30,
-          },
+          { paddingBottom: insets.bottom + 30 },
         ]}
-        showsVerticalScrollIndicator={
-          false
-        }
+        showsVerticalScrollIndicator={false}
       >
-        <Text
-          style={
-            styles.managementTitle
-          }
-        >
+        <Text style={styles.managementTitle}>
           Announcement Management
         </Text>
 
-        <Text
-          style={
-            styles.managementSubtitle
-          }
-        >
-          Create, publish and manage institute announcements
+        <Text style={styles.managementSubtitle}>
+          Create, publish and manage academic announcements
         </Text>
 
-        {/* SUMMARY */}
-
-        <View
-          style={
-            styles.summaryGrid
-          }
-        >
+        <View style={styles.summaryGrid}>
           {renderSummaryCard(
             'Total Announcements',
-            String(
-              totalAnnouncements
-            ),
+            String(totalAnnouncements),
             'bullhorn-outline',
-            'purple'
+            'purple',
           )}
-
           {renderSummaryCard(
             'Published',
             String(published),
             'check-circle-outline',
-            'green'
+            'green',
           )}
-
           {renderSummaryCard(
             'Drafts',
             String(drafts),
             'file-document-outline',
-            'blue'
+            'blue',
           )}
-
           {renderSummaryCard(
             'Scheduled',
             String(scheduled),
             'clock-outline',
-            'orange'
+            'orange',
           )}
-
           {renderSummaryCard(
             'High Priority',
             String(highPriority),
             'alert-circle-outline',
-            'pink'
+            'pink',
           )}
-
           {renderSummaryCard(
             'Expired',
             String(expired),
             'calendar-remove-outline',
-            'purple'
+            'purple',
           )}
         </View>
 
-        {/* SEARCH */}
-
-        <View
-          style={styles.searchBox}
-        >
+        <View style={styles.searchBox}>
           <MaterialCommunityIcons
             name="magnify"
             size={21}
@@ -1170,18 +791,11 @@ export default function AnnouncementsPage() {
             onChangeText={setSearch}
             placeholder="Search title, ID, category, branch..."
             placeholderTextColor="#A2AABB"
-            style={
-              styles.searchInput
-            }
+            style={styles.searchInput}
           />
 
-          {search.length >
-            0 && (
-            <TouchableOpacity
-              onPress={() =>
-                setSearch('')
-              }
-            >
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')}>
               <MaterialCommunityIcons
                 name="close-circle"
                 size={19}
@@ -1191,16 +805,10 @@ export default function AnnouncementsPage() {
           )}
         </View>
 
-        {/* FILTERS */}
-
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={
-            false
-          }
-          contentContainerStyle={
-            styles.filterContainer
-          }
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContainer}
         >
           {[
             'All',
@@ -1217,21 +825,19 @@ export default function AnnouncementsPage() {
                   filter as
                     | 'All'
                     | AnnouncementStatus
-                    | 'High Priority'
+                    | 'High Priority',
                 )
               }
               style={[
                 styles.filterButton,
-                activeFilter ===
-                  filter &&
+                activeFilter === filter &&
                   styles.filterButtonActive,
               ]}
             >
               <Text
                 style={[
                   styles.filterText,
-                  activeFilter ===
-                    filter &&
+                  activeFilter === filter &&
                     styles.filterTextActive,
                 ]}
               >
@@ -1241,139 +847,61 @@ export default function AnnouncementsPage() {
           ))}
         </ScrollView>
 
-        {/* LIST HEADER */}
-
-        <View
-          style={
-            styles.listHeader
-          }
-        >
-          <Text
-            style={
-              styles.listTitle
-            }
-          >
-            Announcements
-          </Text>
-
-          <Text
-            style={
-              styles.recordCount
-            }
-          >
-            {
-              filteredAnnouncements.length
-            }{' '}
-            Records
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>Announcements</Text>
+          <Text style={styles.recordCount}>
+            {filteredAnnouncements.length} Records
           </Text>
         </View>
 
-        {filteredAnnouncements.length ===
-        0 ? (
-          <View
-            style={
-              styles.emptyBox
-            }
-          >
+        {filteredAnnouncements.length === 0 ? (
+          <View style={styles.emptyBox}>
             <MaterialCommunityIcons
               name="bullhorn-outline"
               size={44}
               color="#A7AFBD"
             />
-
-            <Text
-              style={
-                styles.emptyTitle
-              }
-            >
+            <Text style={styles.emptyTitle}>
               No announcements found
             </Text>
-
-            <Text
-              style={
-                styles.emptyText
-              }
-            >
+            <Text style={styles.emptyText}>
               Try changing your search or filter.
             </Text>
           </View>
         ) : (
-          filteredAnnouncements.map(
-            renderAnnouncementCard
-          )
+          filteredAnnouncements.map(renderAnnouncementCard)
         )}
       </ScrollView>
 
-      {/* =========================
-          ACTION MODAL
-      ========================== */}
-
       <Modal
-        visible={
-          actionModalVisible
-        }
+        visible={actionModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() =>
-          setActionModalVisible(
-            false
-          )
-        }
+        onRequestClose={() => setActionModalVisible(false)}
       >
         <Pressable
-          style={
-            styles.modalOverlay
-          }
-          onPress={() =>
-            setActionModalVisible(
-              false
-            )
-          }
+          style={styles.modalOverlay}
+          onPress={() => setActionModalVisible(false)}
         >
           <Pressable
-            style={
-              styles.actionModal
-            }
-            onPress={(event) =>
-              event.stopPropagation()
-            }
+            style={styles.actionModal}
+            onPress={(event) => event.stopPropagation()}
           >
-            <View
-              style={
-                styles.modalHeader
-              }
-            >
-              <View
-                style={{
-                  flex: 1,
-                }}
-              >
-                <Text
-                  style={
-                    styles.modalTitle
-                  }
-                >
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>
                   Announcement Actions
                 </Text>
-
                 <Text
-                  style={
-                    styles.modalSubtitle
-                  }
+                  style={styles.modalSubtitle}
                   numberOfLines={1}
                 >
-                  {
-                    selectedAnnouncement?.title
-                  }
+                  {selectedAnnouncement?.title}
                 </Text>
               </View>
 
               <TouchableOpacity
-                onPress={() =>
-                  setActionModalVisible(
-                    false
-                  )
-                }
+                onPress={() => setActionModalVisible(false)}
               >
                 <MaterialCommunityIcons
                   name="close"
@@ -1388,12 +916,8 @@ export default function AnnouncementsPage() {
               color="#7040D5"
               text="View Announcement"
               onPress={() => {
-                setActionModalVisible(
-                  false
-                );
-                setViewModalVisible(
-                  true
-                );
+                setActionModalVisible(false);
+                setViewModalVisible(true);
               }}
             />
 
@@ -1402,47 +926,33 @@ export default function AnnouncementsPage() {
               color="#2675E8"
               text="Edit Announcement"
               onPress={() => {
-                if (
-                  selectedAnnouncement
-                ) {
-                  openEdit(
-                    selectedAnnouncement
-                  );
+                if (selectedAnnouncement) {
+                  openEdit(selectedAnnouncement);
                 }
               }}
             />
 
-            {selectedAnnouncement?.status !==
-              'Published' && (
+            {selectedAnnouncement?.status !== 'Published' && (
               <ActionButton
                 icon="publish"
                 color="#35B878"
                 text="Publish"
                 onPress={() => {
-                  if (
-                    selectedAnnouncement
-                  ) {
-                    publishAnnouncement(
-                      selectedAnnouncement
-                    );
+                  if (selectedAnnouncement) {
+                    publishAnnouncement(selectedAnnouncement);
                   }
                 }}
               />
             )}
 
-            {selectedAnnouncement?.status !==
-              'Scheduled' && (
+            {selectedAnnouncement?.status !== 'Scheduled' && (
               <ActionButton
                 icon="calendar-clock"
                 color="#F7941D"
                 text="Schedule"
                 onPress={() => {
-                  if (
-                    selectedAnnouncement
-                  ) {
-                    scheduleAnnouncement(
-                      selectedAnnouncement
-                    );
+                  if (selectedAnnouncement) {
+                    scheduleAnnouncement(selectedAnnouncement);
                   }
                 }}
               />
@@ -1453,12 +963,8 @@ export default function AnnouncementsPage() {
               color="#2675E8"
               text="Duplicate"
               onPress={() => {
-                if (
-                  selectedAnnouncement
-                ) {
-                  duplicateAnnouncement(
-                    selectedAnnouncement
-                  );
+                if (selectedAnnouncement) {
+                  duplicateAnnouncement(selectedAnnouncement);
                 }
               }}
             />
@@ -1468,12 +974,8 @@ export default function AnnouncementsPage() {
               color="#D84B63"
               text="Delete Announcement"
               onPress={() => {
-                if (
-                  selectedAnnouncement
-                ) {
-                  deleteAnnouncement(
-                    selectedAnnouncement
-                  );
+                if (selectedAnnouncement) {
+                  deleteAnnouncement(selectedAnnouncement);
                 }
               }}
             />
@@ -1481,67 +983,26 @@ export default function AnnouncementsPage() {
         </Pressable>
       </Modal>
 
-      {/* =========================
-          VIEW MODAL
-      ========================== */}
-
       <Modal
-        visible={
-          viewModalVisible
-        }
+        visible={viewModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setViewModalVisible(
-            false
-          )
-        }
+        onRequestClose={() => setViewModalVisible(false)}
       >
-        <View
-          style={
-            styles.modalOverlay
-          }
-        >
-          <View
-            style={
-              styles.largeModal
-            }
-          >
-            <View
-              style={
-                styles.modalHeader
-              }
-            >
-              <View
-                style={{
-                  flex: 1,
-                }}
-              >
-                <Text
-                  style={
-                    styles.modalTitle
-                  }
-                >
+        <View style={styles.modalOverlay}>
+          <View style={styles.largeModal}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>
                   Announcement Details
                 </Text>
-
-                <Text
-                  style={
-                    styles.modalSubtitle
-                  }
-                >
-                  {
-                    selectedAnnouncement?.announcementId
-                  }
+                <Text style={styles.modalSubtitle}>
+                  {selectedAnnouncement?.announcementId}
                 </Text>
               </View>
 
               <TouchableOpacity
-                onPress={() =>
-                  setViewModalVisible(
-                    false
-                  )
-                }
+                onPress={() => setViewModalVisible(false)}
               >
                 <MaterialCommunityIcons
                   name="close"
@@ -1553,20 +1014,10 @@ export default function AnnouncementsPage() {
 
             {selectedAnnouncement && (
               <ScrollView
-                showsVerticalScrollIndicator={
-                  false
-                }
+                showsVerticalScrollIndicator={false}
               >
-                <View
-                  style={
-                    styles.detailAnnouncementHeader
-                  }
-                >
-                  <View
-                    style={
-                      styles.detailAnnouncementIcon
-                    }
-                  >
+                <View style={styles.detailAnnouncementHeader}>
+                  <View style={styles.detailAnnouncementIcon}>
                     <MaterialCommunityIcons
                       name="bullhorn-outline"
                       size={25}
@@ -1574,29 +1025,18 @@ export default function AnnouncementsPage() {
                     />
                   </View>
 
-                  <Text
-                    style={
-                      styles.detailTitle
-                    }
-                  >
-                    {
-                      selectedAnnouncement.title
-                    }
+                  <Text style={styles.detailTitle}>
+                    {selectedAnnouncement.title}
                   </Text>
 
-                  <View
-                    style={
-                      styles.badgeRow
-                    }
-                  >
+                  <View style={styles.badgeRow}>
                     <View
                       style={[
                         styles.priorityBadge,
                         {
                           backgroundColor:
                             priorityColors[
-                              selectedAnnouncement
-                                .priority
+                              selectedAnnouncement.priority
                             ].bg,
                         },
                       ]}
@@ -1607,16 +1047,12 @@ export default function AnnouncementsPage() {
                           {
                             color:
                               priorityColors[
-                                selectedAnnouncement
-                                  .priority
+                                selectedAnnouncement.priority
                               ].text,
                           },
                         ]}
                       >
-                        {
-                          selectedAnnouncement.priority
-                        }{' '}
-                        Priority
+                        {selectedAnnouncement.priority} Priority
                       </Text>
                     </View>
 
@@ -1626,8 +1062,7 @@ export default function AnnouncementsPage() {
                         {
                           backgroundColor:
                             statusColors[
-                              selectedAnnouncement
-                                .status
+                              selectedAnnouncement.status
                             ].bg,
                         },
                       ]}
@@ -1638,133 +1073,84 @@ export default function AnnouncementsPage() {
                           {
                             color:
                               statusColors[
-                                selectedAnnouncement
-                                  .status
+                                selectedAnnouncement.status
                               ].text,
                           },
                         ]}
                       >
-                        {
-                          selectedAnnouncement.status
-                        }
+                        {selectedAnnouncement.status}
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }
-                >
+                <Text style={styles.sectionTitle}>
                   Announcement
                 </Text>
 
-                <View
-                  style={
-                    styles.descriptionBox
-                  }
-                >
-                  <Text
-                    style={
-                      styles.detailDescription
-                    }
-                  >
-                    {
-                      selectedAnnouncement.description
-                    }
+                <View style={styles.descriptionBox}>
+                  <Text style={styles.detailDescription}>
+                    {selectedAnnouncement.description}
                   </Text>
                 </View>
 
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }
-                >
+                <Text style={styles.sectionTitle}>
                   Target Information
                 </Text>
 
                 <DetailRow
                   icon="account-group-outline"
                   label="Audience"
-                  value={
-                    selectedAnnouncement.audience
-                  }
+                  value={selectedAnnouncement.audience}
                 />
-
                 <DetailRow
                   icon="office-building-outline"
                   label="Branch"
-                  value={
-                    selectedAnnouncement.branch
-                  }
+                  value={selectedAnnouncement.branch}
                 />
-
                 <DetailRow
                   icon="shape-outline"
                   label="Category"
-                  value={
-                    selectedAnnouncement.category
-                  }
+                  value={selectedAnnouncement.category}
                 />
 
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }
-                >
+                <Text style={styles.sectionTitle}>
                   Publishing Information
                 </Text>
 
                 <DetailRow
                   icon="account-outline"
                   label="Created By"
-                  value={
-                    selectedAnnouncement.createdBy
-                  }
+                  value={selectedAnnouncement.createdBy}
                 />
 
-                {selectedAnnouncement.publishedDate !==
-                  '' && (
+                {selectedAnnouncement.publishedDate !== '' && (
                   <DetailRow
                     icon="calendar-check-outline"
                     label="Published Date"
-                    value={
-                      selectedAnnouncement.publishedDate
-                    }
+                    value={selectedAnnouncement.publishedDate}
                   />
                 )}
 
-                {selectedAnnouncement.scheduledDate !==
-                  '' && (
+                {selectedAnnouncement.scheduledDate !== '' && (
                   <DetailRow
                     icon="clock-outline"
                     label="Scheduled Date"
-                    value={
-                      selectedAnnouncement.scheduledDate
-                    }
+                    value={selectedAnnouncement.scheduledDate}
                   />
                 )}
 
                 <DetailRow
                   icon="calendar-remove-outline"
                   label="Expiry Date"
-                  value={
-                    selectedAnnouncement.expiryDate
-                  }
+                  value={selectedAnnouncement.expiryDate}
                 />
 
                 <TouchableOpacity
-                  style={
-                    styles.primaryButton
-                  }
+                  style={styles.primaryButton}
                   onPress={() => {
-                    setViewModalVisible(
-                      false
-                    );
-                    openEdit(
-                      selectedAnnouncement
-                    );
+                    setViewModalVisible(false);
+                    openEdit(selectedAnnouncement);
                   }}
                 >
                   <MaterialCommunityIcons
@@ -1772,12 +1158,7 @@ export default function AnnouncementsPage() {
                     size={18}
                     color="#FFFFFF"
                   />
-
-                  <Text
-                    style={
-                      styles.primaryButtonText
-                    }
-                  >
+                  <Text style={styles.primaryButtonText}>
                     Edit Announcement
                   </Text>
                 </TouchableOpacity>
@@ -1787,67 +1168,28 @@ export default function AnnouncementsPage() {
         </View>
       </Modal>
 
-      {/* =========================
-          CREATE / EDIT MODAL
-      ========================== */}
-
       <Modal
-        visible={
-          editModalVisible
-        }
+        visible={editModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setEditModalVisible(
-            false
-          )
-        }
+        onRequestClose={() => setEditModalVisible(false)}
       >
-        <View
-          style={
-            styles.modalOverlay
-          }
-        >
-          <View
-            style={
-              styles.largeModal
-            }
-          >
-            <View
-              style={
-                styles.modalHeader
-              }
-            >
-              <View
-                style={{
-                  flex: 1,
-                }}
-              >
-                <Text
-                  style={
-                    styles.modalTitle
-                  }
-                >
+        <View style={styles.modalOverlay}>
+          <View style={styles.largeModal}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>
                   {selectedAnnouncement
                     ? 'Edit Announcement'
                     : 'Create Announcement'}
                 </Text>
-
-                <Text
-                  style={
-                    styles.modalSubtitle
-                  }
-                >
-                  Enter announcement information
+                <Text style={styles.modalSubtitle}>
+                  Enter academic announcement information
                 </Text>
               </View>
 
               <TouchableOpacity
-                onPress={() =>
-                  setEditModalVisible(
-                    false
-                  )
-                }
+                onPress={() => setEditModalVisible(false)}
               >
                 <MaterialCommunityIcons
                   name="close"
@@ -1857,302 +1199,143 @@ export default function AnnouncementsPage() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              showsVerticalScrollIndicator={
-                false
-              }
-            >
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>
                 Announcement Title
               </Text>
 
               <TextInput
                 value={formTitle}
-                onChangeText={
-                  setFormTitle
-                }
-                placeholder="Enter announcement title"
+                onChangeText={setFormTitle}
+                placeholder="Enter academic announcement title"
                 placeholderTextColor="#A2AABB"
-                style={
-                  styles.input
-                }
+                style={styles.input}
               />
 
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
+              <Text style={styles.inputLabel}>
                 Description
               </Text>
 
               <TextInput
-                value={
-                  formDescription
-                }
-                onChangeText={
-                  setFormDescription
-                }
-                placeholder="Enter announcement details"
+                value={formDescription}
+                onChangeText={setFormDescription}
+                placeholder="Enter academic announcement details"
                 placeholderTextColor="#A2AABB"
                 multiline
-                style={[
-                  styles.input,
-                  styles.textArea,
-                ]}
+                style={[styles.input, styles.textArea]}
               />
 
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
-                Category
-              </Text>
+              <Text style={styles.inputLabel}>Category</Text>
 
               <ScrollView
                 horizontal
-                showsHorizontalScrollIndicator={
-                  false
-                }
-                contentContainerStyle={
-                  styles.optionContainer
-                }
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.optionContainer}
               >
-                {categories.map(
-                  (category) => (
-                    <OptionButton
-                      key={
-                        category
-                      }
-                      label={
-                        category
-                      }
-                      selected={
-                        formCategory ===
-                        category
-                      }
-                      onPress={() =>
-                        setFormCategory(
-                          category
-                        )
-                      }
-                    />
-                  )
-                )}
+                {categories.map((category) => (
+                  <OptionButton
+                    key={category}
+                    label={category}
+                    selected={formCategory === category}
+                    onPress={() => setFormCategory(category)}
+                  />
+                ))}
               </ScrollView>
 
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
-                Priority
-              </Text>
+              <Text style={styles.inputLabel}>Priority</Text>
 
-              <View
-                style={
-                  styles.inlineOptions
-                }
-              >
+              <View style={styles.inlineOptions}>
                 {(
-                  [
-                    'High',
-                    'Medium',
-                    'Low',
-                  ] as AnnouncementPriority[]
-                ).map(
-                  (priority) => (
-                    <OptionButton
-                      key={
-                        priority
-                      }
-                      label={
-                        priority
-                      }
-                      selected={
-                        formPriority ===
-                        priority
-                      }
-                      onPress={() =>
-                        setFormPriority(
-                          priority
-                        )
-                      }
-                    />
-                  )
-                )}
+                  ['High', 'Medium', 'Low'] as AnnouncementPriority[]
+                ).map((priority) => (
+                  <OptionButton
+                    key={priority}
+                    label={priority}
+                    selected={formPriority === priority}
+                    onPress={() => setFormPriority(priority)}
+                  />
+                ))}
               </View>
 
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
+              <Text style={styles.inputLabel}>
                 Target Audience
               </Text>
 
               <ScrollView
                 horizontal
-                showsHorizontalScrollIndicator={
-                  false
-                }
-                contentContainerStyle={
-                  styles.optionContainer
-                }
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.optionContainer}
               >
-                {audiences.map(
-                  (audience) => (
-                    <OptionButton
-                      key={
-                        audience
-                      }
-                      label={
-                        audience
-                      }
-                      selected={
-                        formAudience ===
-                        audience
-                      }
-                      onPress={() =>
-                        setFormAudience(
-                          audience
-                        )
-                      }
-                    />
-                  )
-                )}
+                {audiences.map((audience) => (
+                  <OptionButton
+                    key={audience}
+                    label={audience}
+                    selected={formAudience === audience}
+                    onPress={() => setFormAudience(audience)}
+                  />
+                ))}
               </ScrollView>
 
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
-                Branch
-              </Text>
+              <Text style={styles.inputLabel}>Branch</Text>
 
               <ScrollView
                 horizontal
-                showsHorizontalScrollIndicator={
-                  false
-                }
-                contentContainerStyle={
-                  styles.optionContainer
-                }
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.optionContainer}
               >
-                {branches.map(
-                  (item) => (
-                    <OptionButton
-                      key={item}
-                      label={item}
-                      selected={
-                        formBranch ===
-                        item
-                      }
-                      onPress={() =>
-                        setFormBranch(
-                          item
-                        )
-                      }
-                    />
-                  )
-                )}
+                {branches.map((branch) => (
+                  <OptionButton
+                    key={branch}
+                    label={branch}
+                    selected={formBranch === branch}
+                    onPress={() => setFormBranch(branch)}
+                  />
+                ))}
               </ScrollView>
 
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
-                Status
-              </Text>
+              <Text style={styles.inputLabel}>Status</Text>
 
-              <View
-                style={
-                  styles.inlineOptions
-                }
-              >
+              <View style={styles.inlineOptions}>
                 {(
-                  [
-                    'Draft',
-                    'Published',
-                    'Scheduled',
-                  ] as AnnouncementStatus[]
-                ).map(
-                  (status) => (
-                    <OptionButton
-                      key={status}
-                      label={status}
-                      selected={
-                        formStatus ===
-                        status
-                      }
-                      onPress={() =>
-                        setFormStatus(
-                          status
-                        )
-                      }
-                    />
-                  )
-                )}
+                  ['Draft', 'Published', 'Scheduled'] as AnnouncementStatus[]
+                ).map((status) => (
+                  <OptionButton
+                    key={status}
+                    label={status}
+                    selected={formStatus === status}
+                    onPress={() => setFormStatus(status)}
+                  />
+                ))}
               </View>
 
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
+              <Text style={styles.inputLabel}>
                 Expiry Date
               </Text>
 
               <TextInput
-                value={
-                  formExpiryDate
-                }
-                onChangeText={
-                  setFormExpiryDate
-                }
+                value={formExpiryDate}
+                onChangeText={setFormExpiryDate}
                 placeholder="e.g. 30 Sep 2026"
                 placeholderTextColor="#A2AABB"
-                style={
-                  styles.input
-                }
+                style={styles.input}
               />
 
-              <View
-                style={
-                  styles.infoNotice
-                }
-              >
+              <View style={styles.infoNotice}>
                 <MaterialCommunityIcons
                   name="information-outline"
                   size={18}
                   color="#7040D5"
                 />
-
-                <Text
-                  style={
-                    styles.infoNoticeText
-                  }
-                >
-                  Scheduled announcements will be published
-                  automatically at the configured schedule when
-                  connected to the backend.
+                <Text style={styles.infoNoticeText}>
+                  Use this section for academic notices, examinations,
+                  results, attendance, fees, PTG meetings and institute
+                  events for Classes 8 to 12, JEE, NEET and MHT-CET.
                 </Text>
               </View>
 
               <TouchableOpacity
-                style={
-                  styles.primaryButton
-                }
-                onPress={
-                  saveAnnouncement
-                }
+                style={styles.primaryButton}
+                onPress={saveAnnouncement}
               >
                 <MaterialCommunityIcons
                   name={
@@ -2163,12 +1346,7 @@ export default function AnnouncementsPage() {
                   size={19}
                   color="#FFFFFF"
                 />
-
-                <Text
-                  style={
-                    styles.primaryButtonText
-                  }
-                >
+                <Text style={styles.primaryButtonText}>
                   {selectedAnnouncement
                     ? 'Save Changes'
                     : 'Create Announcement'}
@@ -2182,10 +1360,6 @@ export default function AnnouncementsPage() {
   );
 }
 
-/* =========================
-   SMALL COMPONENTS
-========================= */
-
 function InfoRow({
   icon,
   text,
@@ -2194,19 +1368,13 @@ function InfoRow({
   text: string;
 }) {
   return (
-    <View
-      style={styles.infoRow}
-    >
+    <View style={styles.infoRow}>
       <MaterialCommunityIcons
         name={icon}
         size={16}
         color="#8A93A4"
       />
-
-      <Text
-        style={styles.infoText}
-        numberOfLines={1}
-      >
+      <Text style={styles.infoText} numberOfLines={1}>
         {text}
       </Text>
     </View>
@@ -2223,12 +1391,8 @@ function DetailRow({
   value: string;
 }) {
   return (
-    <View
-      style={styles.detailRow}
-    >
-      <View
-        style={styles.detailIcon}
-      >
+    <View style={styles.detailRow}>
+      <View style={styles.detailIcon}>
         <MaterialCommunityIcons
           name={icon}
           size={18}
@@ -2236,26 +1400,9 @@ function DetailRow({
         />
       </View>
 
-      <View
-        style={{
-          flex: 1,
-        }}
-      >
-        <Text
-          style={
-            styles.detailLabel
-          }
-        >
-          {label}
-        </Text>
-
-        <Text
-          style={
-            styles.detailValue
-          }
-        >
-          {value}
-        </Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.detailLabel}>{label}</Text>
+        <Text style={styles.detailValue}>{value}</Text>
       </View>
     </View>
   );
@@ -2280,10 +1427,7 @@ function ActionButton({
       <View
         style={[
           styles.actionIcon,
-          {
-            backgroundColor:
-              `${color}18`,
-          },
+          { backgroundColor: `${color}18` },
         ]}
       >
         <MaterialCommunityIcons
@@ -2293,11 +1437,7 @@ function ActionButton({
         />
       </View>
 
-      <Text
-        style={styles.actionText}
-      >
-        {text}
-      </Text>
+      <Text style={styles.actionText}>{text}</Text>
     </TouchableOpacity>
   );
 }
@@ -2315,16 +1455,14 @@ function OptionButton({
     <TouchableOpacity
       style={[
         styles.optionButton,
-        selected &&
-          styles.optionButtonActive,
+        selected && styles.optionButtonActive,
       ]}
       onPress={onPress}
     >
       <Text
         style={[
           styles.optionText,
-          selected &&
-            styles.optionTextActive,
+          selected && styles.optionTextActive,
         ]}
       >
         {label}
@@ -2332,10 +1470,6 @@ function OptionButton({
     </TouchableOpacity>
   );
 }
-
-/* =========================
-   STYLES
-========================= */
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -2406,8 +1540,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  /* SUMMARY */
-
   summaryGrid: {
     width: '100%',
     flexDirection: 'row',
@@ -2426,10 +1558,7 @@ const styles = StyleSheet.create({
     padding: 11,
     justifyContent: 'space-between',
     shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.035,
     shadowRadius: 5,
     elevation: 2,
@@ -2457,8 +1586,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
   },
 
-  /* SEARCH */
-
   searchBox: {
     height: 48,
     backgroundColor: '#FFFFFF',
@@ -2478,8 +1605,6 @@ const styles = StyleSheet.create({
     color: '#172033',
     marginLeft: 8,
   },
-
-  /* FILTER */
 
   filterContainer: {
     gap: 8,
@@ -2531,8 +1656,6 @@ const styles = StyleSheet.create({
     color: '#8A93A4',
   },
 
-  /* ANNOUNCEMENT CARD */
-
   announcementCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -2541,10 +1664,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
     shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 7,
     elevation: 2,
@@ -2668,8 +1788,6 @@ const styles = StyleSheet.create({
     color: '#687386',
   },
 
-  /* EMPTY */
-
   emptyBox: {
     backgroundColor: '#FFFFFF',
     borderRadius: 15,
@@ -2694,12 +1812,9 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  /* MODALS */
-
   modalOverlay: {
     flex: 1,
-    backgroundColor:
-      'rgba(20, 24, 35, 0.48)',
+    backgroundColor: 'rgba(20, 24, 35, 0.48)',
     justifyContent: 'flex-end',
   },
 
@@ -2762,8 +1877,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#313B4E',
   },
-
-  /* VIEW */
 
   detailAnnouncementHeader: {
     backgroundColor: '#F8F9FC',
@@ -2862,8 +1975,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
     fontSize: 11,
   },
-
-  /* FORM */
 
   inputLabel: {
     fontFamily: 'PoppinsMedium',

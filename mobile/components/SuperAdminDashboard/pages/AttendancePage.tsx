@@ -509,7 +509,7 @@ export default function AttendancePage() {
 
     Alert.alert(
       'Clear Attendance',
-      `Clear today's attendance for ${selectedRecord.studentName}?`,
+      `Clear today&apos;s attendance for ${selectedRecord.studentName}?`,
       [
         {
           text: 'Cancel',
@@ -551,10 +551,10 @@ export default function AttendancePage() {
    * Mark attendance button.
    */
   const markAttendance = () => {
-    Alert.alert(
-      'Mark Attendance',
-      'Attendance marking functionality can be connected to your backend here.'
-    );
+    router.push({
+      pathname: '/(tabs)/explore',
+      params: { feature: 'Mark Attendance' },
+    });
   };
 
   /*
