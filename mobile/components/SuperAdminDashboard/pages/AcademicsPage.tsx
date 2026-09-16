@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -8,189 +8,154 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+} from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
 
-type Subject = {
+type AcademicModule = {
   id: string;
-  code: string;
-  name: string;
-  course: string;
-  batch: string;
-  faculty: string;
-  credits: number;
-  type: 'Core' | 'Elective' | 'Practical';
-  status: 'Active' | 'Inactive';
+  title: string;
+  description: string;
+  count: string;
+  countLabel: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  iconBackground: string;
+  iconColor: string;
 };
 
-const subjects: Subject[] = [
+const academicModules: AcademicModule[] = [
   {
-    id: '1',
-    code: 'CS101',
-    name: 'Computer Fundamentals',
-    course: 'BCA',
-    batch: 'BCA 2026',
-    faculty: 'Dr. Priya Sharma',
-    credits: 4,
-    type: 'Core',
-    status: 'Active',
+    id: "academic-years",
+    title: "Academic Years",
+    description: "Create and manage academic years",
+    count: "2",
+    countLabel: "Years",
+    icon: "calendar-range-outline",
+    iconBackground: "#F1EAFF",
+    iconColor: "#7040D5",
   },
   {
-    id: '2',
-    code: 'CS102',
-    name: 'Programming in C',
-    course: 'BCA',
-    batch: 'BCA 2026',
-    faculty: 'Prof. Rahul Mehta',
-    credits: 4,
-    type: 'Core',
-    status: 'Active',
+    id: "standards",
+    title: "Standards / Classes",
+    description: "Manage standards and academic classes",
+    count: "5",
+    countLabel: "Standards",
+    icon: "school-outline",
+    iconBackground: "#EAF2FF",
+    iconColor: "#2675E8",
   },
   {
-    id: '3',
-    code: 'CS103',
-    name: 'Database Management System',
-    course: 'BCA',
-    batch: 'BCA 2025',
-    faculty: 'Dr. Amit Kulkarni',
-    credits: 4,
-    type: 'Core',
-    status: 'Active',
+    id: "curriculum",
+    title: "Curriculum",
+    description: "Configure curriculum by standard",
+    count: "6",
+    countLabel: "Curriculums",
+    icon: "book-open-page-variant-outline",
+    iconBackground: "#E7F8EF",
+    iconColor: "#35B878",
   },
   {
-    id: '4',
-    code: 'BC201',
-    name: 'Business Economics',
-    course: 'B.Com',
-    batch: 'B.Com 2026',
-    faculty: 'Prof. Neha Joshi',
-    credits: 3,
-    type: 'Core',
-    status: 'Active',
+    id: "terms",
+    title: "Academic Terms",
+    description: "Manage terms and academic periods",
+    count: "2",
+    countLabel: "Active Terms",
+    icon: "calendar-clock-outline",
+    iconBackground: "#FFF1E2",
+    iconColor: "#F7941D",
   },
   {
-    id: '5',
-    code: 'BC202',
-    name: 'Financial Accounting',
-    course: 'B.Com',
-    batch: 'B.Com 2026',
-    faculty: 'Prof. Sneha Patil',
-    credits: 4,
-    type: 'Core',
-    status: 'Active',
+    id: "subject-allocation",
+    title: "Subject Allocation",
+    description: "Assign subjects to standards and batches",
+    count: "18",
+    countLabel: "Allocations",
+    icon: "book-account-outline",
+    iconBackground: "#F1EAFF",
+    iconColor: "#7040D5",
   },
   {
-    id: '6',
-    code: 'BA301',
-    name: 'Digital Marketing',
-    course: 'BBA',
-    batch: 'BBA 2025',
-    faculty: 'Prof. Karan Shah',
-    credits: 3,
-    type: 'Elective',
-    status: 'Active',
+    id: "faculty-allocation",
+    title: "Faculty Allocation",
+    description: "Assign faculty to subjects and classes",
+    count: "24",
+    countLabel: "Assignments",
+    icon: "account-tie-outline",
+    iconBackground: "#EAF2FF",
+    iconColor: "#2675E8",
   },
   {
-    id: '7',
-    code: 'CS204',
-    name: 'Web Development Lab',
-    course: 'BCA',
-    batch: 'BCA 2025',
-    faculty: 'Prof. Rohan Deshmukh',
-    credits: 2,
-    type: 'Practical',
-    status: 'Active',
+    id: "grading",
+    title: "Grading & Evaluation",
+    description: "Configure grades and evaluation rules",
+    count: "4",
+    countLabel: "Grade Levels",
+    icon: "chart-box-outline",
+    iconBackground: "#FFF1E2",
+    iconColor: "#F7941D",
   },
   {
-    id: '8',
-    code: 'BA205',
-    name: 'Business Communication',
-    course: 'BBA',
-    batch: 'BBA 2026',
-    faculty: 'Prof. Anjali Rao',
-    credits: 3,
-    type: 'Core',
-    status: 'Inactive',
+    id: "academic-rules",
+    title: "Academic Rules",
+    description: "Manage promotion and passing criteria",
+    count: "8",
+    countLabel: "Rules",
+    icon: "clipboard-check-outline",
+    iconBackground: "#FFE9F0",
+    iconColor: "#E95386",
   },
 ];
 
-const filterOptions = ['All', 'Active', 'Inactive'];
-
-const typeColors = {
-  Core: {
-    background: '#F1EAFF',
-    text: '#7040D5',
-  },
-  Elective: {
-    background: '#EAF2FF',
-    text: '#2675E8',
-  },
-  Practical: {
-    background: '#E7F8EF',
-    text: '#35B878',
-  },
-};
+const filterOptions = ["All", "Active", "Configuration"];
 
 export default function AcademicsPage() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
   const isDesktop = width >= 900;
-  const contentWidth = isDesktop ? Math.min(width - 250 - 40, 1500) : width - 32;
+  const contentWidth = isDesktop
+    ? Math.min(width - 250 - 40, 1500)
+    : width - 32;
 
-  const [search, setSearch] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [search, setSearch] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("All");
 
-  const filteredSubjects = useMemo(() => {
+  const filteredModules = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return subjects.filter((subject) => {
-      const matchesStatus =
-        selectedFilter === 'All' || subject.status === selectedFilter;
-
+    return academicModules.filter((module) => {
       const matchesSearch =
         !query ||
-        subject.name.toLowerCase().includes(query) ||
-        subject.code.toLowerCase().includes(query) ||
-        subject.course.toLowerCase().includes(query) ||
-        subject.batch.toLowerCase().includes(query) ||
-        subject.faculty.toLowerCase().includes(query);
+        module.title.toLowerCase().includes(query) ||
+        module.description.toLowerCase().includes(query);
 
-      return matchesStatus && matchesSearch;
+      const matchesFilter =
+        selectedFilter === "All" ||
+        (selectedFilter === "Active" &&
+          !["academic-rules", "grading"].includes(module.id)) ||
+        (selectedFilter === "Configuration" &&
+          ["curriculum", "grading", "academic-rules"].includes(module.id));
+
+      return matchesSearch && matchesFilter;
     });
   }, [search, selectedFilter]);
 
-  const openFeature = (feature: string) => {
+  const handleBack = () => {
+    router.replace("/(tabs)");
+  };
+
+  const handleAddAcademicInfo = () => {
     router.push({
-      pathname: '/(tabs)/explore',
-      params: { feature },
+      pathname: "/(tabs)/explore",
+      params: { feature: "Add Academic Info" },
     });
   };
 
-  const handleBack = () => {
-    router.replace('/(tabs)');
-  };
-
-  const handleAddSubject = () => {
+  const handleManage = (module: AcademicModule) => {
     Alert.alert(
-      'Add Subject',
-      'Subject creation form will be connected here.'
-    );
-  };
-
-  const handleView = (subject: Subject) => {
-    Alert.alert(
-      'Subject Details',
-      `${subject.name}\n\nCode: ${subject.code}\nCourse: ${subject.course}\nBatch: ${subject.batch}\nFaculty: ${subject.faculty}\nCredits: ${subject.credits}\nType: ${subject.type}\nStatus: ${subject.status}`
-    );
-  };
-
-  const handleEdit = (subject: Subject) => {
-    Alert.alert(
-      'Edit Subject',
-      `Edit options for ${subject.name} will be available here.`
+      module.title,
+      `${module.description}.\n\nThis module is ready to be connected to its dedicated page.`
     );
   };
 
@@ -212,19 +177,20 @@ export default function AcademicsPage() {
           >
             <MaterialCommunityIcons
               name="arrow-left"
-              size={22}
+              size={24}
               color="#FFFFFF"
             />
           </TouchableOpacity>
 
           <View style={styles.headerTitleArea}>
-            <Text style={styles.headerTitle}>Academics</Text>
-            
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              Academics
+            </Text>
           </View>
 
           <TouchableOpacity
             style={styles.headerAction}
-            onPress={handleAddSubject}
+            onPress={handleAddAcademicInfo}
             activeOpacity={0.85}
           >
             <MaterialCommunityIcons
@@ -232,7 +198,9 @@ export default function AcademicsPage() {
               size={18}
               color="#7040D5"
             />
-            <Text style={styles.headerActionText}>Add Subject</Text>
+            <Text style={styles.headerActionText} numberOfLines={1}>
+              Add Academic Year
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -246,15 +214,18 @@ export default function AcademicsPage() {
           },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.content, { width: contentWidth }]}>
           <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Academic Management</Text>
-              
+            <View style={styles.sectionTitleArea}>
+              <Text style={styles.sectionTitle} numberOfLines={1}>
+                Academic Management
+              </Text>
+              <Text style={styles.sectionSubtitle} numberOfLines={2}>
+                Manage academic structure, curriculum and evaluation
+              </Text>
             </View>
-
-
           </View>
 
           <View
@@ -270,10 +241,10 @@ export default function AcademicsPage() {
               ]}
             >
               <AcademicStatCard
-                icon="book-open-variant"
-                title="Total Subjects"
-                value="68"
-                change="5.7%"
+                icon="calendar-range-outline"
+                title="Academic Years"
+                value="2"
+                change="Active"
                 type="purple"
               />
             </View>
@@ -285,11 +256,12 @@ export default function AcademicsPage() {
               ]}
             >
               <AcademicStatCard
-                icon="school-outline"
-                title="Active Courses"
-                value="18"
-                change="7.8%"
+                icon="calendar-check-outline"
+                title="Active Year"
+                value="2026 – 27"
+                change="Current"
                 type="blue"
+                compactValue
               />
             </View>
 
@@ -300,10 +272,10 @@ export default function AcademicsPage() {
               ]}
             >
               <AcademicStatCard
-                icon="account-tie"
-                title="Faculty Assigned"
-                value="142"
-                change="8.3%"
+                icon="school-outline"
+                title="Standards"
+                value="5"
+                change="Active"
                 type="green"
               />
             </View>
@@ -315,10 +287,10 @@ export default function AcademicsPage() {
               ]}
             >
               <AcademicStatCard
-                icon="calendar-month-outline"
-                title="Academic Sessions"
-                value="4"
-                change="6.2%"
+                icon="calendar-clock-outline"
+                title="Active Terms"
+                value="2"
+                change="Current"
                 type="orange"
               />
             </View>
@@ -335,14 +307,15 @@ export default function AcademicsPage() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search subjects, courses, faculty..."
+                placeholder="Search academic modules..."
                 placeholderTextColor="#A0A8B7"
                 style={styles.searchInput}
+                numberOfLines={1}
               />
 
               {search.length > 0 && (
                 <TouchableOpacity
-                  onPress={() => setSearch('')}
+                  onPress={() => setSearch("")}
                   activeOpacity={0.7}
                 >
                   <MaterialCommunityIcons
@@ -383,11 +356,11 @@ export default function AcademicsPage() {
           </View>
 
           <View style={styles.listHeader}>
-            <View>
-              <Text style={styles.listTitle}>Subjects</Text>
+            <View style={styles.listTitleArea}>
+              <Text style={styles.listTitle}>Academic Setup</Text>
               <Text style={styles.listSubtitle}>
-                {filteredSubjects.length} subject
-                {filteredSubjects.length === 1 ? '' : 's'} found
+                {filteredModules.length} module
+                {filteredModules.length === 1 ? "" : "s"} available
               </Text>
             </View>
 
@@ -397,21 +370,21 @@ export default function AcademicsPage() {
                 size={16}
                 color="#7040D5"
               />
-              <Text style={styles.sessionBadgeText}>2026 - 27</Text>
+              <Text style={styles.sessionBadgeText}>2026 – 27</Text>
             </View>
           </View>
 
-          {filteredSubjects.length === 0 ? (
+          {filteredModules.length === 0 ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIcon}>
                 <MaterialCommunityIcons
-                  name="book-search-outline"
+                  name="magnify-close"
                   size={34}
                   color="#7040D5"
                 />
               </View>
 
-              <Text style={styles.emptyTitle}>No subjects found</Text>
+              <Text style={styles.emptyTitle}>No modules found</Text>
               <Text style={styles.emptySubtitle}>
                 Try changing your search or filter.
               </Text>
@@ -419,21 +392,39 @@ export default function AcademicsPage() {
           ) : (
             <View
               style={[
-                styles.subjectGrid,
-                isDesktop && styles.subjectGridDesktop,
+                styles.moduleGrid,
+                isDesktop && styles.moduleGridDesktop,
               ]}
             >
-              {filteredSubjects.map((subject) => (
-                <SubjectCard
-                  key={subject.id}
-                  subject={subject}
+              {filteredModules.map((module) => (
+                <AcademicModuleCard
+                  key={module.id}
+                  module={module}
                   isDesktop={isDesktop}
-                  onView={() => handleView(subject)}
-                  onEdit={() => handleEdit(subject)}
+                  onManage={() => handleManage(module)}
                 />
               ))}
             </View>
           )}
+
+          <View style={styles.infoBox}>
+            <View style={styles.infoIcon}>
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={18}
+                color="#7040D5"
+              />
+            </View>
+
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Academic structure</Text>
+              <Text style={styles.infoText}>
+                Subjects are managed separately in the Subjects module.
+                Academics is used for academic years, standards, curriculum,
+                terms, allocations, grading and academic rules.
+              </Text>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -445,7 +436,8 @@ type AcademicStatCardProps = {
   title: string;
   value: string;
   change: string;
-  type: 'purple' | 'blue' | 'green' | 'orange';
+  type: "purple" | "blue" | "green" | "orange";
+  compactValue?: boolean;
 };
 
 function AcademicStatCard({
@@ -454,23 +446,24 @@ function AcademicStatCard({
   value,
   change,
   type,
+  compactValue = false,
 }: AcademicStatCardProps) {
   const colors = {
     purple: {
-      background: '#F1EAFF',
-      icon: '#7040D5',
+      background: "#F1EAFF",
+      icon: "#7040D5",
     },
     blue: {
-      background: '#EAF2FF',
-      icon: '#2675E8',
+      background: "#EAF2FF",
+      icon: "#2675E8",
     },
     green: {
-      background: '#E7F8EF',
-      icon: '#35B878',
+      background: "#E7F8EF",
+      icon: "#35B878",
     },
     orange: {
-      background: '#FFF1E2',
-      icon: '#F7941D',
+      background: "#FFF1E2",
+      icon: "#F7941D",
     },
   };
 
@@ -499,7 +492,7 @@ function AcademicStatCard({
           ]}
         >
           <MaterialCommunityIcons
-            name="trending-up"
+            name="check-circle-outline"
             size={12}
             color={color.icon}
           />
@@ -509,170 +502,92 @@ function AcademicStatCard({
         </View>
       </View>
 
-      <View>
-        <Text style={styles.statTitle}>{title}</Text>
-        <Text style={styles.statValue}>{value}</Text>
+      <View style={styles.statBottom}>
+        <Text style={styles.statTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text
+          style={[
+            styles.statValue,
+            compactValue && styles.statValueCompact,
+          ]}
+          numberOfLines={1}
+        >
+          {value}
+        </Text>
       </View>
     </View>
   );
 }
 
-type SubjectCardProps = {
-  subject: Subject;
+type AcademicModuleCardProps = {
+  module: AcademicModule;
   isDesktop: boolean;
-  onView: () => void;
-  onEdit: () => void;
+  onManage: () => void;
 };
 
-function SubjectCard({
-  subject,
+function AcademicModuleCard({
+  module,
   isDesktop,
-  onView,
-  onEdit,
-}: SubjectCardProps) {
-  const typeColor = typeColors[subject.type];
-
+  onManage,
+}: AcademicModuleCardProps) {
   return (
     <View
       style={[
-        styles.subjectCard,
-        isDesktop && styles.subjectCardDesktop,
+        styles.moduleCard,
+        isDesktop && styles.moduleCardDesktop,
       ]}
     >
-      <View style={styles.subjectTop}>
-        <View style={styles.subjectIconBox}>
+      <View style={styles.moduleTop}>
+        <View
+          style={[
+            styles.moduleIconBox,
+            { backgroundColor: module.iconBackground },
+          ]}
+        >
           <MaterialCommunityIcons
-            name={
-              subject.type === 'Practical'
-                ? 'flask-outline'
-                : 'book-open-page-variant-outline'
-            }
+            name={module.icon}
             size={23}
-            color="#7040D5"
+            color={module.iconColor}
           />
         </View>
 
-        <View style={styles.subjectTopRight}>
-          <View
-            style={[
-              styles.typeBadge,
-              { backgroundColor: typeColor.background },
-            ]}
-          >
-            <Text style={[styles.typeBadgeText, { color: typeColor.text }]}>
-              {subject.type}
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.statusBadge,
-              subject.status === 'Active'
-                ? styles.statusActive
-                : styles.statusInactive,
-            ]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                subject.status === 'Active'
-                  ? styles.statusDotActive
-                  : styles.statusDotInactive,
-              ]}
-            />
-            <Text
-              style={[
-                styles.statusText,
-                subject.status === 'Active'
-                  ? styles.statusTextActive
-                  : styles.statusTextInactive,
-              ]}
-            >
-              {subject.status}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.subjectInfo}>
-        <Text style={styles.subjectName}>{subject.name}</Text>
-        <Text style={styles.subjectCode}>{subject.code}</Text>
-      </View>
-
-      <View style={styles.detailRow}>
-        <MaterialCommunityIcons
-          name="school-outline"
-          size={17}
-          color="#7B8799"
-        />
-        <View style={styles.detailTextArea}>
-          <Text style={styles.detailLabel}>Course</Text>
-          <Text style={styles.detailValue}>{subject.course}</Text>
-        </View>
-      </View>
-
-      <View style={styles.detailRow}>
-        <MaterialCommunityIcons
-          name="account-group-outline"
-          size={17}
-          color="#7B8799"
-        />
-        <View style={styles.detailTextArea}>
-          <Text style={styles.detailLabel}>Batch</Text>
-          <Text style={styles.detailValue}>{subject.batch}</Text>
-        </View>
-      </View>
-
-      <View style={styles.detailRow}>
-        <MaterialCommunityIcons
-          name="account-tie-outline"
-          size={17}
-          color="#7B8799"
-        />
-        <View style={styles.detailTextArea}>
-          <Text style={styles.detailLabel}>Faculty</Text>
-          <Text style={styles.detailValue}>{subject.faculty}</Text>
-        </View>
-      </View>
-
-      <View style={styles.bottomInfo}>
-        <View style={styles.creditBox}>
-          <MaterialCommunityIcons
-            name="certificate-outline"
-            size={16}
-            color="#7040D5"
-          />
-          <Text style={styles.creditText}>
-            {subject.credits} Credits
+        <View style={styles.moduleCountBadge}>
+          <Text style={styles.moduleCountBadgeText}>
+            {module.count}
           </Text>
         </View>
       </View>
 
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={styles.viewButton}
-          onPress={onView}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons
-            name="eye-outline"
-            size={17}
-            color="#7040D5"
-          />
-          <Text style={styles.viewButtonText}>View</Text>
-        </TouchableOpacity>
+      <View style={styles.moduleInfo}>
+        <Text style={styles.moduleName} numberOfLines={1}>
+          {module.title}
+        </Text>
+
+        <Text style={styles.moduleDescription} numberOfLines={2}>
+          {module.description}
+        </Text>
+      </View>
+
+      <View style={styles.moduleBottom}>
+        <View>
+          <Text style={styles.moduleCount}>{module.count}</Text>
+          <Text style={styles.moduleCountLabel}>
+            {module.countLabel}
+          </Text>
+        </View>
 
         <TouchableOpacity
-          style={styles.editButton}
-          onPress={onEdit}
+          style={styles.manageButton}
+          onPress={onManage}
           activeOpacity={0.8}
         >
+          <Text style={styles.manageButtonText}>Manage</Text>
           <MaterialCommunityIcons
-            name="pencil-outline"
-            size={17}
-            color="#2675E8"
+            name="arrow-right"
+            size={15}
+            color="#7040D5"
           />
-          <Text style={styles.editButtonText}>Edit</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -682,57 +597,63 @@ function SubjectCard({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F7F8FC',
+    backgroundColor: "#F7F8FC",
   },
 
   header: {
-    backgroundColor: '#7040D5',
+    backgroundColor: "#7040D5",
     paddingHorizontal: 16,
     paddingBottom: 15,
   },
 
   headerInner: {
-    width: '100%',
+    width: "100%",
     maxWidth: 1500,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
 
   backButton: {
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   headerTitleArea: {
     flex: 1,
-    marginLeft: 12,
-    justifyContent: 'center',
+    minWidth: 0,
+    marginLeft: 2,
+    justifyContent: "center",
   },
 
   headerTitle: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 19,
-    color: '#FFFFFF',
+    flexShrink: 1,
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 20,
+    color: "#FFFFFF",
   },
 
   headerAction: {
-    height: 40,
+    minHeight: 40,
+    maxWidth: "55%",
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   headerActionText: {
-    fontFamily: 'PoppinsSemiBold',
+    flexShrink: 1,
+    fontFamily: "PoppinsSemiBold",
     fontSize: 11,
-    color: '#7040D5',
+    color: "#7040D5",
     marginLeft: 5,
   },
 
@@ -741,7 +662,7 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    alignItems: 'center',
+    alignItems: "center",
   },
 
   content: {
@@ -749,31 +670,44 @@ const styles = StyleSheet.create({
   },
 
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 18,
   },
 
+  sectionTitleArea: {
+    flex: 1,
+    minWidth: 0,
+  },
+
   sectionTitle: {
-    fontFamily: 'PoppinsBold',
+    fontFamily: "PoppinsBold",
     fontSize: 22,
-    color: '#172033',
+    color: "#172033",
+  },
+
+  sectionSubtitle: {
+    marginTop: 3,
+    fontFamily: "PoppinsRegular",
+    fontSize: 11,
+    lineHeight: 17,
+    color: "#858D9F",
   },
 
   statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     marginBottom: 18,
   },
 
   statsGridDesktop: {
-    flexWrap: 'nowrap',
+    flexWrap: "nowrap",
   },
 
   statCardWrapper: {
-    width: '48%',
+    width: "48%",
   },
 
   statCardWrapperDesktop: {
@@ -783,13 +717,13 @@ const styles = StyleSheet.create({
 
   statCard: {
     height: 145,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EEF0F5',
+    borderColor: "#EEF0F5",
     padding: 16,
-    justifyContent: 'space-between',
-    shadowColor: '#000000',
+    justifyContent: "space-between",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -797,54 +731,65 @@ const styles = StyleSheet.create({
   },
 
   statTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 5,
   },
 
   statIconBox: {
     width: 46,
     height: 46,
     borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   changeBadge: {
     minHeight: 26,
+    maxWidth: "55%",
     borderRadius: 8,
     paddingHorizontal: 7,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   changeText: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 9,
     marginLeft: 3,
   },
 
+  statBottom: {
+    minWidth: 0,
+  },
+
   statTitle: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 10.5,
-    color: '#748096',
+    fontFamily: "PoppinsMedium",
+    fontSize: 11,
+    color: "#748096",
     marginBottom: 2,
   },
 
   statValue: {
-    fontFamily: 'PoppinsBold',
+    fontFamily: "PoppinsBold",
     fontSize: 23,
-    color: '#172033',
+    color: "#172033",
+  },
+
+  statValueCompact: {
+    fontSize: 17,
   },
 
   filterCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EEF0F5',
+    borderColor: "#EEF0F5",
     padding: 14,
     marginBottom: 22,
-    shadowColor: '#000000',
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 7,
@@ -852,28 +797,29 @@ const styles = StyleSheet.create({
   },
 
   searchContainer: {
-    minHeight: 46,
+    minHeight: 52,
     borderWidth: 1,
-    borderColor: '#E3E7EF',
+    borderColor: "#E3E7EF",
     borderRadius: 11,
     paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FBFCFE',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FBFCFE",
   },
 
   searchInput: {
     flex: 1,
-    fontFamily: 'PoppinsRegular',
-    fontSize: 11,
-    color: '#172033',
+    minWidth: 0,
+    fontFamily: "PoppinsRegular",
+    fontSize: 10,
+    color: "#172033",
     marginLeft: 8,
     paddingVertical: 0,
   },
 
   filterRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginTop: 11,
   },
@@ -883,42 +829,48 @@ const styles = StyleSheet.create({
     height: 34,
     paddingHorizontal: 12,
     borderRadius: 9,
-    backgroundColor: '#F5F6FA',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F5F6FA",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   filterButtonActive: {
-    backgroundColor: '#7040D5',
+    backgroundColor: "#7040D5",
   },
 
   filterText: {
-    fontFamily: 'PoppinsMedium',
+    fontFamily: "PoppinsMedium",
     fontSize: 10,
-    color: '#707B8F',
+    color: "#707B8F",
   },
 
   filterTextActive: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
 
   listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 13,
+    gap: 10,
+  },
+
+  listTitleArea: {
+    flex: 1,
+    minWidth: 0,
   },
 
   listTitle: {
-    fontFamily: 'PoppinsBold',
+    fontFamily: "PoppinsBold",
     fontSize: 18,
-    color: '#172033',
+    color: "#172033",
   },
 
   listSubtitle: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 10,
-    color: '#8993A4',
+    color: "#8993A4",
     marginTop: 1,
   },
 
@@ -926,231 +878,146 @@ const styles = StyleSheet.create({
     height: 34,
     paddingHorizontal: 10,
     borderRadius: 9,
-    backgroundColor: '#F1EAFF',
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: "#F1EAFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   sessionBadgeText: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 10,
-    color: '#7040D5',
+    color: "#7040D5",
     marginLeft: 5,
   },
 
-  subjectGrid: {
+  moduleGrid: {
     gap: 12,
   },
 
-  subjectGridDesktop: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  moduleGridDesktop: {
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
 
-  subjectCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
+  moduleCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EEF0F5',
+    borderColor: "#EEF0F5",
     padding: 15,
-    shadowColor: '#000000',
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
   },
 
-  subjectCardDesktop: {
-    width: '32.4%',
+  moduleCardDesktop: {
+    width: "32.4%",
   },
 
-  subjectTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  moduleTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
   },
 
-  subjectIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#F1EAFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+  moduleIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  subjectTopRight: {
-    alignItems: 'flex-end',
-    gap: 6,
-  },
-
-  typeBadge: {
+  moduleCountBadge: {
+    minWidth: 34,
+    height: 28,
     paddingHorizontal: 8,
-    height: 25,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: "#F5F6FA",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  typeBadgeText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9,
-  },
-
-  statusBadge: {
-    height: 23,
-    paddingHorizontal: 7,
-    borderRadius: 7,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  statusActive: {
-    backgroundColor: '#E7F8EF',
-  },
-
-  statusInactive: {
-    backgroundColor: '#F3F4F6',
-  },
-
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 5,
-  },
-
-  statusDotActive: {
-    backgroundColor: '#35B878',
-  },
-
-  statusDotInactive: {
-    backgroundColor: '#98A1B2',
-  },
-
-  statusText: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 8.5,
-  },
-
-  statusTextActive: {
-    color: '#26955E',
-  },
-
-  statusTextInactive: {
-    color: '#707B8F',
-  },
-
-  subjectInfo: {
-    marginTop: 14,
-    marginBottom: 13,
-  },
-
-  subjectName: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 14,
-    color: '#172033',
-  },
-
-  subjectCode: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 9.5,
-    color: '#7040D5',
-    marginTop: 2,
-  },
-
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-
-  detailTextArea: {
-    marginLeft: 8,
-    flex: 1,
-  },
-
-  detailLabel: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 8.5,
-    color: '#98A1B2',
-  },
-
-  detailValue: {
-    fontFamily: 'PoppinsMedium',
+  moduleCountBadgeText: {
+    fontFamily: "PoppinsSemiBold",
     fontSize: 10,
-    color: '#3B4658',
+    color: "#6D778A",
+  },
+
+  moduleInfo: {
+    marginTop: 13,
+    minWidth: 0,
+  },
+
+  moduleName: {
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 13,
+    color: "#172033",
+  },
+
+  moduleDescription: {
+    marginTop: 4,
+    fontFamily: "PoppinsRegular",
+    fontSize: 9.5,
+    lineHeight: 14,
+    color: "#8A94A6",
+  },
+
+  moduleBottom: {
+    marginTop: 14,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F1F5",
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+
+  moduleCount: {
+    fontFamily: "PoppinsBold",
+    fontSize: 18,
+    color: "#172033",
+  },
+
+  moduleCountLabel: {
+    fontFamily: "PoppinsRegular",
+    fontSize: 8.5,
+    color: "#98A1B2",
     marginTop: 1,
   },
 
-  bottomInfo: {
-    borderTopWidth: 1,
-    borderTopColor: '#F0F1F5',
-    paddingTop: 11,
-    marginTop: 2,
-  },
-
-  creditBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  creditText: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 9.5,
-    color: '#7040D5',
-    marginLeft: 5,
-  },
-
-  actionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 13,
-  },
-
-  viewButton: {
-    flex: 1,
+  manageButton: {
     height: 36,
+    minWidth: 82,
+    paddingHorizontal: 10,
     borderRadius: 9,
-    backgroundColor: '#F1EAFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F1EAFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  viewButtonText: {
-    fontFamily: 'PoppinsSemiBold',
+  manageButtonText: {
+    fontFamily: "PoppinsSemiBold",
     fontSize: 10,
-    color: '#7040D5',
-    marginLeft: 5,
-  },
-
-  editButton: {
-    flex: 1,
-    height: 36,
-    borderRadius: 9,
-    backgroundColor: '#EAF2FF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  editButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10,
-    color: '#2675E8',
-    marginLeft: 5,
+    color: "#7040D5",
+    marginRight: 4,
   },
 
   emptyCard: {
     minHeight: 260,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EEF0F5',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#EEF0F5",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 30,
   },
 
@@ -1158,22 +1025,61 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 20,
-    backgroundColor: '#F1EAFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F1EAFF",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 15,
   },
 
   emptyTitle: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 15,
-    color: '#172033',
+    color: "#172033",
   },
 
   emptySubtitle: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 10.5,
-    color: '#8A94A6',
+    color: "#8A94A6",
     marginTop: 5,
+  },
+
+  infoBox: {
+    marginTop: 14,
+    flexDirection: "row",
+    backgroundColor: "#F3EEFD",
+    borderWidth: 1,
+    borderColor: "#E7DDFB",
+    borderRadius: 12,
+    padding: 12,
+  },
+
+  infoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "#E7DDFB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 9,
+  },
+
+  infoContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  infoTitle: {
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 10.5,
+    color: "#4B347D",
+  },
+
+  infoText: {
+    marginTop: 3,
+    fontFamily: "PoppinsRegular",
+    fontSize: 9,
+    lineHeight: 14,
+    color: "#6E6680",
   },
 });

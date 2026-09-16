@@ -31,61 +31,12 @@ type Student = {
 };
 
 const initialStudents: Student[] = [
-  {
-    id: '1',
-    name: 'Rahul Sharma',
-    studentId: 'VLCC-PUN-001',
-    branch: 'Pune Branch',
-    course: 'Professional Makeup',
-    batch: 'Morning Batch',
-    phone: '+91 98765 43210',
-    email: 'rahul.sharma@example.com',
-    status: 'Active',
-  },
-  {
-    id: '2',
-    name: 'Priya Patil',
-    studentId: 'VLCC-PUN-002',
-    branch: 'Pune Branch',
-    course: 'Beauty Therapy',
-    batch: 'Evening Batch',
-    phone: '+91 98765 43211',
-    email: 'priya.patil@example.com',
-    status: 'Active',
-  },
-  {
-    id: '3',
-    name: 'Sneha Kulkarni',
-    studentId: 'VLCC-MUM-003',
-    branch: 'Mumbai Branch',
-    course: 'Hair Dressing',
-    batch: 'Morning Batch',
-    phone: '+91 98765 43212',
-    email: 'sneha.kulkarni@example.com',
-    status: 'Active',
-  },
-  {
-    id: '4',
-    name: 'Amit Joshi',
-    studentId: 'VLCC-NAS-004',
-    branch: 'Nashik Branch',
-    course: 'Skin Care',
-    batch: 'Afternoon Batch',
-    phone: '+91 98765 43213',
-    email: 'amit.joshi@example.com',
-    status: 'Inactive',
-  },
-  {
-    id: '5',
-    name: 'Neha Deshmukh',
-    studentId: 'VLCC-NGP-005',
-    branch: 'Nagpur Branch',
-    course: 'Professional Makeup',
-    batch: 'Evening Batch',
-    phone: '+91 98765 43214',
-    email: 'neha.deshmukh@example.com',
-    status: 'Active',
-  },
+  { id: '1', name: 'Aarav Sharma', studentId: 'VLCC-STU-001', branch: 'Pune Branch', course: 'Class 12 - JEE', batch: '12th JEE Morning', phone: '+91 98765 43210', email: 'aarav.sharma@example.com', status: 'Active' },
+  { id: '2', name: 'Ananya Patil', studentId: 'VLCC-STU-002', branch: 'Pune Branch', course: 'Class 12 - NEET', batch: '12th NEET Morning', phone: '+91 98765 43211', email: 'ananya.patil@example.com', status: 'Active' },
+  { id: '3', name: 'Rohan Kulkarni', studentId: 'VLCC-STU-003', branch: 'Mumbai Branch', course: 'Class 11 - MHT-CET', batch: '11th CET Evening', phone: '+91 98765 43212', email: 'rohan.kulkarni@example.com', status: 'Active' },
+  { id: '4', name: 'Ishita Joshi', studentId: 'VLCC-STU-004', branch: 'Nashik Branch', course: 'Class 10 - Foundation', batch: '10th Foundation', phone: '+91 98765 43213', email: 'ishita.joshi@example.com', status: 'Active' },
+  { id: '5', name: 'Vedant Deshmukh', studentId: 'VLCC-STU-005', branch: 'Nagpur Branch', course: 'Class 9 - Foundation', batch: '9th Foundation', phone: '+91 98765 43214', email: 'vedant.deshmukh@example.com', status: 'Active' },
+  { id: '6', name: 'Sakshi Mehta', studentId: 'VLCC-STU-006', branch: 'Main Branch', course: 'Class 8 - Foundation', batch: '8th Foundation', phone: '+91 98765 43215', email: 'sakshi.mehta@example.com', status: 'Active' },
 ];
 
 const branches = [
@@ -1205,6 +1156,20 @@ const styles = StyleSheet.create({
     color: '#748096',
 
     marginTop: 2,
+  },
+
+  mobileAddButton: {
+    width: 42,
+    height: 42,
+
+    borderRadius: 12,
+
+    backgroundColor: '#7040D5',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    marginLeft: 10,
   },
 
   /* SUMMARY */

@@ -165,10 +165,10 @@ export default function AccountsPage() {
   };
 
   const handleAddTransaction = () => {
-    Alert.alert(
-      'Add Transaction',
-      'Transaction creation form will be connected here.'
-    );
+    router.push({
+      pathname: '/(tabs)/explore',
+      params: { feature: 'Add Transaction' },
+    });
   };
 
   const handleView = (transaction: Transaction) => {

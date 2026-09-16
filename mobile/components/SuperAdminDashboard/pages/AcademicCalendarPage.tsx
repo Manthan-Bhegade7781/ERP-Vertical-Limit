@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -159,13 +160,22 @@ export default function AcademicCalendarPage() {
     ? Math.min(width - 250 - 40, 1500)
     : width - 32;
 
+  const [events, setEvents] = useState<CalendarEvent[]>(calendarEvents);
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventCategory, setNewEventCategory] =
+    useState<CalendarEvent['category']>('Academic');
+  const [newEventBranch, setNewEventBranch] = useState('All Branches');
+  const [newEventDescription, setNewEventDescription] = useState('');
 
   const filteredEvents = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return calendarEvents.filter((event) => {
+    return events.filter((event) => {
       const matchesFilter =
         selectedFilter === 'All' ||
         event.category === selectedFilter;
@@ -179,17 +189,86 @@ export default function AcademicCalendarPage() {
 
       return matchesFilter && matchesSearch;
     });
-  }, [search, selectedFilter]);
+  }, [events, search, selectedFilter]);
 
   const handleBack = () => {
     router.replace('/(tabs)');
   };
 
   const handleAddEvent = () => {
-    Alert.alert(
-      'Add Calendar Event',
-      'Calendar event creation form will be connected here.'
-    );
+    setShowAddForm(true);
+  };
+
+  const handleSaveNewEvent = () => {
+    if (!newEventTitle.trim()) {
+      Alert.alert('Required Field', 'Please enter the event title.');
+      return;
+    }
+
+    if (!newEventDate.trim()) {
+      Alert.alert('Required Field', 'Please enter the event date.');
+      return;
+    }
+
+    const rawDate = newEventDate.trim();
+    const dateParts = rawDate.split(/[\/-]/).map((part) => part.trim());
+
+    if (
+      dateParts.length !== 3 ||
+      !/^\d{1,2}$/.test(dateParts[0]) ||
+      !/^\d{1,2}$/.test(dateParts[1]) ||
+      !/^\d{4}$/.test(dateParts[2])
+    ) {
+      Alert.alert('Invalid Date', 'Please enter the date in DD/MM/YYYY format.');
+      return;
+    }
+
+    const dayNumber = Number(dateParts[0]);
+    const monthNumber = Number(dateParts[1]);
+    const yearNumber = Number(dateParts[2]);
+    const parsedDate = new Date(yearNumber, monthNumber - 1, dayNumber);
+
+    if (
+      Number.isNaN(parsedDate.getTime()) ||
+      parsedDate.getFullYear() !== yearNumber ||
+      parsedDate.getMonth() !== monthNumber - 1 ||
+      parsedDate.getDate() !== dayNumber
+    ) {
+      Alert.alert('Invalid Date', 'Please enter a valid calendar date.');
+      return;
+    }
+
+    const displayDate = `${String(dayNumber).padStart(2, '0')} ${parsedDate.toLocaleString(
+      'en-US',
+      { month: 'short' }
+    )} ${yearNumber}`;
+    const dayName = parsedDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+    const newEvent: CalendarEvent = {
+      id: `custom-${Date.now()}`,
+      title: newEventTitle.trim(),
+      date: displayDate,
+      day: dayName,
+      category: newEventCategory,
+      description: newEventDescription.trim() || 'Calendar event.',
+      branch: newEventBranch,
+      status: 'Upcoming',
+    };
+
+    setEvents((current) => [newEvent, ...current]);
+    setShowAddForm(false);
+
+    setNewEventTitle('');
+    setNewEventDate('');
+    setNewEventCategory('Academic');
+    setNewEventBranch('All Branches');
+    setNewEventDescription('');
+
+    Alert.alert('Event Added', 'Calendar event has been added successfully.');
+  };
+
+  const handleCloseAddForm = () => {
+    setShowAddForm(false);
   };
 
   const handleView = (event: CalendarEvent) => {
@@ -247,16 +326,13 @@ export default function AcademicCalendarPage() {
             style={styles.headerAction}
             onPress={handleAddEvent}
             activeOpacity={0.85}
+            accessibilityLabel="Add Event"
           >
             <MaterialCommunityIcons
               name="plus"
-              size={18}
+              size={21}
               color="#7040D5"
             />
-
-            <Text style={styles.headerActionText}>
-              Add Event
-            </Text>
           </TouchableOpacity>
 
         </View>
@@ -520,6 +596,177 @@ export default function AcademicCalendarPage() {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showAddForm}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseAddForm}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.addFormCard}>
+            <View style={styles.addFormHeader}>
+              <View style={styles.addFormTitleArea}>
+                <View style={styles.addFormIcon}>
+                  <MaterialCommunityIcons
+                    name="calendar-plus-outline"
+                    size={20}
+                    color="#7040D5"
+                  />
+                </View>
+                <View style={styles.addFormTextArea}>
+                  <Text style={styles.addFormTitle} numberOfLines={1}>
+                    Add Calendar Event
+                  </Text>
+                  <Text style={styles.addFormSubtitle} numberOfLines={1}>
+                    Enter event details
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleCloseAddForm}
+                style={styles.closeButton}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={19}
+                  color="#707B8F"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.addFormScroll}
+              contentContainerStyle={styles.addFormContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.formLabel}>
+                Event Title <Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                value={newEventTitle}
+                onChangeText={setNewEventTitle}
+                placeholder="Enter event title"
+                placeholderTextColor="#A0A8B7"
+                style={styles.formInput}
+              />
+
+              <Text style={styles.formLabel}>
+                Event Date <Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                value={newEventDate}
+                onChangeText={setNewEventDate}
+                placeholder="DD/MM/YYYY"
+                placeholderTextColor="#A0A8B7"
+                style={styles.formInput}
+                keyboardType="numbers-and-punctuation"
+              />
+
+              <Text style={styles.formLabel}>Category</Text>
+              <View style={styles.formChoiceRow}>
+                {filters.slice(1).map((category) => {
+                  const selected = newEventCategory === category;
+
+                  return (
+                    <TouchableOpacity
+                      key={category}
+                      style={[
+                        styles.formChoice,
+                        selected && styles.formChoiceActive,
+                      ]}
+                      onPress={() =>
+                        setNewEventCategory(
+                          category as CalendarEvent['category']
+                        )
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.formChoiceText,
+                          selected && styles.formChoiceTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {category}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.formLabel}>Branch</Text>
+              <View style={styles.formChoiceRow}>
+                {['All Branches', 'Main Branch', 'Pune Branch'].map(
+                  (branch) => {
+                    const selected = newEventBranch === branch;
+
+                    return (
+                      <TouchableOpacity
+                        key={branch}
+                        style={[
+                          styles.formChoice,
+                          selected && styles.formChoiceActive,
+                        ]}
+                        onPress={() => setNewEventBranch(branch)}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.formChoiceText,
+                            selected && styles.formChoiceTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {branch}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                )}
+              </View>
+
+              <Text style={styles.formLabel}>Description</Text>
+              <TextInput
+                value={newEventDescription}
+                onChangeText={setNewEventDescription}
+                placeholder="Enter event description"
+                placeholderTextColor="#A0A8B7"
+                style={styles.formTextArea}
+                multiline
+                textAlignVertical="top"
+              />
+            </ScrollView>
+
+            <View style={styles.formActions}>
+              <TouchableOpacity
+                style={styles.formCancelButton}
+                onPress={handleCloseAddForm}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.formCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.formSaveButton}
+                onPress={handleSaveNewEvent}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons
+                  name="check"
+                  size={17}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.formSaveText}>Save Event</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -854,29 +1101,26 @@ const styles = StyleSheet.create({
 
   headerTitleArea: {
     flex: 1,
+    minWidth: 0,
     marginLeft: 12,
+    marginRight: 8,
   },
 
   headerTitle: {
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 19,
+    fontSize: 18,
     color: '#FFFFFF',
+    flexShrink: 1,
   },
 
   headerAction: {
+    width: 42,
     height: 40,
-    paddingHorizontal: 12,
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
     alignItems: 'center',
-  },
-
-  headerActionText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10.5,
-    color: '#7040D5',
-    marginLeft: 5,
+    justifyContent: 'center',
+    flexShrink: 0,
   },
 
   headerSubtitle: {
@@ -1021,8 +1265,11 @@ const styles = StyleSheet.create({
   },
 
   calendarInfoLeft: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    marginRight: 8,
   },
 
   calendarIconBox: {
@@ -1035,6 +1282,8 @@ const styles = StyleSheet.create({
   },
 
   calendarInfoTitle: {
+    flex: 1,
+    minWidth: 0,
     fontFamily: 'PoppinsSemiBold',
     fontSize: 13,
     color: '#172033',
@@ -1050,12 +1299,14 @@ const styles = StyleSheet.create({
   },
 
   yearBadge: {
+    minWidth: 78,
     height: 34,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     borderRadius: 9,
     backgroundColor: '#F1EAFF',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
 
   yearBadgeText: {
@@ -1216,6 +1467,7 @@ const styles = StyleSheet.create({
 
   eventTitleArea: {
     flex: 1,
+    minWidth: 0,
     marginLeft: 10,
     marginRight: 6,
   },
@@ -1236,15 +1488,18 @@ const styles = StyleSheet.create({
 
   categoryBadge: {
     minHeight: 25,
+    maxWidth: 92,
     paddingHorizontal: 8,
     borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 1,
   },
 
   categoryBadgeText: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 8,
+    flexShrink: 1,
   },
 
   dateBox: {
@@ -1373,6 +1628,7 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     gap: 7,
+    flexShrink: 0,
   },
 
   viewButton: {
@@ -1407,6 +1663,222 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#2675E8',
     marginLeft: 4,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(18, 22, 35, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+
+  addFormCard: {
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '88%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+
+  addFormHeader: {
+    minHeight: 66,
+    paddingHorizontal: 15,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  addFormTitleArea: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  addFormIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  addFormTextArea: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 9,
+  },
+
+  addFormTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 16,
+    color: '#172033',
+  },
+
+  addFormSubtitle: {
+    marginTop: 2,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    color: '#8993A4',
+  },
+
+  closeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: '#F5F6FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    flexShrink: 0,
+  },
+
+  addFormScroll: {
+    maxHeight: 560,
+  },
+
+  addFormContent: {
+    padding: 15,
+  },
+
+  formLabel: {
+    marginBottom: 6,
+    fontFamily: 'PoppinsMedium',
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#555E70',
+  },
+
+  required: {
+    color: '#E95386',
+  },
+
+  formInput: {
+    minWidth: 0,
+    width: '100%',
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#E3E7EF',
+    borderRadius: 10,
+    backgroundColor: '#FBFCFE',
+    paddingHorizontal: 12,
+    marginBottom: 13,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    color: '#303544',
+  },
+
+  formChoiceRow: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginBottom: 13,
+  },
+
+  formChoice: {
+    minWidth: 82,
+    height: 38,
+    paddingHorizontal: 10,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#E3E7EF',
+    backgroundColor: '#FBFCFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexGrow: 1,
+    flexBasis: '28%',
+  },
+
+  formChoiceActive: {
+    borderColor: '#CDB8F5',
+    backgroundColor: '#F1EAFF',
+  },
+
+  formChoiceText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9.5,
+    color: '#707B8F',
+  },
+
+  formChoiceTextActive: {
+    color: '#7040D5',
+  },
+
+  formTextArea: {
+    minWidth: 0,
+    width: '100%',
+    minHeight: 82,
+    borderWidth: 1,
+    borderColor: '#E3E7EF',
+    borderRadius: 10,
+    backgroundColor: '#FBFCFE',
+    paddingHorizontal: 12,
+    paddingTop: 11,
+    marginBottom: 2,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    lineHeight: 15,
+    color: '#303544',
+  },
+
+  formActions: {
+    padding: 13,
+    borderTopWidth: 1,
+    borderTopColor: '#EEF0F5',
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  formCancelButton: {
+    flex: 1,
+    height: 45,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DDE1E9',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  formCancelText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10.5,
+    color: '#6D7789',
+  },
+
+  formSaveButton: {
+    flex: 1.35,
+    height: 45,
+    borderRadius: 10,
+    backgroundColor: '#7040D5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  formSaveText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10.5,
+    color: '#FFFFFF',
   },
 
   emptyCard: {

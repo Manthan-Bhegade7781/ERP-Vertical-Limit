@@ -1308,12 +1308,12 @@ export default function FeesManagementPage() {
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() =>
-            Alert.alert(
-              'Collect Fee',
-              'Select a student from the fee records to collect payment.'
-            )
-          }
+          onPress={() => {
+            router.push({
+              pathname: '/(tabs)/explore',
+              params: { feature: 'Collect Fee' },
+            });
+          }}
         >
           <MaterialCommunityIcons
             name="plus"

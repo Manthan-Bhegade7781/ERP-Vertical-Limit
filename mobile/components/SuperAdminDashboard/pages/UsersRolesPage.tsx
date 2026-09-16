@@ -845,12 +845,15 @@ export default function UsersRolesPage() {
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() =>
-            Alert.alert(
-              'Add User',
-              'User creation form can be connected to your backend here.'
-            )
-          }
+          activeOpacity={0.85}
+          onPress={() => {
+            router.push({
+              pathname: '/(tabs)/explore',
+              params: {
+                feature: 'Add User',
+              },
+            });
+          }}
         >
           <MaterialCommunityIcons
             name="plus"

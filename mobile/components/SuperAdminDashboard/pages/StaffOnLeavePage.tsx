@@ -234,10 +234,12 @@ export default function StaffOnLeavePage() {
   };
 
   const handleAddLeave = () => {
-    Alert.alert(
-      'Add Leave',
-      'Add staff leave form can be connected here.'
-    );
+    router.push({
+      pathname: '/(tabs)/explore',
+      params: {
+        feature: 'Add Leave',
+      },
+    });
   };
 
   const getStatusStyle = (status: LeaveStatus) => {
@@ -288,12 +290,9 @@ export default function StaffOnLeavePage() {
           />
         </TouchableOpacity>
 
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>
-            Staff on Leave
-          </Text>
-
-        </View>
+        <Text style={styles.headerTitle}>
+          Staff on Leave
+        </Text>
 
         <TouchableOpacity
           style={styles.addButton}
@@ -330,6 +329,9 @@ export default function StaffOnLeavePage() {
           Staff Leave Management
         </Text>
 
+        <Text style={styles.managementSubtitle}>
+          View, track and manage staff leave requests.
+        </Text>
 
         {/* =====================================================
             SUMMARY CARDS
@@ -1009,18 +1011,19 @@ const styles = StyleSheet.create({
   ===================================================== */
 
   header: {
-    minHeight: 66,
+    minHeight: 64,
     backgroundColor: '#7040D5',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
+    gap: 9,
   },
 
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1029,32 +1032,43 @@ const styles = StyleSheet.create({
   headerTextContainer: {
     flex: 1,
     minWidth: 0,
-    marginLeft: 12,
-    justifyContent: 'center',
+    marginLeft: 13,
   },
 
   headerTitle: {
+    flex: 1,
+    minWidth: 0,
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 22,
     color: '#FFFFFF',
   },
 
+  headerSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    lineHeight: 15,
+    color: '#EDE6FF',
+    marginTop: 1,
+  },
+
   addButton: {
-    minHeight: 36,
-    borderRadius: 9,
+    minHeight: 38,
+    minWidth: 132,
+    borderRadius: 10,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
 
   addButtonText: {
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 9.5,
+    fontSize: 10,
     color: '#7040D5',
-    marginLeft: 4,
+    marginLeft: 5,
   },
 
   /* =====================================================
@@ -1066,6 +1080,14 @@ const styles = StyleSheet.create({
     fontSize: 19,
     lineHeight: 27,
     color: '#172033',
+  },
+
+  managementSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10.5,
+    lineHeight: 17,
+    color: '#8490A2',
+    marginTop: 2,
     marginBottom: 15,
   },
 

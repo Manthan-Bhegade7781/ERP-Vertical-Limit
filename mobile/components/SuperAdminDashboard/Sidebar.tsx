@@ -22,65 +22,137 @@ type MenuItem = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 };
 
+/* =========================================================
+   MANAGEMENT
+   ========================================================= */
+
 const managementItems: MenuItem[] = [
-  { label: 'Students', icon: 'account-group-outline' },
-  { label: 'Teachers', icon: 'account-tie-outline' },
-  { label: 'Courses', icon: 'book-open-outline' },
-  { label: 'Branches', icon: 'office-building-outline' },
-  { label: 'Batches', icon: 'account-multiple-outline' },
-  { label: 'Attendance', icon: 'calendar-check-outline' },
-  { label: 'Examinations', icon: 'file-document-edit-outline' },
-  { label: 'Assignments', icon: 'clipboard-text-outline' },
-  { label: 'Fees Management', icon: 'cash-multiple' },
-  { label: 'Performance', icon: 'chart-line' },
+  {
+    label: 'Students',
+    icon: 'account-group-outline',
+  },
+  {
+    label: 'Teachers',
+    icon: 'account-tie-outline',
+  },
+  {
+    label: 'Subjects',
+    icon: 'book-open-outline',
+  },
+  {
+    label: 'Branches',
+    icon: 'office-building-outline',
+  },
+  {
+    label: 'Batches',
+    icon: 'account-multiple-outline',
+  },
+  {
+    label: 'Attendance',
+    icon: 'calendar-check-outline',
+  },
+  {
+    label: 'Examinations',
+    icon: 'file-document-edit-outline',
+  },
+  {
+    label: 'Assignments',
+    icon: 'clipboard-text-outline',
+  },
+  {
+    label: 'Fees Management',
+    icon: 'cash-multiple',
+  },
+  {
+    label: 'Performance',
+    icon: 'chart-line',
+  },
+  {
+    label: 'Academics',
+    icon: 'school-outline',
+  },
+  {
+    label: 'Timetable',
+    icon: 'calendar-clock-outline',
+  },
+  {
+    label: 'Staff on Leave',
+    icon: 'account-off-outline',
+  },
 ];
 
+/* =========================================================
+   ADMINISTRATION
+   ========================================================= */
+
 const administrationItems: MenuItem[] = [
-  { label: 'Users & Roles', icon: 'account-cog-outline' },
-  { label: 'Announcements', icon: 'bullhorn-outline' },
-  { label: 'Messages', icon: 'message-text-outline' },
-  { label: 'Reports', icon: 'file-chart-outline' },
-  { label: 'Settings', icon: 'cog-outline' },
-  { label: 'Audit Logs', icon: 'history' },
+  {
+    label: 'Users & Roles',
+    icon: 'account-cog-outline',
+  },
+  {
+    label: 'Announcements',
+    icon: 'bullhorn-outline',
+  },
+  {
+    label: 'Messages',
+    icon: 'message-text-outline',
+  },
+  {
+    label: 'Reports',
+    icon: 'file-chart-outline',
+  },
+  {
+    label: 'Accounts',
+    icon: 'calculator-variant-outline',
+  },
+  {
+    label: 'Academic Calendar',
+    icon: 'calendar-month-outline',
+  },
+  {
+    label: 'Settings',
+    icon: 'cog-outline',
+  },
+  {
+    label: 'Audit Logs',
+    icon: 'history',
+  },
 ];
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
 
 const Sidebar: React.FC<SidebarProps> = ({
   activeItem = 'Dashboard',
   onItemPress,
 }) => {
   const { width } = useWindowDimensions();
+
   const isMobile = width < 900;
 
+  /* =======================================================
+     NAVIGATION
+  ======================================================= */
+
   const handleItemPress = (item: string) => {
+    /*
+     * First notify parent.
+     * This is used by the mobile drawer to close itself.
+     */
     onItemPress?.(item);
 
-    switch (item) {
-      case 'Dashboard':
-      case 'Students':
-      case 'Teachers':
-      case 'Courses':
-      case 'Branches':
-      case 'Batches':
-      case 'Attendance':
-      case 'Examinations':
-      case 'Assignments':
-      case 'Fees Management':
-      case 'Performance':
-      case 'Users & Roles':
-      case 'Announcements':
-      case 'Messages':
-      case 'Reports':
-      case 'Settings':
-      case 'Audit Logs':
-      case 'Profile':
-        openDashboardFeature(item);
-        break;
-
-      default:
-        console.log(`No sidebar navigation configured for: ${item}`);
-        break;
-    }
+    /*
+     * Navigation is centralized inside
+     * dashboardNavigation.ts
+     */
+    openDashboardFeature(item);
   };
+
+  /* =======================================================
+     MENU ITEM
+  ======================================================= */
 
   const renderMenuItem = (item: MenuItem) => {
     const isActive = activeItem === item.label;
@@ -119,12 +191,16 @@ const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
+  /* =======================================================
+     UI
+     ======================================================= */
+
   return (
     <View style={styles.sidebar}>
 
-      {/* =====================================================
+      {/* ===================================================
           BRAND
-      ===================================================== */}
+      =================================================== */}
 
       <View
         style={[
@@ -178,9 +254,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         </View>
       </View>
 
-      {/* =====================================================
+      {/* ===================================================
           MENU
-      ===================================================== */}
+      =================================================== */}
 
       <ScrollView
         style={styles.menuScroll}
@@ -193,7 +269,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         showsVerticalScrollIndicator={false}
       >
 
-        {/* Dashboard */}
+        {/* =================================================
+            DASHBOARD
+        ================================================= */}
 
         <TouchableOpacity
           style={[
@@ -230,7 +308,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           </Text>
         </TouchableOpacity>
 
-        {/* Management */}
+        {/* =================================================
+            MANAGEMENT
+        ================================================= */}
 
         <Text
           style={[
@@ -245,7 +325,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {managementItems.map(renderMenuItem)}
 
-        {/* Administration */}
+        {/* =================================================
+            ADMINISTRATION
+        ================================================= */}
 
         <Text
           style={[
@@ -259,11 +341,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         </Text>
 
         {administrationItems.map(renderMenuItem)}
+
       </ScrollView>
 
-      {/* =====================================================
+      {/* ===================================================
           PROFILE
-      ===================================================== */}
+      =================================================== */}
 
       <View
         style={[
@@ -331,14 +414,16 @@ const Sidebar: React.FC<SidebarProps> = ({
           />
         </TouchableOpacity>
       </View>
+
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  /* =====================================================
+
+  /* =======================================================
      SIDEBAR
-  ===================================================== */
+  ======================================================= */
 
   sidebar: {
     width: '100%',
@@ -347,9 +432,9 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
 
-  /* =====================================================
+  /* =======================================================
      BRAND
-  ===================================================== */
+  ======================================================= */
 
   brandContainer: {
     width: '100%',
@@ -428,9 +513,9 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
 
-  /* =====================================================
+  /* =======================================================
      MENU
-  ===================================================== */
+  ======================================================= */
 
   menuScroll: {
     flex: 1,
@@ -452,13 +537,13 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
 
-  /* =====================================================
+  /* =======================================================
      MENU ITEM
-
+     
      IMPORTANT:
-     Completely white.
-     No grey background.
-  ===================================================== */
+     No grey active background.
+     Active state is only purple icon/text.
+  ======================================================= */
 
   menuItem: {
     width: '100%',
@@ -479,9 +564,9 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
 
-  /* =====================================================
+  /* =======================================================
      MENU TEXT
-  ===================================================== */
+  ======================================================= */
 
   menuText: {
     flex: 1,
@@ -507,9 +592,9 @@ const styles = StyleSheet.create({
     color: '#7040D5',
   },
 
-  /* =====================================================
-     SECTION
-  ===================================================== */
+  /* =======================================================
+     SECTION TITLE
+  ======================================================= */
 
   sectionTitle: {
     color: '#9AA8B8',
@@ -535,9 +620,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
 
-  /* =====================================================
+  /* =======================================================
      PROFILE
-  ===================================================== */
+  ======================================================= */
 
   profileContainer: {
     width: '100%',
@@ -581,9 +666,9 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
 
-  /* =====================================================
+  /* =======================================================
      PROFILE AVATAR
-  ===================================================== */
+  ======================================================= */
 
   profileAvatar: {
     backgroundColor: '#F0ECFF',
@@ -605,9 +690,9 @@ const styles = StyleSheet.create({
     marginRight: 9,
   },
 
-  /* =====================================================
+  /* =======================================================
      PROFILE TEXT
-  ===================================================== */
+  ======================================================= */
 
   profileInfo: {
     flex: 1,

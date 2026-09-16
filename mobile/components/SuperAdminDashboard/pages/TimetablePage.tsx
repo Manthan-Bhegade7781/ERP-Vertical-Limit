@@ -239,7 +239,12 @@ export default function TimetablePage() {
   };
 
   const handleAddClass = () => {
-    console.log('Add class clicked');
+    router.push({
+      pathname: '/(tabs)/explore',
+      params: {
+        feature: 'Add Class',
+      },
+    });
   };
 
   return (

@@ -18,10 +18,10 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-type Course = {
+type Subject = {
   id: string;
   name: string;
-  courseId: string;
+  subjectId: string;
   category: string;
   duration: string;
   branch: string;
@@ -30,62 +30,13 @@ type Course = {
   status: 'Active' | 'Inactive';
 };
 
-const initialCourses: Course[] = [
-  {
-    id: '1',
-    name: 'Professional Makeup',
-    courseId: 'VLCC-CRS-001',
-    category: 'Makeup',
-    duration: '3 Months',
-    branch: 'Pune Branch',
-    students: 245,
-    fee: '₹45,000',
-    status: 'Active',
-  },
-  {
-    id: '2',
-    name: 'Beauty Therapy',
-    courseId: 'VLCC-CRS-002',
-    category: 'Beauty',
-    duration: '6 Months',
-    branch: 'Mumbai Branch',
-    students: 318,
-    fee: '₹65,000',
-    status: 'Active',
-  },
-  {
-    id: '3',
-    name: 'Hair Dressing',
-    courseId: 'VLCC-CRS-003',
-    category: 'Hair',
-    duration: '4 Months',
-    branch: 'Pune Branch',
-    students: 186,
-    fee: '₹40,000',
-    status: 'Active',
-  },
-  {
-    id: '4',
-    name: 'Skin Care Specialist',
-    courseId: 'VLCC-CRS-004',
-    category: 'Skin Care',
-    duration: '6 Months',
-    branch: 'Nashik Branch',
-    students: 124,
-    fee: '₹55,000',
-    status: 'Inactive',
-  },
-  {
-    id: '5',
-    name: 'Nail Art Professional',
-    courseId: 'VLCC-CRS-005',
-    category: 'Nail Care',
-    duration: '2 Months',
-    branch: 'Nagpur Branch',
-    students: 96,
-    fee: '₹25,000',
-    status: 'Active',
-  },
+const initialSubjects: Subject[] = [
+  { id: '1', name: 'Physics', subjectId: 'VLCC-SUB-001', category: 'Core Science', duration: '12 Months', branch: 'Pune Branch', students: 684, fee: 'Included in Batch Fee', status: 'Active' },
+  { id: '2', name: 'Chemistry', subjectId: 'VLCC-SUB-002', category: 'Core Science', duration: '12 Months', branch: 'Mumbai Branch', students: 592, fee: 'Included in Batch Fee', status: 'Active' },
+  { id: '3', name: 'Mathematics', subjectId: 'VLCC-SUB-003', category: 'Core Science', duration: '12 Months', branch: 'Pune Branch', students: 812, fee: 'Included in Batch Fee', status: 'Active' },
+  { id: '4', name: 'Biology', subjectId: 'VLCC-SUB-004', category: 'Core Science', duration: '12 Months', branch: 'Nashik Branch', students: 476, fee: 'Included in Batch Fee', status: 'Active' },
+  { id: '5', name: 'English', subjectId: 'VLCC-SUB-005', category: 'Language', duration: '12 Months', branch: 'Nagpur Branch', students: 388, fee: 'Included in Batch Fee', status: 'Active' },
+  { id: '6', name: 'Aptitude & Logical Reasoning', subjectId: 'VLCC-SUB-006', category: 'Competitive Preparation', duration: '12 Months', branch: 'Main Branch', students: 356, fee: 'Included in Batch Fee', status: 'Active' },
 ];
 
 const branches = [
@@ -96,13 +47,7 @@ const branches = [
   'Main Branch',
 ];
 
-const categories = [
-  'Makeup',
-  'Beauty',
-  'Hair',
-  'Skin Care',
-  'Nail Care',
-];
+const categories = ['Core Science', 'Language', 'Competitive Preparation', 'Foundation', 'Board Preparation'];
 
 export default function CoursesPage() {
   const { width } = useWindowDimensions();
@@ -110,13 +55,13 @@ export default function CoursesPage() {
 
   const isDesktop = width >= 900;
 
-  const [courses, setCourses] =
-    useState<Course[]>(initialCourses);
+  const [subjects, setSubjects] =
+    useState<Subject[]>(initialSubjects);
 
   const [search, setSearch] = useState('');
 
-  const [selectedCourse, setSelectedCourse] =
-    useState<Course | null>(null);
+  const [selectedSubject, setSelectedSubject] =
+    useState<subject | null>(null);
 
   const [showActions, setShowActions] =
     useState(false);
@@ -137,89 +82,89 @@ export default function CoursesPage() {
   const [editStudents, setEditStudents] = useState('');
   const [editFee, setEditFee] = useState('');
 
-  const filteredCourses = useMemo(() => {
+  const filteredSubjects = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     if (!query) {
-      return courses;
+      return subjects;
     }
 
-    return courses.filter((course) =>
+    return subjects.filter((subject) =>
       [
-        course.name,
-        course.courseId,
-        course.category,
-        course.duration,
-        course.branch,
-        String(course.students),
-        course.fee,
+        subject.name,
+        subject.subjectId,
+        subject.category,
+        subject.duration,
+        subject.branch,
+        String(subject.students),
+        subject.fee,
       ]
         .join(' ')
         .toLowerCase()
         .includes(query)
     );
-  }, [search, courses]);
+  }, [search, subjects]);
 
-  const activeCourses = courses.filter(
-    (course) => course.status === 'Active'
+  const activeSubjects = subjects.filter(
+    (subject) => subject.status === 'Active'
   ).length;
 
-  const inactiveCourses = courses.filter(
-    (course) => course.status === 'Inactive'
+  const inactiveSubjects = subjects.filter(
+    (subject) => subject.status === 'Inactive'
   ).length;
 
-  const openAddCourse = () => {
+  const openAddSubject = () => {
     router.push({
       pathname: '/(tabs)/explore',
       params: {
-        feature: 'Add Course',
+        feature: 'Add Subject',
       },
     });
   };
 
-  const openCourseActions = (course: Course) => {
-    setSelectedCourse(course);
+  const openSubjectActions = (subject: subject) => {
+    setSelectedSubject(subject);
     setShowActions(true);
   };
 
-  const viewCourse = () => {
+  const viewSubject = () => {
     setShowActions(false);
 
-    if (!selectedCourse) {
+    if (!selectedSubject) {
       return;
     }
 
     Alert.alert(
-      selectedCourse.name,
-      `Course ID: ${selectedCourse.courseId}\n\nCategory: ${selectedCourse.category}\nDuration: ${selectedCourse.duration}\nBranch: ${selectedCourse.branch}\nStudents: ${selectedCourse.students}\nCourse Fee: ${selectedCourse.fee}`
+      selectedSubject.name,
+      `subject ID: ${selectedSubject.subjectId}\n\nCategory: ${selectedSubject.category}\nDuration: ${selectedSubject.duration}\nBranch: ${selectedSubject.branch}\nStudents: ${selectedSubject.students}\nSubject Fee: ${selectedSubject.fee}`
     );
   };
 
-  const openEditCourse = () => {
-    if (!selectedCourse) {
+  const openEditSubject = () => {
+    if (!selectedSubject) {
       return;
     }
 
-    setEditName(selectedCourse.name);
-    setEditCategory(selectedCourse.category);
-    setEditDuration(selectedCourse.duration);
-    setEditBranch(selectedCourse.branch);
-    setEditStudents(String(selectedCourse.students));
-    setEditFee(selectedCourse.fee);
+    setEditName(selectedSubject.name);
+    setEditCategory(selectedSubject.category);
+    setEditDuration(selectedSubject.duration);
+    setEditBranch(selectedSubject.branch);
+    setEditStudents(String(selectedSubject.students));
+    setEditFee(selectedSubject.fee);
 
     setShowActions(false);
     setShowEditModal(true);
   };
 
-  const saveCourseChanges = () => {
-    if (!selectedCourse) {
+  const saveSubjectChanges = () => {
+    if (!selectedSubject) {
       return;
     }
 
     if (!editName.trim()) {
       Alert.alert(
         'Required',
-        'Please enter the course name.'
+        'Please enter the subject name.'
       );
       return;
     }
@@ -235,7 +180,7 @@ export default function CoursesPage() {
     if (!editDuration.trim()) {
       Alert.alert(
         'Required',
-        'Please enter the course duration.'
+        'Please enter the subject duration.'
       );
       return;
     }
@@ -251,11 +196,11 @@ export default function CoursesPage() {
     const studentCount =
       Number(editStudents.replace(/[^0-9]/g, '')) || 0;
 
-    setCourses((currentCourses) =>
-      currentCourses.map((course) =>
-        course.id === selectedCourse.id
+    setSubjects((currentSubjects) =>
+      currentSubjects.map((subject) =>
+        subject.id === selectedSubject.id
           ? {
-              ...course,
+              ...subject,
               name: editName.trim(),
               category: editCategory,
               duration: editDuration.trim(),
@@ -263,11 +208,11 @@ export default function CoursesPage() {
               students: studentCount,
               fee: editFee.trim(),
             }
-          : course
+          : subject
       )
     );
 
-    setSelectedCourse((current) =>
+    setSelectedSubject((current) =>
       current
         ? {
             ...current,
@@ -285,23 +230,23 @@ export default function CoursesPage() {
 
     Alert.alert(
       'Updated',
-      'Course information has been updated successfully.'
+      'subject information has been updated successfully.'
     );
   };
 
-  const deleteCourse = () => {
-    if (!selectedCourse) {
+  const deleteSubject = () => {
+    if (!selectedSubject) {
       return;
     }
 
-    const courseId = selectedCourse.id;
-    const courseName = selectedCourse.name;
+    const subjectId = selectedSubject.id;
+    const subjectName = selectedSubject.name;
 
     setShowActions(false);
 
     Alert.alert(
-      'Delete Course',
-      `Are you sure you want to delete ${courseName}? This action cannot be undone.`,
+      'Delete subject',
+      `Are you sure you want to delete ${subjectName}? This action cannot be undone.`,
       [
         {
           text: 'Cancel',
@@ -311,17 +256,17 @@ export default function CoursesPage() {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            setCourses((currentCourses) =>
-              currentCourses.filter(
-                (course) => course.id !== courseId
+            setSubjects((currentSubjects) =>
+              currentSubjects.filter(
+                (subject) => subject.id !== subjectId
               )
             );
 
-            setSelectedCourse(null);
+            setSelectedSubject(null);
 
             Alert.alert(
               'Deleted',
-              `${courseName} has been deleted successfully.`
+              `${subjectName} has been deleted successfully.`
             );
           },
         },
@@ -329,18 +274,18 @@ export default function CoursesPage() {
     );
   };
 
-  const renderCourse = ({
+  const renderSubject = ({
     item,
   }: {
-    item: Course;
+    item: subject;
   }) => {
     return (
       <TouchableOpacity
-        style={styles.courseCard}
+        style={styles.subjectCard}
         activeOpacity={0.85}
-        onPress={() => openCourseActions(item)}
+        onPress={() => openSubjectActions(item)}
       >
-        <View style={styles.courseIcon}>
+        <View style={styles.subjectIcon}>
           <MaterialCommunityIcons
             name="book-open-outline"
             size={23}
@@ -348,16 +293,16 @@ export default function CoursesPage() {
           />
         </View>
 
-        <View style={styles.courseInfo}>
+        <View style={styles.subjectInfo}>
           <Text
-            style={styles.courseName}
+            style={styles.subjectName}
             numberOfLines={1}
           >
             {item.name}
           </Text>
 
-          <Text style={styles.courseId}>
-            {item.courseId}
+          <Text style={styles.subjectId}>
+            {item.subjectId}
           </Text>
 
           <View style={styles.detailRow}>
@@ -391,7 +336,7 @@ export default function CoursesPage() {
           </View>
         </View>
 
-        <View style={styles.courseMeta}>
+        <View style={styles.subjectMeta}>
           <Text style={styles.durationText}>
             {item.duration}
           </Text>
@@ -433,7 +378,7 @@ export default function CoursesPage() {
         <TouchableOpacity
           style={styles.moreButton}
           activeOpacity={0.7}
-          onPress={() => openCourseActions(item)}
+          onPress={() => openSubjectActions(item)}
         >
           <MaterialCommunityIcons
             name="dots-vertical"
@@ -476,13 +421,13 @@ export default function CoursesPage() {
             style={styles.headerTitle}
             numberOfLines={1}
           >
-            Courses
+            subjects
           </Text>
         </View>
 
         <TouchableOpacity
           style={styles.headerAddButton}
-          onPress={openAddCourse}
+          onPress={openAddSubject}
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons
@@ -493,7 +438,7 @@ export default function CoursesPage() {
 
           {isDesktop && (
             <Text style={styles.headerAddText}>
-              Add Course
+              Add Subject
             </Text>
           )}
         </TouchableOpacity>
@@ -508,11 +453,11 @@ export default function CoursesPage() {
         <View style={styles.headingRow}>
           <View style={styles.headingInfo}>
             <Text style={styles.pageTitle}>
-              Course Management
+              subject Management
             </Text>
 
             <Text style={styles.pageDescription}>
-              Manage courses, curriculum, branches,
+              Manage subjects, curriculum, branches,
               duration and student enrollment.
             </Text>
           </View>
@@ -539,7 +484,7 @@ export default function CoursesPage() {
 
             <View style={styles.summaryInfo}>
               <Text style={styles.summaryLabel}>
-                Total Courses
+                Total subjects
               </Text>
 
               <Text style={styles.summaryValue}>
@@ -564,11 +509,11 @@ export default function CoursesPage() {
 
             <View style={styles.summaryInfo}>
               <Text style={styles.summaryLabel}>
-                Active Courses
+                Active subjects
               </Text>
 
               <Text style={styles.summaryValue}>
-                {activeCourses}
+                {activeSubjects}
               </Text>
             </View>
           </View>
@@ -589,7 +534,7 @@ export default function CoursesPage() {
 
             <View style={styles.summaryInfo}>
               <Text style={styles.summaryLabel}>
-                New Courses
+                New subjects
               </Text>
 
               <Text style={styles.summaryValue}>
@@ -618,7 +563,7 @@ export default function CoursesPage() {
               </Text>
 
               <Text style={styles.summaryValue}>
-                {inactiveCourses}
+                {inactiveSubjects}
               </Text>
             </View>
           </View>
@@ -638,7 +583,7 @@ export default function CoursesPage() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search courses..."
+            placeholder="Search subjects..."
             placeholderTextColor="#A3AFBE"
             style={styles.searchInput}
           />
@@ -664,11 +609,11 @@ export default function CoursesPage() {
 
           <View>
             <Text style={styles.listTitle}>
-              All Courses
+              All subjects
             </Text>
 
             <Text style={styles.listCount}>
-              {filteredCourses.length} courses found
+              {filteredSubjects.length} subjects found
             </Text>
           </View>
 
@@ -689,12 +634,12 @@ export default function CoursesPage() {
 
         </View>
 
-        {/* COURSE LIST */}
+        {/* subject LIST */}
 
         <FlatList
-          data={filteredCourses}
+          data={filteredSubjects}
           keyExtractor={(item) => item.id}
-          renderItem={renderCourse}
+          renderItem={renderSubject}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
@@ -709,7 +654,7 @@ export default function CoursesPage() {
               </View>
 
               <Text style={styles.emptyTitle}>
-                No courses found
+                No subjects found
               </Text>
 
               <Text style={styles.emptyText}>
@@ -736,7 +681,7 @@ export default function CoursesPage() {
 
             <View style={styles.actionHeader}>
 
-              <View style={styles.actionCourseIcon}>
+              <View style={styles.actionSubjectIcon}>
                 <MaterialCommunityIcons
                   name="book-open-outline"
                   size={23}
@@ -744,17 +689,17 @@ export default function CoursesPage() {
                 />
               </View>
 
-              <View style={styles.actionCourseInfo}>
+              <View style={styles.actionSubjectInfo}>
 
                 <Text
-                  style={styles.actionCourseName}
+                  style={styles.actionSubjectName}
                   numberOfLines={1}
                 >
-                  {selectedCourse?.name}
+                  {selectedSubject?.name}
                 </Text>
 
-                <Text style={styles.actionCourseId}>
-                  {selectedCourse?.courseId}
+                <Text style={styles.actionSubjectId}>
+                  {selectedSubject?.subjectId}
                 </Text>
 
               </View>
@@ -778,7 +723,7 @@ export default function CoursesPage() {
 
             <TouchableOpacity
               style={styles.actionItem}
-              onPress={viewCourse}
+              onPress={viewSubject}
               activeOpacity={0.75}
             >
 
@@ -798,11 +743,11 @@ export default function CoursesPage() {
               <View style={styles.actionTextContainer}>
 
                 <Text style={styles.actionTitle}>
-                  View Course
+                  View subject
                 </Text>
 
                 <Text style={styles.actionDescription}>
-                  View complete course information
+                  View complete subject information
                 </Text>
 
               </View>
@@ -819,7 +764,7 @@ export default function CoursesPage() {
 
             <TouchableOpacity
               style={styles.actionItem}
-              onPress={openEditCourse}
+              onPress={openEditSubject}
               activeOpacity={0.75}
             >
 
@@ -839,11 +784,11 @@ export default function CoursesPage() {
               <View style={styles.actionTextContainer}>
 
                 <Text style={styles.actionTitle}>
-                  Edit Course
+                  Edit subject
                 </Text>
 
                 <Text style={styles.actionDescription}>
-                  Update course information and details
+                  Update subject information and details
                 </Text>
 
               </View>
@@ -863,7 +808,7 @@ export default function CoursesPage() {
                 styles.actionItem,
                 styles.deleteAction,
               ]}
-              onPress={deleteCourse}
+              onPress={deleteSubject}
               activeOpacity={0.75}
             >
 
@@ -885,11 +830,11 @@ export default function CoursesPage() {
                     styles.deleteTitle,
                   ]}
                 >
-                  Delete Course
+                  Delete subject
                 </Text>
 
                 <Text style={styles.actionDescription}>
-                  Permanently remove this course
+                  Permanently remove this subject
                 </Text>
 
               </View>
@@ -931,11 +876,11 @@ export default function CoursesPage() {
               <View>
 
                 <Text style={styles.editTitle}>
-                  Edit Course
+                  Edit subject
                 </Text>
 
                 <Text style={styles.editSubtitle}>
-                  Course Information
+                  subject Information
                 </Text>
 
               </View>
@@ -959,12 +904,12 @@ export default function CoursesPage() {
               contentContainerStyle={styles.editContent}
             >
 
-              {/* COURSE NAME */}
+              {/* subject NAME */}
 
               <View style={styles.editField}>
 
                 <Text style={styles.editLabel}>
-                  Course Name
+                  subject Name
                 </Text>
 
                 <View style={styles.editInputBox}>
@@ -979,7 +924,7 @@ export default function CoursesPage() {
                     value={editName}
                     onChangeText={setEditName}
                     style={styles.editInput}
-                    placeholder="Enter course name"
+                    placeholder="Enter subject name"
                     placeholderTextColor="#A3AFBE"
                   />
 
@@ -1195,7 +1140,7 @@ export default function CoursesPage() {
               <View style={styles.editField}>
 
                 <Text style={styles.editLabel}>
-                  Course Fee
+                  subject Fee
                 </Text>
 
                 <View style={styles.editInputBox}>
@@ -1238,7 +1183,7 @@ export default function CoursesPage() {
 
               <TouchableOpacity
                 style={styles.editSaveButton}
-                onPress={saveCourseChanges}
+                onPress={saveSubjectChanges}
                 activeOpacity={0.8}
               >
 
@@ -1547,13 +1492,13 @@ const styles = StyleSheet.create({
     color: '#7040D5',
   },
 
-  /* COURSE CARD */
+  /* subject CARD */
 
   listContent: {
     paddingBottom: 30,
   },
 
-  courseCard: {
+  subjectCard: {
     width: '100%',
     minHeight: 103,
 
@@ -1582,7 +1527,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  courseIcon: {
+  subjectIcon: {
     width: 47,
     height: 47,
 
@@ -1596,19 +1541,19 @@ const styles = StyleSheet.create({
     marginRight: 11,
   },
 
-  courseInfo: {
+  subjectInfo: {
     flex: 1,
     minWidth: 0,
   },
 
-  courseName: {
+  subjectName: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 12.5,
 
     color: '#172033',
   },
 
-  courseId: {
+  subjectId: {
     fontFamily: 'PoppinsMedium',
     fontSize: 9,
 
@@ -1636,7 +1581,7 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
 
-  courseMeta: {
+  subjectMeta: {
     alignItems: 'flex-end',
 
     marginHorizontal: 5,
@@ -1795,7 +1740,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
 
-  actionCourseIcon: {
+  actionSubjectIcon: {
     width: 45,
     height: 45,
 
@@ -1809,19 +1754,19 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
 
-  actionCourseInfo: {
+  actionSubjectInfo: {
     flex: 1,
     minWidth: 0,
   },
 
-  actionCourseName: {
+  actionSubjectName: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 13,
 
     color: '#172033',
   },
 
-  actionCourseId: {
+  actionSubjectId: {
     fontFamily: 'PoppinsRegular',
     fontSize: 9,
 
