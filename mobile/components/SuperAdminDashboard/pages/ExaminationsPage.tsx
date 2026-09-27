@@ -1441,19 +1441,13 @@ export default function ExaminationsPage() {
             });
           }}
           activeOpacity={0.85}
+          accessibilityLabel="Add Examination"
         >
           <MaterialCommunityIcons
             name="plus"
-            size={17}
+            size={20}
             color="#7040D5"
           />
-
-          <Text
-            style={styles.addButtonText}
-            numberOfLines={1}
-          >
-            Add Examination
-          </Text>
         </TouchableOpacity>
       </View>
 
@@ -2893,24 +2887,14 @@ const styles = StyleSheet.create({
    * properly on mobile.
    */
   addButton: {
-    minHeight: 34,
-    width: 132,
-    borderRadius: 9,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    paddingHorizontal: 9,
     marginLeft: 8,
-  },
-
-  addButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9.5,
-    color: '#7040D5',
-    marginLeft: 4,
-    flexShrink: 1,
   },
 
   /* =====================================================

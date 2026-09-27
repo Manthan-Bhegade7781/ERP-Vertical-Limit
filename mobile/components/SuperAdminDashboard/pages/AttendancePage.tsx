@@ -1262,20 +1262,16 @@ export default function AttendancePage() {
             </Text>
           </View>
 
+          {/* ADD ATTENDANCE PLUS BUTTON */}
           <TouchableOpacity
             style={styles.markButton}
             onPress={markAttendance}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Add Attendance"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <MaterialCommunityIcons
-              name="calendar-check-outline"
-              size={17}
-              color="#7040D5"
-            />
-
-            <Text style={styles.markButtonText}>
-              Mark Attendance
-            </Text>
+            <Text style={styles.markButtonPlus}>+</Text>
           </TouchableOpacity>
         </View>
 
@@ -2117,21 +2113,33 @@ const styles = StyleSheet.create({
   },
 
   markButton: {
-    minHeight: 34,
-    paddingHorizontal: 12,
-    borderRadius: 9,
+    position: 'absolute',
+    right: 20,
+    top: 13,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    zIndex: 999,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
   },
 
-  markButtonText: {
+  markButtonPlus: {
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 9.5,
+    fontSize: 30,
+    lineHeight: 34,
     color: '#7040D5',
-    marginLeft: 4,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
 
   /* PAGE */

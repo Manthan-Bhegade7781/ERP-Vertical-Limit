@@ -281,7 +281,7 @@ export default function AcademicCalendarPage() {
             accessibilityLabel="Add Event"
           >
             <MaterialCommunityIcons
-              name="plus"
+              name="calendar-plus"
               size={21}
               color="#7040D5"
             />

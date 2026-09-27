@@ -1,7 +1,6 @@
 import React from 'react';
-
-import SuperAdminDashboard from '@/components/SuperAdminDashboard/SuperAdminDashboard';
+import AdminDashboard from '@/components/AdminDashboard/AdminDashboard';
 
 export default function HomeScreen() {
-  return <SuperAdminDashboard />;
+  return <AdminDashboard />;
 }

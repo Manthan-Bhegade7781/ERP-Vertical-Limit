@@ -437,6 +437,7 @@ export default function BatchesPage() {
         <TouchableOpacity
           style={styles.headerAddButton}
           activeOpacity={0.8}
+          accessibilityLabel="Add Batch"
           onPress={() => {
             router.push({
               pathname: "/(tabs)/explore",
@@ -446,9 +447,7 @@ export default function BatchesPage() {
             });
           }}
         >
-          <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
-
-          <Text style={styles.headerAddButtonText}>Add Batch</Text>
+          <MaterialCommunityIcons name="plus" size={20} color="#7040D5" />
         </TouchableOpacity>
       </View>
 
@@ -1277,23 +1276,14 @@ const styles = StyleSheet.create({
   },
 
   headerAddButton: {
-    minHeight: 36,
-    paddingHorizontal: 11,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
-    backgroundColor: "transparent",
-    flexDirection: "row",
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 8,
-  },
-
-  headerAddButtonText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 9.5,
-    color: "#FFFFFF",
-    marginLeft: 4,
+    flexShrink: 0,
   },
 
   summaryGrid: {

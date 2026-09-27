@@ -313,7 +313,7 @@ export default function AddStudentPage() {
           <View style={styles.pageTitleContainer}>
             <Text style={styles.pageTitle}>Student Information</Text>
             <Text style={styles.pageSubtitle}>
-              Enter student details, academic information and parent contact.
+              Enter student details, academic information and parent information.
             </Text>
           </View>
 
@@ -519,17 +519,17 @@ export default function AddStudentPage() {
 
               <View>
                 <Text style={styles.sectionTitle}>
-                  Parent / Guardian Information
+                  Parent Information
                 </Text>
                 <Text style={styles.sectionSubtitle}>
-                  Parent or guardian contact details
+                  Parent contact details
                 </Text>
               </View>
             </View>
 
             <View style={styles.twoColumn}>
               <View style={styles.column}>
-                <Text style={styles.fieldLabel}>Parent / Guardian Name</Text>
+                <Text style={styles.fieldLabel}>Parent Name</Text>
 
                 <View style={styles.textInputWrapper}>
                   <MaterialCommunityIcons

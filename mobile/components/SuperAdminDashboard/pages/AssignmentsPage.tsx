@@ -2148,12 +2148,7 @@ export default function AssignmentsPage() {
             color="#7040D5"
           />
 
-          <Text
-            style={styles.addButtonText}
-            numberOfLines={1}
-          >
-            Add Assignment
-          </Text>
+          
         </TouchableOpacity>
       </View>
 
@@ -3950,23 +3945,15 @@ const styles = StyleSheet.create({
 
   addButton: {
     minHeight: 34,
-    width: 126,
-    borderRadius: 9,
+    width: 40,
+    borderRadius: 11,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
-    paddingHorizontal: 9,
+    paddingHorizontal: 0,
     marginLeft: 8,
-  },
-
-  addButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9.5,
-    color: '#7040D5',
-    marginLeft: 4,
-    flexShrink: 1,
   },
 
   /* =====================================================

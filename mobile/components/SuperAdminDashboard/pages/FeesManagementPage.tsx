@@ -1314,20 +1314,14 @@ export default function FeesManagementPage() {
               params: { feature: 'Collect Fee' },
             });
           }}
+          accessibilityLabel="Collect Fee"
+          activeOpacity={0.85}
         >
           <MaterialCommunityIcons
-            name="plus"
+            name="cash-plus"
             size={16}
             color="#7040D5"
           />
-
-          <Text
-            style={
-              styles.addButtonText
-            }
-          >
-            Collect Fee
-          </Text>
         </TouchableOpacity>
       </View>
 
@@ -3114,19 +3108,14 @@ const styles = StyleSheet.create({
   },
 
   addButton: {
-    height: 34,
-    paddingHorizontal: 10,
-    borderRadius: 9,
+    minWidth: 92,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 11,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-  },
-
-  addButtonText: {
-    color: '#7040D5',
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10.5,
+    justifyContent: 'center',
   },
 
   container: {

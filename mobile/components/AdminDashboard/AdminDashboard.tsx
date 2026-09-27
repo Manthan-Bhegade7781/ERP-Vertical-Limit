@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 
 import {
-  Alert,
   Animated,
   Modal,
   Pressable,
@@ -16,198 +15,31 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-type ColorType =
-  | 'purple'
-  | 'blue'
-  | 'green'
-  | 'orange'
-  | 'pink';
+import AdminSidebar from './AdminSidebar';
+import AdminHeader from './AdminHeader';
+import StatCard from './StatCard';
 
-type StatCardProps = {
-  title: string;
-  value: string;
-  change: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  type: ColorType;
-  onPress?: () => void;
-};
-
-const colors = {
-  purple: {
-    background: '#F1EAFF',
-    icon: '#7040D5',
-  },
-  blue: {
-    background: '#EAF2FF',
-    icon: '#2675E8',
-  },
-  green: {
-    background: '#E7F8EF',
-    icon: '#35B878',
-  },
-  orange: {
-    background: '#FFF1E2',
-    icon: '#F7941D',
-  },
-  pink: {
-    background: '#FFE9F0',
-    icon: '#E95386',
-  },
-};
-
-const adminMenuItems = [
-  {
-    label: 'Dashboard',
-    icon: 'view-dashboard-outline' as const,
-  },
-  {
-    label: 'Students',
-    icon: 'account-group-outline' as const,
-  },
-  {
-    label: 'Teachers',
-    icon: 'account-tie-outline' as const,
-  },
-  {
-    label: 'Courses',
-    icon: 'book-open-outline' as const,
-  },
-  {
-    label: 'Batches',
-    icon: 'account-multiple-outline' as const,
-  },
-  {
-    label: 'Attendance',
-    icon: 'calendar-check-outline' as const,
-  },
-  {
-    label: 'Examinations',
-    icon: 'file-document-edit-outline' as const,
-  },
-  {
-    label: 'Assignments',
-    icon: 'clipboard-text-outline' as const,
-  },
-  {
-    label: 'Performance',
-    icon: 'chart-line' as const,
-  },
-];
-
-const communicationItems = [
-  {
-    label: 'Announcements',
-    icon: 'bullhorn-outline' as const,
-  },
-  {
-    label: 'Messages',
-    icon: 'message-text-outline' as const,
-  },
-];
-
-const administrationItems = [
-  {
-    label: 'Reports',
-    icon: 'file-chart-outline' as const,
-  },
-  {
-    label: 'Profile',
-    icon: 'account-outline' as const,
-  },
-  {
-    label: 'Settings',
-    icon: 'cog-outline' as const,
-  },
-];
+/* =========================================================
+   NAVIGATION
+========================================================= */
 
 function openAdminFeature(feature: string) {
   if (feature === 'Dashboard') {
+    router.push('/(admin)' as never);
     return;
   }
 
   router.push({
-    pathname: '/(tabs)/explore',
+    pathname: '/(admin)/explore',
     params: {
       feature,
     },
-  });
+  } as never);
 }
 
-function StatCard({
-  title,
-  value,
-  change,
-  icon,
-  type,
-  onPress,
-}: StatCardProps) {
-  const color = colors[type];
-
-  return (
-    <TouchableOpacity
-      style={styles.statCard}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.8 : 1}
-      disabled={!onPress}
-    >
-      <View style={styles.statTopRow}>
-        <View
-          style={[
-            styles.statIconBox,
-            {
-              backgroundColor: color.background,
-            },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name={icon}
-            size={24}
-            color={color.icon}
-          />
-        </View>
-
-        <View
-          style={[
-            styles.changeBadge,
-            {
-              backgroundColor: color.background,
-            },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="trending-up"
-            size={12}
-            color={color.icon}
-          />
-
-          <Text
-            style={[
-              styles.changeText,
-              {
-                color: color.icon,
-              },
-            ]}
-          >
-            {change}
-          </Text>
-        </View>
-      </View>
-
-      <View>
-        <Text style={styles.statTitle}>{title}</Text>
-
-        <Text
-          style={styles.statValue}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.75}
-        >
-          {value}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
+/* =========================================================
+   SECTION CARD
+========================================================= */
 
 function SectionCard({
   title,
@@ -233,7 +65,9 @@ function SectionCard({
           </View>
 
           <View style={styles.sectionTitleContainer}>
-            <Text style={styles.sectionTitle}>{title}</Text>
+            <Text style={styles.sectionTitle}>
+              {title}
+            </Text>
 
             {subtitle ? (
               <Text style={styles.sectionSubtitle}>
@@ -255,449 +89,9 @@ function SectionCard({
   );
 }
 
-function AdminSidebar({
-  activeItem,
-  onItemPress,
-}: {
-  activeItem?: string;
-  onItemPress?: (item: string) => void;
-}) {
-  const { width } = useWindowDimensions();
-
-  const isMobile = width < 900;
-
-  const handlePress = (item: string) => {
-    onItemPress?.(item);
-
-    if (item !== 'Dashboard') {
-      openAdminFeature(item);
-    }
-  };
-
-  const renderItem = (
-    item: {
-      label: string;
-      icon: keyof typeof MaterialCommunityIcons.glyphMap;
-    },
-  ) => {
-    const isActive = activeItem === item.label;
-
-    return (
-      <TouchableOpacity
-        key={item.label}
-        style={styles.menuItem}
-        onPress={() => handlePress(item.label)}
-        activeOpacity={0.7}
-      >
-        <MaterialCommunityIcons
-          name={item.icon}
-          size={isMobile ? 23 : 20}
-          color={isActive ? '#7040D5' : '#66768A'}
-        />
-
-        <Text
-          style={[
-            styles.menuText,
-            isMobile
-              ? styles.menuTextMobile
-              : styles.menuTextDesktop,
-            isActive && styles.menuTextActive,
-          ]}
-          numberOfLines={1}
-        >
-          {item.label}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
-  return (
-    <View style={styles.sidebar}>
-      {/* BRAND */}
-
-      <View style={styles.brandContainer}>
-        <View style={styles.brandIcon}>
-          <MaterialCommunityIcons
-            name="school-outline"
-            size={25}
-            color="#FFFFFF"
-          />
-        </View>
-
-        <View style={styles.brandTextContainer}>
-          <Text style={styles.brandTitle}>
-            VLCC ERP
-          </Text>
-
-          <Text style={styles.brandSubtitle}>
-            Portal
-          </Text>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.sidebarScroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* DASHBOARD */}
-
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionLabel}>
-            MAIN
-          </Text>
-
-          {renderItem(adminMenuItems[0])}
-        </View>
-
-        {/* MANAGEMENT */}
-
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionLabel}>
-            MANAGEMENT
-          </Text>
-
-          {adminMenuItems
-            .slice(1)
-            .map(renderItem)}
-        </View>
-
-        {/* COMMUNICATION */}
-
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionLabel}>
-            COMMUNICATION
-          </Text>
-
-          {communicationItems.map(renderItem)}
-        </View>
-
-        {/* ADMINISTRATION */}
-
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionLabel}>
-            ADMINISTRATION
-          </Text>
-
-          {administrationItems.map(renderItem)}
-        </View>
-      </ScrollView>
-
-      {/* PROFILE */}
-
-      <TouchableOpacity
-        style={styles.profileCard}
-        activeOpacity={0.8}
-        onPress={() => handlePress('Profile')}
-      >
-        <View style={styles.profileAvatar}>
-          <MaterialCommunityIcons
-            name="account"
-            size={22}
-            color="#7040D5"
-          />
-        </View>
-
-        <View style={styles.profileTextContainer}>
-          <Text
-            style={styles.profileName}
-            numberOfLines={1}
-          >
-            Admin
-          </Text>
-
-          <Text
-            style={styles.profileRole}
-            numberOfLines={1}
-          >
-            Branch Administrator
-          </Text>
-        </View>
-
-        <MaterialCommunityIcons
-          name="chevron-right"
-          size={18}
-          color="#9AA4B4"
-        />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function AdminHeader({
-  isDesktop,
-  onMenuPress,
-}: {
-  isDesktop: boolean;
-  onMenuPress: () => void;
-}) {
-  const [notificationVisible, setNotificationVisible] =
-    useState(false);
-
-  const [profileVisible, setProfileVisible] =
-    useState(false);
-
-  const openNotifications = () => {
-    setProfileVisible(false);
-    setNotificationVisible(true);
-  };
-
-  const openProfile = () => {
-    setNotificationVisible(false);
-    setProfileVisible(true);
-  };
-
-  const closeAll = () => {
-    setNotificationVisible(false);
-    setProfileVisible(false);
-  };
-
-  const handleProfileOption = (option: string) => {
-    setProfileVisible(false);
-
-    if (option === 'profile') {
-      openAdminFeature('Profile');
-    }
-
-    if (option === 'settings') {
-      openAdminFeature('Settings');
-    }
-
-    if (option === 'logout') {
-      Alert.alert(
-        'Logout',
-        'Logout functionality will be connected here.',
-      );
-    }
-  };
-
-  return (
-    <View style={styles.header}>
-      <View style={styles.headerLeft}>
-        {!isDesktop && (
-          <TouchableOpacity
-            style={styles.mobileMenuButton}
-            onPress={onMenuPress}
-            activeOpacity={0.8}
-          >
-            <MaterialCommunityIcons
-              name="menu"
-              size={24}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-        )}
-
-        <View>
-          <Text style={styles.headerTitle}>
-            Dashboard
-          </Text>
-
-          <Text style={styles.headerSubtitle}>
-            Branch administration overview
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.headerRight}>
-        <TouchableOpacity
-          style={styles.headerIconButton}
-          onPress={openNotifications}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons
-            name="bell-outline"
-            size={22}
-            color="#FFFFFF"
-          />
-
-          <View style={styles.notificationDot} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.headerProfileButton}
-          onPress={openProfile}
-          activeOpacity={0.8}
-        >
-          <View style={styles.headerAvatar}>
-            <MaterialCommunityIcons
-              name="account"
-              size={19}
-              color="#7040D5"
-            />
-          </View>
-
-          {isDesktop && (
-            <View style={styles.headerProfileText}>
-              <Text style={styles.headerProfileName}>
-                Admin
-              </Text>
-
-              <Text style={styles.headerProfileRole}>
-                Administrator
-              </Text>
-            </View>
-          )}
-
-          <MaterialCommunityIcons
-            name="chevron-down"
-            size={17}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
-      </View>
-
-      {(notificationVisible || profileVisible) && (
-        <Pressable
-          style={styles.popupOverlay}
-          onPress={closeAll}
-        />
-      )}
-
-      {notificationVisible && (
-        <View style={styles.notificationPopup}>
-          <View style={styles.popupHeader}>
-            <Text style={styles.popupTitle}>
-              Notifications
-            </Text>
-
-            <TouchableOpacity
-              onPress={closeAll}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons
-                name="close"
-                size={19}
-                color="#7B8798"
-              />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.notificationItem}>
-            <View style={styles.notificationIcon}>
-              <MaterialCommunityIcons
-                name="cash-clock"
-                size={18}
-                color="#E95386"
-              />
-            </View>
-
-            <View style={styles.notificationText}>
-              <Text style={styles.notificationTitle}>
-                Pending fee collection
-              </Text>
-
-              <Text style={styles.notificationDescription}>
-                Fee follow-up is required for 24 students.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.notificationItem}>
-            <View style={styles.notificationIcon}>
-              <MaterialCommunityIcons
-                name="calendar-alert"
-                size={18}
-                color="#2675E8"
-              />
-            </View>
-
-            <View style={styles.notificationText}>
-              <Text style={styles.notificationTitle}>
-                Upcoming examination
-              </Text>
-
-              <Text style={styles.notificationDescription}>
-                Examination schedule requires review.
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {profileVisible && (
-        <View style={styles.profilePopup}>
-          <View style={styles.profilePopupHeader}>
-            <View style={styles.popupAvatar}>
-              <MaterialCommunityIcons
-                name="account"
-                size={22}
-                color="#7040D5"
-              />
-            </View>
-
-            <View>
-              <Text style={styles.popupProfileName}>
-                Admin
-              </Text>
-
-              <Text style={styles.popupProfileRole}>
-                Branch Administrator
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.popupOption}
-            onPress={() =>
-              handleProfileOption('profile')
-            }
-          >
-            <MaterialCommunityIcons
-              name="account-outline"
-              size={20}
-              color="#66768A"
-            />
-
-            <Text style={styles.popupOptionText}>
-              Profile
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.popupOption}
-            onPress={() =>
-              handleProfileOption('settings')
-            }
-          >
-            <MaterialCommunityIcons
-              name="cog-outline"
-              size={20}
-              color="#66768A"
-            />
-
-            <Text style={styles.popupOptionText}>
-              Settings
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.popupOption}
-            onPress={() =>
-              handleProfileOption('logout')
-            }
-          >
-            <MaterialCommunityIcons
-              name="logout"
-              size={20}
-              color="#E95386"
-            />
-
-            <Text
-              style={[
-                styles.popupOptionText,
-                {
-                  color: '#E95386',
-                },
-              ]}
-            >
-              Logout
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-}
+/* =========================================================
+   STUDENT GROWTH
+========================================================= */
 
 function StudentGrowth() {
   const data = [
@@ -804,6 +198,10 @@ function StudentGrowth() {
   );
 }
 
+/* =========================================================
+   RECENT ANNOUNCEMENTS
+========================================================= */
+
 function RecentAnnouncements() {
   const announcements = [
     {
@@ -887,80 +285,84 @@ function RecentAnnouncements() {
   );
 }
 
-function TopCourses() {
-  const courses = [
+/* =========================================================
+   SUBJECT PERFORMANCE
+========================================================= */
+
+function SubjectPerformance() {
+  const subjects = [
     {
-      name: 'BCA',
-      students: 286,
-      percentage: 88,
+      name: 'Physics',
+      students: 248,
+      percentage: 86,
       color: '#7040D5',
     },
     {
-      name: 'BBA',
-      students: 242,
-      percentage: 75,
+      name: 'Chemistry',
+      students: 232,
+      percentage: 82,
       color: '#2675E8',
     },
     {
-      name: 'MCA',
-      students: 198,
-      percentage: 62,
+      name: 'Mathematics',
+      students: 275,
+      percentage: 89,
       color: '#35B878',
     },
     {
-      name: 'MBA',
-      students: 156,
-      percentage: 49,
+      name: 'Biology',
+      students: 198,
+      percentage: 84,
       color: '#F7941D',
     },
   ];
 
   return (
     <SectionCard
-      title="Top Courses"
-      subtitle="Student distribution"
+      title="Subject Performance"
+      subtitle="Academic performance by subject"
       icon="book-open-outline"
     >
-      {courses.map((course) => (
+      {subjects.map((subject) => (
         <View
-          key={course.name}
-          style={styles.courseRow}
+          key={subject.name}
+          style={styles.subjectRow}
         >
-          <View style={styles.courseInfo}>
-            <View style={styles.courseIcon}>
+          <View style={styles.subjectInfo}>
+            <View style={styles.subjectIcon}>
               <MaterialCommunityIcons
-                name="school-outline"
+                name="book-open-variant"
                 size={17}
                 color="#7040D5"
               />
             </View>
 
             <View>
-              <Text style={styles.courseName}>
-                {course.name}
+              <Text style={styles.subjectName}>
+                {subject.name}
               </Text>
 
-              <Text style={styles.courseStudents}>
-                {course.students} students
+              <Text style={styles.subjectStudents}>
+                {subject.students} students
               </Text>
             </View>
           </View>
 
-          <View style={styles.courseProgressContainer}>
-            <View style={styles.courseProgressTrack}>
+          <View style={styles.subjectProgressContainer}>
+            <View style={styles.subjectProgressTrack}>
               <View
                 style={[
-                  styles.courseProgressFill,
+                  styles.subjectProgressFill,
                   {
-                    width: `${course.percentage}%`,
-                    backgroundColor: course.color,
+                    width: `${subject.percentage}%`,
+                    backgroundColor: subject.color,
                   },
                 ]}
               />
             </View>
 
-            <Text style={styles.coursePercentage}>
-              {course.percentage}%
+            <Text style={styles.subjectPercentage}>
+              {subject.percentage}%
             </Text>
           </View>
         </View>
@@ -969,55 +371,59 @@ function TopCourses() {
   );
 }
 
-function BatchOverview() {
-  const batches = [
+/* =========================================================
+   STD / SUB OVERVIEW
+========================================================= */
+
+function StdSubOverview() {
+  const stdSub = [
     {
-      name: 'BCA 2025',
+      name: 'Foundation 8th',
       students: 128,
       status: 'Active',
       type: 'purple',
     },
     {
-      name: 'BBA 2026',
-      students: 112,
+      name: 'Foundation 9th',
+      students: 142,
       status: 'Active',
       type: 'blue',
     },
     {
-      name: 'MCA 2025',
-      students: 94,
+      name: 'Foundation 10th',
+      students: 156,
       status: 'Active',
       type: 'green',
     },
     {
-      name: 'MBA 2026',
-      students: 76,
-      status: 'Upcoming',
+      name: 'JEE 11th',
+      students: 184,
+      status: 'Active',
       type: 'orange',
     },
   ];
 
   return (
     <SectionCard
-      title="Batch Overview"
-      subtitle="Current branch batches"
-      icon="account-multiple-outline"
+      title="STD / SUB Overview"
+      subtitle="Current academic groups"
+      icon="google-classroom"
     >
-      {batches.map((batch) => (
+      {stdSub.map((item) => (
         <View
-          key={batch.name}
-          style={styles.batchRow}
+          key={item.name}
+          style={styles.stdSubRow}
         >
           <View
             style={[
-              styles.batchIcon,
+              styles.stdSubIcon,
               {
                 backgroundColor:
-                  batch.type === 'purple'
+                  item.type === 'purple'
                     ? '#F1EAFF'
-                    : batch.type === 'blue'
+                    : item.type === 'blue'
                       ? '#EAF2FF'
-                      : batch.type === 'green'
+                      : item.type === 'green'
                         ? '#E7F8EF'
                         : '#FFF1E2',
               },
@@ -1027,33 +433,33 @@ function BatchOverview() {
               name="account-multiple-outline"
               size={17}
               color={
-                batch.type === 'purple'
+                item.type === 'purple'
                   ? '#7040D5'
-                  : batch.type === 'blue'
+                  : item.type === 'blue'
                     ? '#2675E8'
-                    : batch.type === 'green'
+                    : item.type === 'green'
                       ? '#35B878'
                       : '#F7941D'
               }
             />
           </View>
 
-          <View style={styles.batchTextContainer}>
-            <Text style={styles.batchName}>
-              {batch.name}
+          <View style={styles.stdSubTextContainer}>
+            <Text style={styles.stdSubName}>
+              {item.name}
             </Text>
 
-            <Text style={styles.batchStudents}>
-              {batch.students} students
+            <Text style={styles.stdSubStudents}>
+              {item.students} students
             </Text>
           </View>
 
           <View
             style={[
-              styles.batchStatus,
+              styles.stdSubStatus,
               {
                 backgroundColor:
-                  batch.status === 'Active'
+                  item.status === 'Active'
                     ? '#E7F8EF'
                     : '#FFF1E2',
               },
@@ -1061,16 +467,16 @@ function BatchOverview() {
           >
             <Text
               style={[
-                styles.batchStatusText,
+                styles.stdSubStatusText,
                 {
                   color:
-                    batch.status === 'Active'
+                    item.status === 'Active'
                       ? '#35B878'
                       : '#F7941D',
                 },
               ]}
             >
-              {batch.status}
+              {item.status}
             </Text>
           </View>
         </View>
@@ -1079,6 +485,10 @@ function BatchOverview() {
   );
 }
 
+/* =========================================================
+   QUICK ACTIONS
+========================================================= */
+
 function QuickActions() {
   const actions: {
     title: string;
@@ -1086,72 +496,42 @@ function QuickActions() {
     icon: keyof typeof MaterialCommunityIcons.glyphMap;
     color: string;
   }[] = [
-  {
-    title: 'Add Student',
-    feature: 'Students',
-    icon: 'account-plus',
-    color: '#7040D5',
-  },
-  {
-    title: 'Add Teacher',
-    feature: 'Teachers',
-    icon: 'account-tie',
-    color: '#2675E8',
-  },
-  {
-    title: 'Add Course',
-    feature: 'Courses',
-    icon: 'book-open-variant',
-    color: '#35B878',
-  },
-  {
-    title: 'Create Batch',
-    feature: 'Batches',
-    icon: 'account-multiple-plus',
-    color: '#F7941D',
-  },
-  {
-    title: 'Generate Report',
-    feature: 'Reports',
-    icon: 'file-chart-outline',
-    color: '#7040D5',
-  },
-  {
-    title: 'Student Complaint',
-    feature: 'Students',
-    icon: 'alert-circle-outline',
-    color: '#2675E8',
-  },
-  {
-    title: 'Quiz',
-    feature: 'Examinations',
-    icon: 'help-circle-outline',
-    color: '#35B878',
-  },
-  {
-    title: 'Event',
-    feature: 'Academic Calendar',
-    icon: 'calendar-plus',
-    color: '#F7941D',
-  },
-  {
-    title: 'PTG',
-    feature: 'PTG',
-    icon: 'account-group-outline',
-    color: '#E95386',
-  },
-  {
-    title: 'Feedback',
-    feature: 'Performance',
-    icon: 'message-text-outline',
-    color: '#7040D5',
-  },
-  {
-    title: 'WhatsApp',
-    feature: 'Messages',
-    icon: 'whatsapp',
-    color: '#2675E8',
-  },
+    {
+      title: 'Generate Report',
+      feature: 'Reports',
+      icon: 'file-chart-outline',
+      color: '#7040D5',
+    },
+    {
+      title: 'Quiz',
+      feature: 'Examinations',
+      icon: 'help-circle-outline',
+      color: '#35B878',
+    },
+    {
+      title: 'Feedback',
+      feature: 'Performance',
+      icon: 'message-text-outline',
+      color: '#7040D5',
+    },
+    {
+      title: 'WhatsApp',
+      feature: 'Messages',
+      icon: 'whatsapp',
+      color: '#2675E8',
+    },
+    {
+      title: 'Announcements',
+      feature: 'Announcements',
+      icon: 'bullhorn-outline',
+      color: '#F7941D',
+    },
+    {
+      title: 'Attendance',
+      feature: 'Attendance',
+      icon: 'calendar-check',
+      color: '#35B878',
+    },
   ];
 
   return (
@@ -1225,6 +605,10 @@ function QuickActions() {
   );
 }
 
+/* =========================================================
+   FOOTER
+========================================================= */
+
 function DashboardFooter() {
   return (
     <View style={styles.footer}>
@@ -1247,6 +631,10 @@ function DashboardFooter() {
   );
 }
 
+/* =========================================================
+   MAIN ADMIN DASHBOARD
+========================================================= */
+
 export default function AdminDashboard() {
   const { width } = useWindowDimensions();
 
@@ -1264,6 +652,10 @@ export default function AdminDashboard() {
     new Animated.Value(0),
   ).current;
 
+  /* =======================================================
+     OPEN SIDEBAR
+  ====================================================== */
+
   const openSidebar = () => {
     setSidebarVisible(true);
 
@@ -1275,6 +667,10 @@ export default function AdminDashboard() {
       useNativeDriver: true,
     }).start();
   };
+
+  /* =======================================================
+     CLOSE SIDEBAR
+  ====================================================== */
 
   const closeSidebar = () => {
     drawerAnimation.stopAnimation();
@@ -1290,6 +686,10 @@ export default function AdminDashboard() {
     });
   };
 
+  /* =======================================================
+     DRAWER ANIMATION
+  ====================================================== */
+
   const drawerTranslateX =
     drawerAnimation.interpolate({
       inputRange: [0, 1],
@@ -1304,15 +704,20 @@ export default function AdminDashboard() {
 
   return (
     <View style={styles.container}>
-      {/* DESKTOP SIDEBAR */}
+
+      {/* ===================================================
+          DESKTOP SIDEBAR
+      ==================================================== */}
 
       {isDesktop && (
         <AdminSidebar
-          activeItem="Dashboard"
+          collapsed={false}
         />
       )}
 
-      {/* MOBILE LEFT DRAWER */}
+      {/* ===================================================
+          MOBILE SIDEBAR
+      ==================================================== */}
 
       {!isDesktop && (
         <Modal
@@ -1322,6 +727,7 @@ export default function AdminDashboard() {
           onRequestClose={closeSidebar}
         >
           <View style={styles.drawerContainer}>
+
             <Animated.View
               style={[
                 styles.drawer,
@@ -1337,8 +743,8 @@ export default function AdminDashboard() {
               ]}
             >
               <AdminSidebar
-                activeItem="Dashboard"
-                onItemPress={closeSidebar}
+                collapsed={false}
+                onClose={closeSidebar}
               />
             </Animated.View>
 
@@ -1355,13 +761,17 @@ export default function AdminDashboard() {
                 onPress={closeSidebar}
               />
             </Animated.View>
+
           </View>
         </Modal>
       )}
 
-      {/* MAIN CONTENT */}
+      {/* ===================================================
+          MAIN CONTENT
+      ==================================================== */}
 
       <View style={styles.mainContainer}>
+
         <AdminHeader
           isDesktop={isDesktop}
           onMenuPress={openSidebar}
@@ -1376,9 +786,15 @@ export default function AdminDashboard() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* STATISTICS */}
+
+          {/* =================================================
+              STATISTICS
+          ================================================== */}
 
           <View style={styles.statsGrid}>
+
+            {/* STUDENTS */}
+
             <View
               style={[
                 styles.statItem,
@@ -1399,6 +815,8 @@ export default function AdminDashboard() {
                 }
               />
             </View>
+
+            {/* TEACHERS */}
 
             <View
               style={[
@@ -1421,6 +839,8 @@ export default function AdminDashboard() {
               />
             </View>
 
+            {/* SUBJECTS */}
+
             <View
               style={[
                 styles.statItem,
@@ -1429,18 +849,20 @@ export default function AdminDashboard() {
               ]}
             >
               <StatCard
-                title="Active Courses"
+                title="Active Subjects"
                 value="32"
                 change="6.7%"
                 icon="book-open-variant"
                 type="green"
                 onPress={() =>
                   openAdminFeature(
-                    'Courses',
+                    'Subjects',
                   )
                 }
               />
             </View>
+
+            {/* BATCHES */}
 
             <View
               style={[
@@ -1463,6 +885,8 @@ export default function AdminDashboard() {
               />
             </View>
 
+            {/* ATTENDANCE */}
+
             <View
               style={[
                 styles.statItem,
@@ -1483,6 +907,8 @@ export default function AdminDashboard() {
                 }
               />
             </View>
+
+            {/* EXAMS */}
 
             <View
               style={[
@@ -1505,6 +931,8 @@ export default function AdminDashboard() {
               />
             </View>
 
+            {/* ASSIGNMENTS */}
+
             <View
               style={[
                 styles.statItem,
@@ -1526,6 +954,8 @@ export default function AdminDashboard() {
               />
             </View>
 
+            {/* STAFF */}
+
             <View
               style={[
                 styles.statItem,
@@ -1539,37 +969,14 @@ export default function AdminDashboard() {
                 change="2.1%"
                 icon="account-off"
                 type="orange"
-                onPress={() =>
-                  openAdminFeature(
-                    'Staff on Leave',
-                  )
-                }
               />
             </View>
 
-            <View
-              style={[
-                styles.statItem,
-                isDesktop &&
-                  styles.statItemDesktop,
-              ]}
-            >
-              <StatCard
-                title="Performance"
-                value="87%"
-                change="6.2%"
-                icon="chart-line"
-                type="purple"
-                onPress={() =>
-                  openAdminFeature(
-                    'Performance',
-                  )
-                }
-              />
-            </View>
           </View>
 
-          {/* MAIN ANALYTICS */}
+          {/* =================================================
+              ANALYTICS
+          ================================================== */}
 
           <View
             style={[
@@ -1578,6 +985,9 @@ export default function AdminDashboard() {
                 styles.analyticsColumn,
             ]}
           >
+
+            {/* STUDENT GROWTH */}
+
             <View
               style={[
                 styles.growthWrapper,
@@ -1587,6 +997,8 @@ export default function AdminDashboard() {
             >
               <StudentGrowth />
             </View>
+
+            {/* ANNOUNCEMENTS */}
 
             <View
               style={[
@@ -1601,14 +1013,19 @@ export default function AdminDashboard() {
                     'Announcements',
                   )
                 }
-                style={styles.clickableSection}
+                style={
+                  styles.clickableSection
+                }
               >
                 <RecentAnnouncements />
               </Pressable>
             </View>
+
           </View>
 
-          {/* BOTTOM SECTION */}
+          {/* =================================================
+              BOTTOM
+          ================================================== */}
 
           <View
             style={[
@@ -1617,15 +1034,8 @@ export default function AdminDashboard() {
                 styles.bottomColumn,
             ]}
           >
-            <View
-              style={[
-                styles.bottomWrapper,
-                !isDesktop &&
-                  styles.mobileWrapper,
-              ]}
-            >
-              <TopCourses />
-            </View>
+
+            {/* SUBJECT PERFORMANCE */}
 
             <View
               style={[
@@ -1634,8 +1044,22 @@ export default function AdminDashboard() {
                   styles.mobileWrapper,
               ]}
             >
-              <BatchOverview />
+              <SubjectPerformance />
             </View>
+
+            {/* STD / SUB OVERVIEW */}
+
+            <View
+              style={[
+                styles.bottomWrapper,
+                !isDesktop &&
+                  styles.mobileWrapper,
+              ]}
+            >
+              <StdSubOverview />
+            </View>
+
+            {/* QUICK ACTIONS */}
 
             <View
               style={[
@@ -1646,16 +1070,27 @@ export default function AdminDashboard() {
             >
               <QuickActions />
             </View>
+
           </View>
 
+          {/* =================================================
+              FOOTER
+          ================================================== */}
+
           <DashboardFooter />
+
         </ScrollView>
       </View>
     </View>
   );
 }
 
+/* =========================================================
+   STYLES
+========================================================= */
+
 const styles = StyleSheet.create({
+
   /* =====================================================
      MAIN
   ====================================================== */
@@ -1676,391 +1111,15 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    padding: 20,
-    paddingBottom: 30,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
   },
 
   mobileContent: {
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 30,
-  },
-
-  /* =====================================================
-     SIDEBAR
-  ====================================================== */
-
-  sidebar: {
-    width: 250,
-    backgroundColor: '#FFFFFF',
-    borderRightWidth: 1,
-    borderRightColor: '#EEF0F5',
-    paddingTop: 18,
-    paddingHorizontal: 14,
-  },
-
-  sidebarScroll: {
-    flex: 1,
-  },
-
-  brandContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingBottom: 20,
-  },
-
-  brandIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 13,
-    backgroundColor: '#7040D5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  brandTextContainer: {
-    marginLeft: 10,
-  },
-
-  brandTitle: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 16,
-    color: '#7040D5',
-  },
-
-  brandSubtitle: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 9,
-    color: '#8792A4',
-    marginTop: -2,
-  },
-
-  menuSection: {
-    marginBottom: 17,
-  },
-
-  sectionLabel: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 8,
-    color: '#A2ACBB',
-    letterSpacing: 0.6,
-    marginLeft: 8,
-    marginBottom: 7,
-  },
-
-  menuItem: {
-    height: 43,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 9,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-  },
-
-  menuText: {
-    fontFamily: 'PoppinsMedium',
-    color: '#66768A',
-    marginLeft: 10,
-  },
-
-  menuTextDesktop: {
-    fontSize: 10.5,
-  },
-
-  menuTextMobile: {
-    fontSize: 12,
-  },
-
-  menuTextActive: {
-    fontFamily: 'PoppinsSemiBold',
-    color: '#7040D5',
-  },
-
-  profileCard: {
-    minHeight: 65,
-    borderTopWidth: 1,
-    borderTopColor: '#EEF0F5',
-    paddingHorizontal: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  profileAvatar: {
-    width: 39,
-    height: 39,
-    borderRadius: 12,
-    backgroundColor: '#F1EAFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  profileTextContainer: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 9,
-  },
-
-  profileName: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10.5,
-    color: '#172033',
-  },
-
-  profileRole: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 8.5,
-    color: '#8792A4',
-    marginTop: 1,
-  },
-
-  /* =====================================================
-     HEADER
-  ====================================================== */
-
-  header: {
-    height: 76,
-    backgroundColor: '#7040D5',
-    borderBottomWidth: 0,
-    borderBottomColor: '#7040D5',
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    zIndex: 20,
-  },
-
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: 0,
-  },
-
-  headerTitle: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 18,
-    color: '#FFFFFF',
-  },
-
-  headerSubtitle: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 8.5,
-    color: '#EDE7FF',
-    marginTop: 1,
-  },
-
-  mobileMenuButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 11,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 11,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 9,
-    position: 'relative',
-  },
-
-  notificationDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#E95386',
-    position: 'absolute',
-    right: 9,
-    top: 8,
-  },
-
-  headerProfileButton: {
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    paddingHorizontal: 7,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  headerAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  headerProfileText: {
-    marginHorizontal: 8,
-  },
-
-  headerProfileName: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9.5,
-    color: '#FFFFFF',
-  },
-
-  headerProfileRole: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 7.5,
-    color: '#EDE7FF',
-  },
-
-  /* =====================================================
-     POPUPS
-  ====================================================== */
-
-  popupOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    zIndex: 25,
-  },
-
-  notificationPopup: {
-    position: 'absolute',
-    right: 70,
-    top: 64,
-    width: 315,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 15,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: '#EEF0F5',
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 12,
-    zIndex: 30,
-  },
-
-  popupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F2F6',
-  },
-
-  popupTitle: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 12,
-    color: '#172033',
-  },
-
-  notificationItem: {
-    flexDirection: 'row',
-    paddingTop: 12,
-  },
-
-  notificationIcon: {
-    width: 35,
-    height: 35,
-    borderRadius: 10,
-    backgroundColor: '#F7F8FC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  notificationText: {
-    flex: 1,
-    marginLeft: 9,
-  },
-
-  notificationTitle: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9.5,
-    color: '#172033',
-  },
-
-  notificationDescription: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 8,
-    color: '#8792A4',
-    marginTop: 2,
-    lineHeight: 12,
-  },
-
-  profilePopup: {
-    position: 'absolute',
-    right: 20,
-    top: 64,
-    width: 220,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 15,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#EEF0F5',
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 12,
-    zIndex: 30,
-  },
-
-  profilePopupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 7,
-    marginBottom: 5,
-  },
-
-  popupAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: '#F1EAFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 9,
-  },
-
-  popupProfileName: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10,
-    color: '#172033',
-  },
-
-  popupProfileRole: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 7.5,
-    color: '#8792A4',
-  },
-
-  popupOption: {
-    height: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    borderRadius: 9,
-  },
-
-  popupOptionText: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 9.5,
-    color: '#66768A',
-    marginLeft: 9,
   },
 
   /* =====================================================
@@ -2071,81 +1130,22 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
 
   statItem: {
     width: '48%',
+    marginBottom: 12,
     flexGrow: 0,
     flexShrink: 0,
   },
 
   statItemDesktop: {
+    width: '18.8%',
+    marginBottom: 12,
     flexGrow: 0,
     flexShrink: 0,
-    flexBasis: '18.8%',
-    width: undefined,
-  },
-
-  statCard: {
-    width: '100%',
-    height: 170,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EEF0F5',
-    padding: 16,
-    justifyContent: 'space-between',
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-
-  statTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-
-  statIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  changeBadge: {
-    minHeight: 27,
-    borderRadius: 8,
-    paddingHorizontal: 7,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  changeText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9,
-    marginLeft: 3,
-  },
-
-  statTitle: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 10.5,
-    color: '#748096',
-    marginBottom: 3,
-  },
-
-  statValue: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 21,
-    color: '#172033',
   },
 
   /* =====================================================
@@ -2155,7 +1155,7 @@ const styles = StyleSheet.create({
   analyticsRow: {
     width: '100%',
     flexDirection: 'row',
-    gap: 14,
+    justifyContent: 'space-between',
     marginTop: 16,
   },
 
@@ -2164,20 +1164,21 @@ const styles = StyleSheet.create({
   },
 
   growthWrapper: {
-    flex: 1.5,
-  },
-
-  feeWrapper: {
-    flex: 1.1,
+    width: '58.5%',
+    flexGrow: 0,
+    flexShrink: 0,
   },
 
   announcementWrapper: {
-    flex: 1,
+    width: '40%',
+    flexGrow: 0,
+    flexShrink: 0,
   },
 
   mobileWrapper: {
     width: '100%',
-    flex: undefined,
+    flexGrow: 0,
+    flexShrink: 0,
   },
 
   clickableSection: {
@@ -2195,13 +1196,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#EEF0F5',
     padding: 16,
+
     shadowColor: '#000000',
+
     shadowOffset: {
       width: 0,
       height: 3,
     },
+
     shadowOpacity: 0.05,
     shadowRadius: 8,
+
     elevation: 2,
   },
 
@@ -2210,6 +1215,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 15,
+    minHeight: 37,
   },
 
   sectionTitleRow: {
@@ -2236,6 +1242,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
     fontSize: 12,
     color: '#172033',
+    lineHeight: 17,
   },
 
   sectionSubtitle: {
@@ -2243,6 +1250,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#8A95A6',
     marginTop: 1,
+    lineHeight: 12,
   },
 
   /* =====================================================
@@ -2348,105 +1356,13 @@ const styles = StyleSheet.create({
   },
 
   /* =====================================================
-     FEE COLLECTION
-  ====================================================== */
-
-  feeSummary: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-
-  feeAmount: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 19,
-    color: '#172033',
-  },
-
-  feeLabel: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 8,
-    color: '#8A95A6',
-    marginTop: 2,
-  },
-
-  feePercentage: {
-    alignItems: 'center',
-  },
-
-  feePercentageText: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 17,
-    color: '#7040D5',
-  },
-
-  feePercentageLabel: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 7,
-    color: '#8A95A6',
-  },
-
-  progressTrack: {
-    width: '100%',
-    height: 8,
-    borderRadius: 5,
-    backgroundColor: '#F0F2F6',
-    marginTop: 17,
-    overflow: 'hidden',
-  },
-
-  progressFill: {
-    height: '100%',
-    borderRadius: 5,
-    backgroundColor: '#7040D5',
-  },
-
-  feeRows: {
-    marginTop: 13,
-  },
-
-  feeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 7,
-  },
-
-  feeDotPurple: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#7040D5',
-    marginRight: 7,
-  },
-
-  feeDotPink: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#E95386',
-    marginRight: 7,
-  },
-
-  feeRowLabel: {
-    flex: 1,
-    fontFamily: 'PoppinsRegular',
-    fontSize: 8,
-    color: '#748096',
-  },
-
-  feeRowValue: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 8,
-    color: '#172033',
-  },
-
-  /* =====================================================
      ANNOUNCEMENTS
   ====================================================== */
 
   announcementItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 54,
     paddingVertical: 9,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F2F6',
@@ -2486,7 +1402,7 @@ const styles = StyleSheet.create({
   bottomRow: {
     width: '100%',
     flexDirection: 'row',
-    gap: 14,
+    justifyContent: 'space-between',
     marginTop: 16,
   },
 
@@ -2495,27 +1411,31 @@ const styles = StyleSheet.create({
   },
 
   bottomWrapper: {
-    flex: 1,
+    width: '32%',
+    flexGrow: 0,
+    flexShrink: 0,
   },
 
   actionsWrapper: {
-    flex: 1,
+    width: '32%',
+    flexGrow: 0,
+    flexShrink: 0,
   },
 
   /* =====================================================
-     TOP COURSES
+     SUBJECT PERFORMANCE
   ====================================================== */
 
-  courseRow: {
+  subjectRow: {
     marginBottom: 13,
   },
 
-  courseInfo: {
+  subjectInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
 
-  courseIcon: {
+  subjectIcon: {
     width: 34,
     height: 34,
     borderRadius: 9,
@@ -2525,26 +1445,26 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
 
-  courseName: {
+  subjectName: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 9,
     color: '#172033',
   },
 
-  courseStudents: {
+  subjectStudents: {
     fontFamily: 'PoppinsRegular',
     fontSize: 7,
     color: '#8A95A6',
     marginTop: 1,
   },
 
-  courseProgressContainer: {
+  subjectProgressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
   },
 
-  courseProgressTrack: {
+  subjectProgressTrack: {
     flex: 1,
     height: 5,
     borderRadius: 4,
@@ -2552,12 +1472,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  courseProgressFill: {
+  subjectProgressFill: {
     height: '100%',
     borderRadius: 4,
   },
 
-  coursePercentage: {
+  subjectPercentage: {
     width: 34,
     textAlign: 'right',
     fontFamily: 'PoppinsSemiBold',
@@ -2566,18 +1486,19 @@ const styles = StyleSheet.create({
   },
 
   /* =====================================================
-     BATCH OVERVIEW
+     STD / SUB OVERVIEW
   ====================================================== */
 
-  batchRow: {
+  stdSubRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 50,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F2F6',
   },
 
-  batchIcon: {
+  stdSubIcon: {
     width: 34,
     height: 34,
     borderRadius: 9,
@@ -2585,32 +1506,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  batchTextContainer: {
+  stdSubTextContainer: {
     flex: 1,
     minWidth: 0,
     marginLeft: 8,
   },
 
-  batchName: {
+  stdSubName: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 8.5,
     color: '#172033',
   },
 
-  batchStudents: {
+  stdSubStudents: {
     fontFamily: 'PoppinsRegular',
     fontSize: 7,
     color: '#8A95A6',
     marginTop: 1,
   },
 
-  batchStatus: {
+  stdSubStatus: {
     borderRadius: 7,
     paddingHorizontal: 7,
     paddingVertical: 4,
   },
 
-  batchStatusText: {
+  stdSubStatusText: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 7,
   },
@@ -2620,14 +1541,16 @@ const styles = StyleSheet.create({
   ====================================================== */
 
   quickActionsGrid: {
+    width: '100%',
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    justifyContent: 'space-between',
   },
 
   quickAction: {
-    width: '30%',
-    minHeight: 70,
+    width: '31.5%',
+    minHeight: 74,
+    marginBottom: 10,
     borderRadius: 11,
     backgroundColor: '#F9FAFC',
     borderWidth: 1,
@@ -2635,7 +1558,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
-    paddingVertical: 7,
+    paddingVertical: 8,
   },
 
   quickActionIcon: {
@@ -2644,14 +1567,16 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
 
   quickActionText: {
     fontFamily: 'PoppinsMedium',
     fontSize: 7.5,
+    lineHeight: 11,
     color: '#596579',
     textAlign: 'center',
+    paddingHorizontal: 2,
   },
 
   /* =====================================================
@@ -2703,13 +1628,17 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#FFFFFF',
     zIndex: 2,
+
     shadowColor: '#000000',
+
     shadowOffset: {
       width: 4,
       height: 0,
     },
+
     shadowOpacity: 0.20,
     shadowRadius: 8,
+
     elevation: 12,
   },
 
@@ -2722,6 +1651,7 @@ const styles = StyleSheet.create({
   drawerOverlay: {
     flex: 1,
     height: '100%',
-    backgroundColor: 'rgba(5, 15, 35, 0.55)',
+    backgroundColor:
+      'rgba(5, 15, 35, 0.55)',
   },
 });
