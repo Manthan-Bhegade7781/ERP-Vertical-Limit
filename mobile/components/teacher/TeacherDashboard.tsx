@@ -13,16 +13,27 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import TeacherHeader from './TeacherHeader';
+
 import TeacherBottomNav from './TeacherBottomNav';
 
 import OverviewSection from './Overview/OverviewSection';
+
 import ScheduleSection from './Schedule/ScheduleSection';
+
 import QuickActionsSection from './QuickActions/QuickActionsSection';
+
 import AnnouncementsSection from './Announcements/AnnouncementsSection';
 
 import ProfilePage from './Profile/ProfilePage';
 
+import ChangePasswordPage from './Profile/ChangePasswordPage';
+
+import NotificationSettingsPage from './Profile/NotificationSettingsPage';
+
+import HelpSupportPage from './Profile/HelpSupportPage';
+
 import MarkAttendance from './QuickActions/MarkAttendance';
+
 import AddLectureLog from './QuickActions/AddLectureLog';
 
 import BatchesPage from './Batches/BatchesPage';
@@ -38,7 +49,10 @@ type TabName =
   | 'profile'
   | 'attendance'
   | 'lectureLog'
-  | 'reports';
+  | 'reports'
+  | 'changePassword'
+  | 'notificationSettings'
+  | 'helpSupport';
 
 export default function TeacherDashboard() {
   const insets = useSafeAreaInsets();
@@ -54,27 +68,41 @@ export default function TeacherDashboard() {
     useState('Priya Sharma');
 
   const [profileEmail, setProfileEmail] =
-    useState('priya.sharma@example.com');
+    useState(
+      'priya.sharma@example.com',
+    );
 
   const [profilePhone, setProfilePhone] =
-    useState('+91 98765 43210');
+    useState(
+      '+91 98765 43210',
+    );
 
   /* =====================================
      SELECTED STUDENT FOR REPORT
   ===================================== */
 
-  const [selectedStudentId, setSelectedStudentId] =
-    useState<string | undefined>(undefined);
+  const [
+    selectedStudentId,
+    setSelectedStudentId,
+  ] = useState<string | undefined>(
+    undefined,
+  );
 
-  const [selectedStudentName, setSelectedStudentName] =
-    useState<string | undefined>(undefined);
+  const [
+    selectedStudentName,
+    setSelectedStudentName,
+  ] = useState<string | undefined>(
+    undefined,
+  );
 
   /* =====================================
      BOTTOM NAV ANIMATION
   ===================================== */
 
   const bottomNavTranslateY =
-    useRef(new Animated.Value(0)).current;
+    useRef(
+      new Animated.Value(0),
+    ).current;
 
   const lastScrollY =
     useRef(0);
@@ -100,8 +128,11 @@ export default function TeacherDashboard() {
       lastScrollY.current;
 
     if (currentScrollY <= 5) {
-      if (isBottomNavHidden.current) {
-        isBottomNavHidden.current = false;
+      if (
+        isBottomNavHidden.current
+      ) {
+        isBottomNavHidden.current =
+          false;
 
         Animated.timing(
           bottomNavTranslateY,
@@ -119,20 +150,26 @@ export default function TeacherDashboard() {
       return;
     }
 
-    if (Math.abs(difference) < 4) {
+    if (
+      Math.abs(difference) < 4
+    ) {
       return;
     }
 
     /* Scroll DOWN -> hide */
 
     if (difference > 0) {
-      if (!isBottomNavHidden.current) {
-        isBottomNavHidden.current = true;
+      if (
+        !isBottomNavHidden.current
+      ) {
+        isBottomNavHidden.current =
+          true;
 
         Animated.timing(
           bottomNavTranslateY,
           {
-            toValue: bottomNavHeight,
+            toValue:
+              bottomNavHeight,
             duration: 220,
             useNativeDriver: true,
           },
@@ -143,8 +180,11 @@ export default function TeacherDashboard() {
     /* Scroll UP -> show */
 
     else {
-      if (isBottomNavHidden.current) {
-        isBottomNavHidden.current = false;
+      if (
+        isBottomNavHidden.current
+      ) {
+        isBottomNavHidden.current =
+          false;
 
         Animated.timing(
           bottomNavTranslateY,
@@ -168,7 +208,8 @@ export default function TeacherDashboard() {
   const resetBottomNav = () => {
     lastScrollY.current = 0;
 
-    isBottomNavHidden.current = false;
+    isBottomNavHidden.current =
+      false;
 
     bottomNavTranslateY.setValue(0);
   };
@@ -193,9 +234,13 @@ export default function TeacherDashboard() {
     studentId: string,
     studentName: string,
   ) => {
-    setSelectedStudentId(studentId);
+    setSelectedStudentId(
+      studentId,
+    );
 
-    setSelectedStudentName(studentName);
+    setSelectedStudentName(
+      studentName,
+    );
 
     resetBottomNav();
 
@@ -228,8 +273,9 @@ export default function TeacherDashboard() {
   };
 
   return (
-    <View style={styles.container}>
-
+    <View
+      style={styles.container}
+    >
       {/* =================================
           HEADER
       ================================= */}
@@ -240,17 +286,17 @@ export default function TeacherDashboard() {
             'Menu pressed',
           );
         }}
-
         onNotificationPress={() => {
           console.log(
             'Notifications pressed',
           );
         }}
-
         onProfilePress={() => {
           resetBottomNav();
 
-          setActiveTab('profile');
+          setActiveTab(
+            'profile',
+          );
         }}
       />
 
@@ -260,8 +306,9 @@ export default function TeacherDashboard() {
 
       {activeTab === 'home' && (
         <ScrollView
-          style={styles.scrollView}
-
+          style={
+            styles.scrollView
+          }
           contentContainerStyle={[
             styles.scrollContent,
             {
@@ -269,13 +316,10 @@ export default function TeacherDashboard() {
                 bottomNavHeight + 20,
             },
           ]}
-
           showsVerticalScrollIndicator={
             false
           }
-
           scrollEventThrottle={16}
-
           onScroll={
             handleContentScroll
           }
@@ -296,24 +340,17 @@ export default function TeacherDashboard() {
                 'attendance',
               );
             }}
-
             onLectureLogPress={() => {
               handleTabChange(
                 'lectureLog',
               );
             }}
-
             onBatchesPress={() => {
               handleTabChange(
                 'batches',
               );
             }}
-
             onReportsPress={() => {
-              /*
-                Quick Actions -> View Reports
-              */
-
               setSelectedStudentId(
                 undefined,
               );
@@ -343,17 +380,124 @@ export default function TeacherDashboard() {
       ================================= */}
 
       {activeTab === 'profile' && (
-        <View style={styles.pageContainer}>
+        <View
+          style={
+            styles.pageContainer
+          }
+        >
           <ProfilePage
-            name={profileName}
-            email={profileEmail}
-            phone={profilePhone}
+            name={
+              profileName
+            }
+            email={
+              profileEmail
+            }
+            phone={
+              profilePhone
+            }
             onSaveProfile={
               handleSaveProfile
             }
             onContentScroll={
               handleContentScroll
             }
+            onChangePasswordPress={() => {
+              resetBottomNav();
+
+              setActiveTab(
+                'changePassword',
+              );
+            }}
+            onNotificationSettingsPress={() => {
+              resetBottomNav();
+
+              setActiveTab(
+                'notificationSettings',
+              );
+            }}
+            onHelpPress={() => {
+              resetBottomNav();
+
+              setActiveTab(
+                'helpSupport',
+              );
+            }}
+          />
+        </View>
+      )}
+
+      {/* =================================
+          CHANGE PASSWORD
+      ================================= */}
+
+      {activeTab === 'changePassword' && (
+        <View
+          style={
+            styles.pageContainer
+          }
+        >
+          <ChangePasswordPage
+            onContentScroll={
+              handleContentScroll
+            }
+            onBack={() => {
+              resetBottomNav();
+
+              setActiveTab(
+                'profile',
+              );
+            }}
+          />
+        </View>
+      )}
+
+      {/* =================================
+          NOTIFICATION SETTINGS
+      ================================= */}
+
+      {activeTab ===
+        'notificationSettings' && (
+        <View
+          style={
+            styles.pageContainer
+          }
+        >
+          <NotificationSettingsPage
+            onContentScroll={
+              handleContentScroll
+            }
+            onBack={() => {
+              resetBottomNav();
+
+              setActiveTab(
+                'profile',
+              );
+            }}
+          />
+        </View>
+      )}
+
+      {/* =================================
+          HELP & SUPPORT
+      ================================= */}
+
+      {activeTab === 'helpSupport' && (
+        <View
+          style={
+            styles.pageContainer
+          }
+        >
+          <HelpSupportPage
+            onContentScroll={
+              handleContentScroll
+            }
+            onBack={() => {
+              resetBottomNav();
+
+              setActiveTab(
+                'profile',
+              );
+            }}
           />
         </View>
       )}
@@ -363,7 +507,11 @@ export default function TeacherDashboard() {
       ================================= */}
 
       {activeTab === 'batches' && (
-        <View style={styles.pageContainer}>
+        <View
+          style={
+            styles.pageContainer
+          }
+        >
           <BatchesPage
             onContentScroll={
               handleContentScroll
@@ -377,12 +525,15 @@ export default function TeacherDashboard() {
       ================================= */}
 
       {activeTab === 'students' && (
-        <View style={styles.pageContainer}>
+        <View
+          style={
+            styles.pageContainer
+          }
+        >
           <StudentsPage
             onContentScroll={
               handleContentScroll
             }
-
             onStudentReportPress={
               handleStudentReportPress
             }
@@ -440,11 +591,9 @@ export default function TeacherDashboard() {
             studentId={
               selectedStudentId
             }
-
             studentName={
               selectedStudentName
             }
-
             onContentScroll={
               handleContentScroll
             }
@@ -453,33 +602,15 @@ export default function TeacherDashboard() {
       )}
 
       {/* =================================
-          STUDENTS PLACEHOLDER
-      ================================= */}
-
-      {/* 
-        This is intentionally not used because
-        StudentsPage is now connected above.
-      */}
-
-      {/* =================================
           BOTTOM NAVIGATION
-          
-          IMPORTANT:
-          TeacherBottomNav supports only:
-          home / batches / students / profile
-          
-          attendance, lectureLog and reports
-          are internal subpages.
       ================================= */}
 
       <Animated.View
         style={[
           styles.bottomNavWrapper,
-
           {
             paddingBottom:
               insets.bottom,
-
             transform: [
               {
                 translateY:
@@ -495,15 +626,19 @@ export default function TeacherDashboard() {
               ? 'batches'
               : activeTab === 'students'
                 ? 'students'
-                : activeTab === 'profile'
+                : activeTab === 'profile' ||
+                  activeTab ===
+                    'changePassword' ||
+                  activeTab ===
+                    'notificationSettings' ||
+                  activeTab ===
+                    'helpSupport'
                   ? 'profile'
                   : 'home'
           }
-
           onTabChange={
             handleTabChange
           }
-
           onAddPress={() => {
             console.log(
               'Add pressed',
@@ -522,7 +657,8 @@ export default function TeacherDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7FA',
+    backgroundColor:
+      '#F7F7FA',
   },
 
   scrollView: {
@@ -536,34 +672,29 @@ const styles = StyleSheet.create({
 
   pageContainer: {
     flex: 1,
-    backgroundColor: '#F6F6F9',
+    backgroundColor:
+      '#F6F6F9',
   },
 
   bottomNavWrapper: {
     position: 'absolute',
-
     left: 0,
     right: 0,
     bottom: 0,
-
-    backgroundColor: '#FFFFFF',
-
+    backgroundColor:
+      '#FFFFFF',
     zIndex: 999,
-
     elevation: 30,
-
     borderTopWidth: 1,
-    borderTopColor: '#E6E6EA',
-
-    shadowColor: '#000000',
-
+    borderTopColor:
+      '#E6E6EA',
+    shadowColor:
+      '#000000',
     shadowOffset: {
       width: 0,
       height: -2,
     },
-
     shadowOpacity: 0.08,
-
     shadowRadius: 6,
   },
 });

@@ -1,13 +1,7 @@
-import React, {
-  useEffect,
-  useState,
-} from 'react';
-
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,28 +9,123 @@ import {
   TextInput,
   View,
 } from 'react-native';
-
-import {
-  Ionicons,
-} from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 type ProfilePageProps = {
   name: string;
-
   email: string;
-
   phone: string;
-
   onSaveProfile: (
     name: string,
     email: string,
     phone: string,
   ) => void;
-
-  onContentScroll?: (
-    event: any,
-  ) => void;
+  onContentScroll?: (event: any) => void;
+  onChangePasswordPress?: () => void;
+  onNotificationSettingsPress?: () => void;
+  onHelpPress?: () => void;
 };
+
+type ProfileRowProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  showDivider?: boolean;
+};
+
+type ProfileActionProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  danger?: boolean;
+  showDivider?: boolean;
+  onPress?: () => void;
+};
+
+const isValidEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const normalizePhone = (phone: string) =>
+  phone.replace(/\D/g, '').replace(/^91/, '').slice(0, 10);
+
+function ProfileRow({
+  icon,
+  label,
+  value,
+  showDivider = true,
+}: ProfileRowProps) {
+  return (
+    <View>
+      <View style={styles.profileRow}>
+        <View style={styles.rowIconContainer}>
+          <Ionicons name={icon} size={19} color="#6C4AB6" />
+        </View>
+
+        <View style={styles.rowTextContainer}>
+          <Text style={styles.rowLabel}>{label}</Text>
+          <Text style={styles.rowValue}>
+            {value || 'Not provided'}
+          </Text>
+        </View>
+      </View>
+
+      {showDivider && <View style={styles.divider} />}
+    </View>
+  );
+}
+
+function ProfileAction({
+  icon,
+  title,
+  danger = false,
+  showDivider = true,
+  onPress,
+}: ProfileActionProps) {
+  return (
+    <View>
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        style={({ pressed }) => [
+          styles.actionRow,
+          pressed && onPress && styles.pressed,
+        ]}
+      >
+        <View
+          style={[
+            styles.actionIconContainer,
+            danger && styles.dangerIconContainer,
+          ]}
+        >
+          <Ionicons
+            name={icon}
+            size={19}
+            color={danger ? '#D64545' : '#6C4AB6'}
+          />
+        </View>
+
+        <Text
+          style={[
+            styles.actionTitle,
+            danger && styles.dangerText,
+          ]}
+        >
+          {title}
+        </Text>
+
+        {!danger && (
+          <Ionicons
+            name="chevron-forward-outline"
+            size={18}
+            color="#B5B5BD"
+            style={styles.actionChevron}
+          />
+        )}
+      </Pressable>
+
+      {showDivider && <View style={styles.divider} />}
+    </View>
+  );
+}
 
 export default function ProfilePage({
   name,
@@ -44,332 +133,68 @@ export default function ProfilePage({
   phone,
   onSaveProfile,
   onContentScroll,
+  onChangePasswordPress,
+  onNotificationSettingsPress,
+  onHelpPress,
 }: ProfilePageProps) {
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
-  /* --------------------------------
-     EDIT MODAL
-  -------------------------------- */
+  const [editName, setEditName] = useState(name);
 
-  const [
-    editVisible,
-    setEditVisible,
-  ] = useState(false);
+  const [editEmail, setEditEmail] = useState(email);
 
-  const [
-    editName,
-    setEditName,
-  ] = useState(name);
-
-  const [
-    editEmail,
-    setEditEmail,
-  ] = useState(email);
-
-  const [
-    editPhone,
-    setEditPhone,
-  ] = useState(
-    extractPhoneDigits(phone),
+  const [editPhone, setEditPhone] = useState(
+    normalizePhone(phone),
   );
-
-  /* --------------------------------
-     VALIDATION ERRORS
-  -------------------------------- */
-
-  const [
-    nameError,
-    setNameError,
-  ] = useState('');
-
-  const [
-    emailError,
-    setEmailError,
-  ] = useState('');
-
-  const [
-    phoneError,
-    setPhoneError,
-  ] = useState('');
-
-  /* --------------------------------
-     KEEP EDIT FORM IN SYNC
-  -------------------------------- */
 
   useEffect(() => {
     setEditName(name);
-
     setEditEmail(email);
-
-    setEditPhone(
-      extractPhoneDigits(phone),
-    );
-  }, [
-    name,
-    email,
-    phone,
-  ]);
-
-  /* --------------------------------
-     CLEAR ERRORS
-  -------------------------------- */
-
-  const clearErrors = () => {
-    setNameError('');
-    setEmailError('');
-    setPhoneError('');
-  };
-
-  /* --------------------------------
-     OPEN EDIT
-  -------------------------------- */
-
-  const openEditProfile = () => {
-    setEditName(name);
-
-    setEditEmail(email);
-
-    setEditPhone(
-      extractPhoneDigits(phone),
-    );
-
-    clearErrors();
-
-    setEditVisible(true);
-  };
-
-  /* --------------------------------
-     CLOSE EDIT
-  -------------------------------- */
-
-  const closeEditProfile = () => {
-    setEditName(name);
-
-    setEditEmail(email);
-
-    setEditPhone(
-      extractPhoneDigits(phone),
-    );
-
-    clearErrors();
-
-    setEditVisible(false);
-  };
-
-  /* --------------------------------
-     NAME CHANGE
-  -------------------------------- */
-
-  const handleNameChange = (
-    text: string,
-  ) => {
-    setEditName(text);
-
-    if (text.trim()) {
-      setNameError('');
-    }
-  };
-
-  /* --------------------------------
-     EMAIL CHANGE
-  -------------------------------- */
-
-  const handleEmailChange = (
-    text: string,
-  ) => {
-    setEditEmail(text);
-
-    if (
-      isValidEmail(
-        text.trim(),
-      )
-    ) {
-      setEmailError('');
-    }
-  };
-
-  /* --------------------------------
-     PHONE CHANGE
-  -------------------------------- */
-
-  const handlePhoneChange = (
-    text: string,
-  ) => {
-
-    /*
-      Only numbers are accepted.
-    */
-
-    const digitsOnly =
-      text.replace(
-        /\D/g,
-        '',
-      );
-
-    /*
-      Maximum exactly 10 digits.
-    */
-
-    const limitedDigits =
-      digitsOnly.slice(
-        0,
-        10,
-      );
-
-    setEditPhone(
-      limitedDigits,
-    );
-
-    if (
-      limitedDigits.length ===
-      10
-    ) {
-      setPhoneError('');
-    }
-  };
-
-  /* --------------------------------
-     FORM VALIDATION
-  -------------------------------- */
+    setEditPhone(normalizePhone(phone));
+  }, [name, email, phone]);
 
   const isFormValid =
     editName.trim().length > 0 &&
-    isValidEmail(
-      editEmail.trim(),
-    ) &&
+    isValidEmail(editEmail.trim()) &&
     editPhone.length === 10;
 
-  /* --------------------------------
-     SAVE PROFILE
-  -------------------------------- */
-
-  const handleSave = () => {
-
-    const trimmedName =
-      editName.trim();
-
-    const trimmedEmail =
-      editEmail.trim();
-
-    const phoneDigits =
-      editPhone.replace(
-        /\D/g,
-        '',
-      );
-
-    let hasError = false;
-
-    /* NAME */
-
-    if (!trimmedName) {
-
-      setNameError(
-        'Name cannot be empty.',
-      );
-
-      hasError = true;
-
-    } else {
-
-      setNameError('');
-    }
-
-    /* EMAIL */
-
-    if (!trimmedEmail) {
-
-      setEmailError(
-        'Email cannot be empty.',
-      );
-
-      hasError = true;
-
-    } else if (
-      !isValidEmail(
-        trimmedEmail,
-      )
-    ) {
-
-      setEmailError(
-        'Please enter a valid email address.',
-      );
-
-      hasError = true;
-
-    } else {
-
-      setEmailError('');
-    }
-
-    /* PHONE */
-
-    if (!phoneDigits) {
-
-      setPhoneError(
-        'Phone number cannot be empty.',
-      );
-
-      hasError = true;
-
-    } else if (
-      phoneDigits.length !==
-      10
-    ) {
-
-      setPhoneError(
-        'Phone number must contain exactly 10 digits.',
-      );
-
-      hasError = true;
-
-    } else {
-
-      setPhoneError('');
-    }
-
-    if (hasError) {
-      return;
-    }
-
-    /*
-      +91 is always automatically added.
-    */
-
-    const formattedPhone =
-      `+91 ${phoneDigits}`;
-
-    onSaveProfile(
-      trimmedName,
-      trimmedEmail,
-      formattedPhone,
-    );
-
-    setEditVisible(false);
+  const openEditModal = () => {
+    setEditName(name);
+    setEditEmail(email);
+    setEditPhone(normalizePhone(phone));
+    setEditModalVisible(true);
   };
 
-  /* --------------------------------
-     LOGOUT
-  -------------------------------- */
+  const closeEditModal = () => {
+    setEditModalVisible(false);
+  };
+
+  const handleSave = () => {
+    if (!isFormValid) return;
+
+    onSaveProfile(
+      editName.trim(),
+      editEmail.trim(),
+      `+91 ${editPhone.slice(0, 5)} ${editPhone.slice(5)}`,
+    );
+
+    setEditModalVisible(false);
+  };
 
   const handleLogout = () => {
-
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
-
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
-
         {
           text: 'Logout',
           style: 'destructive',
-
           onPress: () => {
-            console.log(
-              'Logout confirmed',
-            );
+            console.log('Teacher logout requested');
           },
         },
       ],
@@ -378,1117 +203,570 @@ export default function ProfilePage({
 
   return (
     <>
-      {/* =================================
-          PROFILE CONTENT
-      ================================= */}
-
       <ScrollView
         style={styles.container}
-
-        contentContainerStyle={
-          styles.content
-        }
-
-        showsVerticalScrollIndicator={
-          false
-        }
-
-        bounces
-
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        onScroll={onContentScroll}
         scrollEventThrottle={16}
-
-        onScroll={
-          onContentScroll
-        }
       >
-
-        {/* PROFILE SUMMARY */}
-
-        <View
-          style={
-            styles.profileSummary
-          }
-        >
-
-          <View
-            style={
-              styles.profileAvatar
-            }
-          >
-            <Ionicons
-              name="person-outline"
-              size={46}
-              color="#5420D8"
-            />
+        <View style={styles.profileHero}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {name.trim().charAt(0).toUpperCase() || 'T'}
+            </Text>
           </View>
 
-          <Text
-            style={
-              styles.profileName
-            }
-          >
-            {name}
-          </Text>
+          <View style={styles.heroTextContainer}>
+            <Text style={styles.heroName}>{name}</Text>
 
-          <Text
-            style={
-              styles.profileRole
-            }
-          >
-            Physics Teacher
-          </Text>
+            <Text style={styles.heroRole}>
+              Teacher
+            </Text>
+
+            <Text style={styles.heroEmail}>
+              {email}
+            </Text>
+          </View>
 
           <Pressable
-            style={({
-              pressed,
-            }) => [
+            onPress={openEditModal}
+            style={({ pressed }) => [
               styles.editButton,
-
-              pressed &&
-                styles.pressed,
+              pressed && styles.pressed,
             ]}
-
-            onPress={
-              openEditProfile
-            }
           >
             <Ionicons
               name="create-outline"
               size={17}
-              color="#5420D8"
+              color="#6C4AB6"
             />
 
-            <Text
-              style={
-                styles.editButtonText
-              }
-            >
-              Edit Profile
+            <Text style={styles.editButtonText}>
+              Edit
             </Text>
           </Pressable>
-
         </View>
 
-        {/* PERSONAL INFORMATION */}
-
-        <View
-          style={styles.section}
-        >
-
-          <Text
-            style={
-              styles.sectionTitle
-            }
-          >
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
             Personal Information
           </Text>
 
-          <ProfileRow
-            icon="mail-outline"
-            label="Email"
-            value={email}
-          />
+          <View style={styles.card}>
+            <ProfileRow
+              icon="person-outline"
+              label="Full Name"
+              value={name}
+            />
 
-          <ProfileRow
-            icon="call-outline"
-            label="Phone"
-            value={phone}
-          />
+            <ProfileRow
+              icon="mail-outline"
+              label="Email Address"
+              value={email}
+            />
 
-          <ProfileRow
-            icon="id-card-outline"
-            label="Employee ID"
-            value="TCH-001"
-            showDivider={false}
-          />
-
+            <ProfileRow
+              icon="call-outline"
+              label="Phone Number"
+              value={phone}
+              showDivider={false}
+            />
+          </View>
         </View>
 
-        {/* TEACHING INFORMATION */}
-
-        <View
-          style={styles.section}
-        >
-
-          <Text
-            style={
-              styles.sectionTitle
-            }
-          >
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
             Teaching Information
           </Text>
 
-          <ProfileRow
-            icon="book-outline"
-            label="Subject"
-            value="Physics"
-          />
+          <View style={styles.card}>
+            <ProfileRow
+              icon="briefcase-outline"
+              label="Role"
+              value="Teacher"
+            />
 
-          <ProfileRow
-            icon="people-outline"
-            label="Classes"
-            value="3 Classes"
-          />
+            <ProfileRow
+              icon="school-outline"
+              label="Department"
+              value="Academic Faculty"
+            />
 
-          <ProfileRow
-            icon="school-outline"
-            label="Students"
-            value="68 Students"
-            showDivider={false}
-          />
+            <ProfileRow
+              icon="book-outline"
+              label="Subjects"
+              value="Mathematics, Science"
+            />
 
+            <ProfileRow
+              icon="people-outline"
+              label="Batches"
+              value="8th, 9th, 10th, 11th"
+              showDivider={false}
+            />
+          </View>
         </View>
 
-        {/* ACCOUNT */}
-
-        <View
-          style={styles.section}
-        >
-
-          <Text
-            style={
-              styles.sectionTitle
-            }
-          >
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
             Account
           </Text>
 
-          <ProfileAction
-            icon="lock-closed-outline"
-            title="Change Password"
-          />
+          <View style={styles.card}>
+            <ProfileAction
+              icon="lock-closed-outline"
+              title="Change Password"
+              onPress={onChangePasswordPress}
+            />
 
-          <ProfileAction
-            icon="notifications-outline"
-            title="Notification Settings"
-          />
+            <ProfileAction
+              icon="notifications-outline"
+              title="Notification Settings"
+              onPress={onNotificationSettingsPress}
+            />
 
-          <ProfileAction
-            icon="help-circle-outline"
-            title="Help & Support"
-          />
+            <ProfileAction
+              icon="help-circle-outline"
+              title="Help & Support"
+              onPress={onHelpPress}
+            />
 
-          <ProfileAction
-            icon="log-out-outline"
-            title="Logout"
-            danger
-            showDivider={false}
-            onPress={
-              handleLogout
-            }
-          />
-
+            <ProfileAction
+              icon="log-out-outline"
+              title="Logout"
+              danger
+              showDivider={false}
+              onPress={handleLogout}
+            />
+          </View>
         </View>
 
+        <Text style={styles.versionText}>
+          Vertical Limits • Teacher Portal
+        </Text>
       </ScrollView>
 
-      {/* =================================
-          EDIT PROFILE MODAL
-      ================================= */}
-
       <Modal
-        visible={editVisible}
+        visible={editModalVisible}
         transparent
-        animationType="slide"
-        onRequestClose={
-          closeEditProfile
-        }
+        animationType="fade"
+        onRequestClose={closeEditModal}
       >
-
-        <KeyboardAvoidingView
-          style={
-            styles.modalOverlay
-          }
-
-          behavior={
-            Platform.OS === 'ios'
-              ? 'padding'
-              : undefined
-          }
-        >
-
-          <Pressable
-            style={
-              styles.modalBackground
-            }
-
-            onPress={
-              closeEditProfile
-            }
-          />
-
-          <View
-            style={
-              styles.editModal
-            }
-          >
-
-            {/* MODAL HEADER */}
-
-            <View
-              style={
-                styles.modalHeader
-              }
-            >
-
-              <View
-                style={
-                  styles.modalHeaderText
-                }
-              >
-
-                <Text
-                  style={
-                    styles.modalTitle
-                  }
-                >
-                  Edit Profile
-                </Text>
-
-                <Text
-                  style={
-                    styles.modalSubtitle
-                  }
-                >
-                  Update your personal information
-                </Text>
-
-              </View>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Edit Profile
+              </Text>
 
               <Pressable
-                style={
-                  styles.closeButton
-                }
-
-                onPress={
-                  closeEditProfile
-                }
+                onPress={closeEditModal}
+                hitSlop={8}
+                style={styles.closeButton}
               >
-
                 <Ionicons
                   name="close"
-                  size={23}
-                  color="#555B69"
+                  size={22}
+                  color="#55555E"
                 />
-
               </Pressable>
-
             </View>
 
-            {/* FULL NAME */}
+            <Text style={styles.inputLabel}>
+              Full Name
+            </Text>
 
-            <View
-              style={
-                styles.inputGroup
-              }
-            >
+            <TextInput
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Enter your name"
+              placeholderTextColor="#A3A3AB"
+              style={styles.input}
+              autoCapitalize="words"
+            />
 
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
-                Full Name
-              </Text>
+            <Text style={styles.inputLabel}>
+              Email Address
+            </Text>
 
-              <View
-                style={[
-                  styles.inputWrapper,
+            <TextInput
+              value={editEmail}
+              onChangeText={setEditEmail}
+              placeholder="Enter your email"
+              placeholderTextColor="#A3A3AB"
+              style={styles.input}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
 
-                  nameError &&
-                    styles.inputError,
-                ]}
-              >
+            <Text style={styles.inputLabel}>
+              Phone Number
+            </Text>
 
-                <Ionicons
-                  name="person-outline"
-                  size={19}
-                  color={
-                    nameError
-                      ? '#D64545'
-                      : '#5420D8'
-                  }
-                />
-
-                <TextInput
-                  value={editName}
-                  onChangeText={
-                    handleNameChange
-                  }
-                  placeholder="Enter your name"
-                  placeholderTextColor="#A0A3AD"
-                  style={
-                    styles.input
-                  }
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                />
-
-              </View>
-
-              {nameError ? (
-                <Text
-                  style={
-                    styles.errorText
-                  }
-                >
-                  {nameError}
-                </Text>
-              ) : null}
-
-            </View>
-
-            {/* EMAIL */}
-
-            <View
-              style={
-                styles.inputGroup
-              }
-            >
-
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
-                Email
-              </Text>
-
-              <View
-                style={[
-                  styles.inputWrapper,
-
-                  emailError &&
-                    styles.inputError,
-                ]}
-              >
-
-                <Ionicons
-                  name="mail-outline"
-                  size={19}
-                  color={
-                    emailError
-                      ? '#D64545'
-                      : '#5420D8'
-                  }
-                />
-
-                <TextInput
-                  value={editEmail}
-                  onChangeText={
-                    handleEmailChange
-                  }
-                  placeholder="Enter your email"
-                  placeholderTextColor="#A0A3AD"
-                  style={
-                    styles.input
-                  }
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-
-              </View>
-
-              {emailError ? (
-                <Text
-                  style={
-                    styles.errorText
-                  }
-                >
-                  {emailError}
-                </Text>
-              ) : null}
-
-            </View>
-
-            {/* PHONE */}
-
-            <View
-              style={
-                styles.inputGroup
-              }
-            >
-
-              <Text
-                style={
-                  styles.inputLabel
-                }
-              >
-                Phone Number
-              </Text>
-
-              <View
-                style={[
-                  styles.inputWrapper,
-
-                  phoneError &&
-                    styles.inputError,
-                ]}
-              >
-
-                {/* FIXED +91 */}
-
-                <Text
-                  style={
-                    styles.countryCode
-                  }
-                >
+            <View style={styles.phoneInputWrapper}>
+              <View style={styles.countryCodeBox}>
+                <Text style={styles.countryCodeText}>
                   +91
                 </Text>
-
-                <View
-                  style={
-                    styles.phoneDivider
-                  }
-                />
-
-                <TextInput
-                  value={editPhone}
-                  onChangeText={
-                    handlePhoneChange
-                  }
-                  placeholder="10 digit number"
-                  placeholderTextColor="#A0A3AD"
-                  style={
-                    styles.phoneInput
-                  }
-                  keyboardType="number-pad"
-                  maxLength={10}
-                />
-
               </View>
 
-              <Text
-                style={
-                  styles.phoneHint
+              <TextInput
+                value={editPhone}
+                onChangeText={(value) =>
+                  setEditPhone(
+                    value.replace(/\D/g, '').slice(0, 10),
+                  )
                 }
-              >
-                Enter exactly 10 digits
-              </Text>
-
-              {phoneError ? (
-                <Text
-                  style={
-                    styles.errorText
-                  }
-                >
-                  {phoneError}
-                </Text>
-              ) : null}
-
+                placeholder="10 digit mobile number"
+                placeholderTextColor="#A3A3AB"
+                style={styles.phoneInput}
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
             </View>
 
-            {/* BUTTONS */}
+            {editEmail.length > 0 &&
+              !isValidEmail(editEmail.trim()) && (
+                <Text style={styles.errorText}>
+                  Enter a valid email address.
+                </Text>
+              )}
 
-            <View
-              style={
-                styles.modalButtons
-              }
+            {editPhone.length > 0 &&
+              editPhone.length !== 10 && (
+                <Text style={styles.errorText}>
+                  Phone number must contain 10 digits.
+                </Text>
+              )}
+
+            <Pressable
+              onPress={handleSave}
+              disabled={!isFormValid}
+              style={({ pressed }) => [
+                styles.saveButton,
+                !isFormValid &&
+                  styles.saveButtonDisabled,
+                pressed &&
+                  isFormValid &&
+                  styles.saveButtonPressed,
+              ]}
             >
-
-              <Pressable
-                style={({
-                  pressed,
-                }) => [
-                  styles.cancelButton,
-
-                  pressed &&
-                    styles.pressed,
-                ]}
-
-                onPress={
-                  closeEditProfile
-                }
-              >
-
-                <Text
-                  style={
-                    styles.cancelButtonText
-                  }
-                >
-                  Cancel
-                </Text>
-
-              </Pressable>
-
-              <Pressable
-                style={({
-                  pressed,
-                }) => [
-
-                  styles.saveButton,
-
+              <Text
+                style={[
+                  styles.saveButtonText,
                   !isFormValid &&
-                    styles.saveButtonDisabled,
-
-                  pressed &&
-                    isFormValid &&
-                    styles.pressed,
+                    styles.saveButtonTextDisabled,
                 ]}
-
-                onPress={
-                  handleSave
-                }
-
-                disabled={
-                  !isFormValid
-                }
               >
-
-                <Ionicons
-                  name="checkmark"
-                  size={19}
-                  color="#FFFFFF"
-                />
-
-                <Text
-                  style={
-                    styles.saveButtonText
-                  }
-                >
-                  Save Changes
-                </Text>
-
-              </Pressable>
-
-            </View>
-
+                Save Changes
+              </Text>
+            </Pressable>
           </View>
-
-        </KeyboardAvoidingView>
-
+        </View>
       </Modal>
     </>
   );
 }
 
-/* ======================================
-   HELPERS
-====================================== */
-
-function isValidEmail(
-  email: string,
-): boolean {
-
-  const emailRegex =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  return emailRegex.test(
-    email,
-  );
-}
-
-function extractPhoneDigits(
-  phone: string,
-): string {
-
-  const digits =
-    phone.replace(
-      /\D/g,
-      '',
-    );
-
-  if (
-    digits.length === 12 &&
-    digits.startsWith('91')
-  ) {
-    return digits.slice(2);
-  }
-
-  return digits.slice(-10);
-}
-
-/* ======================================
-   PROFILE ROW
-====================================== */
-
-type ProfileRowProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-
-  label: string;
-
-  value: string;
-
-  showDivider?: boolean;
-};
-
-function ProfileRow({
-  icon,
-  label,
-  value,
-  showDivider = true,
-}: ProfileRowProps) {
-
-  return (
-    <Pressable
-      style={({
-        pressed,
-      }) => [
-
-        styles.profileRow,
-
-        !showDivider &&
-          styles.noDivider,
-
-        pressed &&
-          styles.pressed,
-      ]}
-    >
-
-      <View
-        style={
-          styles.rowIcon
-        }
-      >
-
-        <Ionicons
-          name={icon}
-          size={19}
-          color="#5420D8"
-        />
-
-      </View>
-
-      <View
-        style={
-          styles.rowText
-        }
-      >
-
-        <Text
-          style={
-            styles.rowLabel
-          }
-        >
-          {label}
-        </Text>
-
-        <Text
-          style={
-            styles.rowValue
-          }
-
-          numberOfLines={1}
-        >
-          {value}
-        </Text>
-
-      </View>
-
-      <Ionicons
-        name="chevron-forward-outline"
-        size={18}
-        color="#9A9EAA"
-      />
-
-    </Pressable>
-  );
-}
-
-/* ======================================
-   ACCOUNT ACTION
-====================================== */
-
-type ProfileActionProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-
-  title: string;
-
-  showDivider?: boolean;
-
-  danger?: boolean;
-
-  onPress?: () => void;
-};
-
-function ProfileAction({
-  icon,
-  title,
-  showDivider = true,
-  danger = false,
-  onPress,
-}: ProfileActionProps) {
-
-  return (
-    <Pressable
-      style={({
-        pressed,
-      }) => [
-
-        styles.actionRow,
-
-        !showDivider &&
-          styles.noDivider,
-
-        pressed &&
-          styles.pressed,
-      ]}
-
-      onPress={
-        onPress
-      }
-    >
-
-      <View
-        style={[
-          styles.actionIcon,
-
-          danger &&
-            styles.logoutIcon,
-        ]}
-      >
-
-        <Ionicons
-          name={icon}
-          size={19}
-          color={
-            danger
-              ? '#D64545'
-              : '#5420D8'
-          }
-        />
-
-      </View>
-
-      <Text
-        style={[
-          styles.actionText,
-
-          danger &&
-            styles.logoutText,
-        ]}
-      >
-        {title}
-      </Text>
-
-      {!danger && (
-        <Ionicons
-          name="chevron-forward-outline"
-          size={19}
-          color="#9A9EAA"
-        />
-      )}
-
-    </Pressable>
-  );
-}
-
-/* ======================================
-   STYLES
-====================================== */
-
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: '#F6F6F9',
   },
 
-  content: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 105,
+  contentContainer: {
+    padding: 16,
+    paddingBottom: 36,
   },
 
-  profileSummary: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+  profileHero: {
+    backgroundColor: '#6C4AB6',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
   },
 
-  profileAvatar: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: '#EEE7FF',
+  avatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
   },
 
-  profileName: {
-    color: '#111528',
+  avatarText: {
+    color: '#6C4AB6',
     fontFamily: 'PoppinsBold',
-    fontSize: 20,
-    lineHeight: 26,
-    textAlign: 'center',
+    fontSize: 23,
   },
 
-  profileRole: {
-    color: '#666B78',
-    fontFamily: 'PoppinsRegular',
-    fontSize: 13,
+  heroTextContainer: {
+    flex: 1,
+    marginLeft: 13,
+  },
+
+  heroName: {
+    color: '#FFFFFF',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 17,
+  },
+
+  heroRole: {
+    color: '#EAE3F8',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 11,
     marginTop: 1,
   },
 
+  heroEmail: {
+    color: '#EAE3F8',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    marginTop: 2,
+  },
+
   editButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 9,
+    minHeight: 34,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EEE7FF',
-    borderRadius: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    marginTop: 9,
+    gap: 5,
   },
 
   editButtonText: {
-    color: '#5420D8',
+    color: '#6C4AB6',
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 12,
-    marginLeft: 5,
+    fontSize: 11,
   },
 
   section: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 17,
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 2,
-    marginBottom: 10,
+    marginTop: 20,
   },
 
   sectionTitle: {
-    color: '#111528',
+    color: '#303038',
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 15,
-    marginBottom: 2,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    shadowColor: '#000000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    elevation: 2,
   },
 
   profileRow: {
+    minHeight: 67,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 55,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEEEF2',
   },
 
-  rowIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#F1EBFF',
+  rowIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F0EBFA',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 9,
+    marginRight: 12,
   },
 
-  rowText: {
+  rowTextContainer: {
     flex: 1,
-    minWidth: 0,
   },
 
   rowLabel: {
-    color: '#858996',
+    color: '#8A8A92',
     fontFamily: 'PoppinsRegular',
-    fontSize: 10.5,
+    fontSize: 10,
+    marginBottom: 2,
   },
 
   rowValue: {
-    color: '#171A2B',
+    color: '#292930',
     fontFamily: 'PoppinsMedium',
     fontSize: 13,
-    marginTop: 0,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#EEEEF2',
   },
 
   actionRow: {
+    minHeight: 62,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 52,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEEEF2',
   },
 
-  actionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#F1EBFF',
+  actionIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F0EBFA',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 9,
+    marginRight: 12,
   },
 
-  actionText: {
-    flex: 1,
-    color: '#171A2B',
+  dangerIconContainer: {
+    backgroundColor: '#FDECEC',
+  },
+
+  actionTitle: {
+    color: '#2D2D34',
     fontFamily: 'PoppinsMedium',
     fontSize: 13,
   },
 
-  logoutIcon: {
-    backgroundColor: '#FDECEC',
+  dangerText: {
+    color: '#D64545',
   },
 
-  logoutText: {
-    color: '#D64545',
-    fontFamily: 'PoppinsSemiBold',
+  actionChevron: {
+    marginLeft: 'auto',
+  },
+
+  pressed: {
+    opacity: 0.65,
+  },
+
+  versionText: {
+    color: '#A0A0A8',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 22,
   },
 
   modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
   },
 
-  modalBackground: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor:
-      'rgba(0, 0, 0, 0.45)',
-  },
-
-  editModal: {
+  modalCard: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-    elevation: 20,
+    borderRadius: 18,
+    padding: 18,
   },
 
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-  },
-
-  modalHeaderText: {
-    flex: 1,
+    alignItems: 'center',
+    marginBottom: 16,
   },
 
   modalTitle: {
-    color: '#111528',
-    fontFamily: 'PoppinsBold',
-    fontSize: 21,
-  },
-
-  modalSubtitle: {
-    color: '#777C89',
-    fontFamily: 'PoppinsRegular',
-    fontSize: 12,
-    marginTop: 2,
+    flex: 1,
+    color: '#27272E',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 17,
   },
 
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F4F4F7',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 10,
-  },
-
-  inputGroup: {
-    marginBottom: 13,
+    backgroundColor: '#F3F3F6',
   },
 
   inputLabel: {
-    color: '#343848',
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 12,
+    color: '#5E5E67',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 11,
     marginBottom: 6,
   },
 
-  inputWrapper: {
-    height: 48,
+  input: {
+    height: 46,
+    borderWidth: 1,
+    borderColor: '#E1E1E6',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    color: '#25252B',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    marginBottom: 14,
+    backgroundColor: '#FAFAFC',
+  },
+
+  phoneInputWrapper: {
+    height: 46,
+    borderWidth: 1,
+    borderColor: '#E1E1E6',
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7F6FA',
-    borderWidth: 1,
-    borderColor: '#E4E1EB',
-    borderRadius: 12,
-    paddingHorizontal: 13,
+    backgroundColor: '#FAFAFC',
+    marginBottom: 6,
+    overflow: 'hidden',
   },
 
-  inputError: {
-    borderColor: '#D64545',
-    backgroundColor: '#FFF8F8',
+  countryCodeBox: {
+    height: '100%',
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#E1E1E6',
+    backgroundColor: '#F4F4F7',
   },
 
-  input: {
-    flex: 1,
-    color: '#171A2B',
+  countryCodeText: {
+    color: '#45454D',
     fontFamily: 'PoppinsMedium',
-    fontSize: 13,
-    marginLeft: 10,
-    paddingVertical: 0,
-  },
-
-  countryCode: {
-    color: '#171A2B',
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 13,
-  },
-
-  phoneDivider: {
-    width: 1,
-    height: 22,
-    backgroundColor: '#D5D2DC',
-    marginHorizontal: 10,
+    fontSize: 12,
   },
 
   phoneInput: {
     flex: 1,
-    color: '#171A2B',
-    fontFamily: 'PoppinsMedium',
-    fontSize: 13,
-    paddingVertical: 0,
-  },
-
-  phoneHint: {
-    color: '#9296A2',
+    height: '100%',
+    paddingHorizontal: 12,
+    color: '#25252B',
     fontFamily: 'PoppinsRegular',
-    fontSize: 10.5,
-    marginTop: 4,
+    fontSize: 12,
   },
 
   errorText: {
     color: '#D64545',
     fontFamily: 'PoppinsRegular',
-    fontSize: 10.5,
-    marginTop: 4,
-  },
-
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 7,
-  },
-
-  cancelButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#DCDCE3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  cancelButtonText: {
-    color: '#555B69',
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 13,
+    fontSize: 9,
+    marginBottom: 5,
   },
 
   saveButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#5420D8',
-    flexDirection: 'row',
+    height: 46,
+    borderRadius: 11,
+    backgroundColor: '#6C4AB6',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    marginTop: 12,
   },
 
   saveButtonDisabled: {
-    backgroundColor: '#C8C8CE',
+    backgroundColor: '#D8D8DD',
+  },
+
+  saveButtonPressed: {
+    opacity: 0.8,
   },
 
   saveButtonText: {
@@ -1497,12 +775,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  noDivider: {
-    borderBottomWidth: 0,
+  saveButtonTextDisabled: {
+    color: '#92929A',
   },
-
-  pressed: {
-    opacity: 0.7,
-  },
-
 });
