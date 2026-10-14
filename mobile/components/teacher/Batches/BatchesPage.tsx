@@ -556,12 +556,6 @@ export default function BatchesPage({
                     students
                   </Text>
                 </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={17}
-                  color="#9A9EAA"
-                />
               </Pressable>
             );
           })}

@@ -37,6 +37,9 @@ import ProfilePage from './Profile/ProfilePage';
 import { useAuth } from '@/context/AuthContext';
 
 import { updateCurrentUser } from '@/services/auth';
+import ChangePasswordPage from './Profile/ChangePasswordPage';
+import NotificationSettingsPage from './Profile/NotificationSettingsPage';
+import HelpSupportPage from './Profile/HelpSupportPage';
 
 import MarkAttendance from './QuickActions/MarkAttendance';
 
@@ -62,7 +65,10 @@ type TabName =
 
   | 'lectureLog'
 
-  | 'reports';
+  | 'reports'
+  | 'changePassword'
+  | 'notificationSettings'
+  | 'helpSupport';
 
 export default function TeacherDashboard() {
 
@@ -605,11 +611,67 @@ export default function TeacherDashboard() {
               handleContentScroll
 
             }
-
+            onChangePasswordPress={() => {
+              resetBottomNav();
+              setActiveTab('changePassword');
+            }}
+            onNotificationSettingsPress={() => {
+              resetBottomNav();
+              setActiveTab('notificationSettings');
+            }}
+            onHelpPress={() => {
+              resetBottomNav();
+              setActiveTab('helpSupport');
+            }}
           />
 
         </View>
 
+      )}
+
+      {/* =================================
+          CHANGE PASSWORD
+      ================================= */}
+      {activeTab === 'changePassword' && (
+        <View style={styles.pageContainer}>
+          <ChangePasswordPage
+            onContentScroll={handleContentScroll}
+            onBack={() => {
+              resetBottomNav();
+              setActiveTab('profile');
+            }}
+          />
+        </View>
+      )}
+
+      {/* =================================
+          NOTIFICATION SETTINGS
+      ================================= */}
+      {activeTab === 'notificationSettings' && (
+        <View style={styles.pageContainer}>
+          <NotificationSettingsPage
+            onContentScroll={handleContentScroll}
+            onBack={() => {
+              resetBottomNav();
+              setActiveTab('profile');
+            }}
+          />
+        </View>
+      )}
+
+      {/* =================================
+          HELP & SUPPORT
+      ================================= */}
+      {activeTab === 'helpSupport' && (
+        <View style={styles.pageContainer}>
+          <HelpSupportPage
+            onContentScroll={handleContentScroll}
+            onBack={() => {
+              resetBottomNav();
+              setActiveTab('profile');
+            }}
+          />
+        </View>
       )}
 
       {/* =================================
@@ -840,7 +902,10 @@ export default function TeacherDashboard() {
 
                 ? 'students'
 
-                : activeTab === 'profile'
+                : activeTab === 'profile' ||
+                activeTab === 'changePassword' ||
+                activeTab === 'notificationSettings' ||
+                activeTab === 'helpSupport'
 
                   ? 'profile'
 
