@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   },
 
   primaryButton: {
-    height: 68,
+    height: 55,
     marginTop: 24,
     borderRadius: 14,
     backgroundColor: '#5A2EC4',

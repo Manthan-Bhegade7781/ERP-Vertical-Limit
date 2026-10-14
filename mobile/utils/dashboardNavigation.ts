@@ -34,7 +34,9 @@ export const openDashboardFeature = (feature: string) => {
     case "Add Student":
       router.push({
         pathname: "/(super_admin)/explore",
-        params: { feature: "Add Student" },
+        params: {
+          feature: "Add Student",
+        },
       });
       break;
 
@@ -70,21 +72,6 @@ export const openDashboardFeature = (feature: string) => {
       break;
 
     case "Add Subject":
-      router.push({
-        pathname: "/(super_admin)/explore",
-        params: { feature: "Add Subject" },
-      });
-      break;
-
-    // Backward compatibility for older components.
-    case "Courses":
-      router.push({
-        pathname: "/(super_admin)/explore",
-        params: { feature: "Subjects" },
-      });
-      break;
-
-    case "Add Course":
       router.push({
         pathname: "/(super_admin)/explore",
         params: { feature: "Add Subject" },
@@ -213,26 +200,6 @@ export const openDashboardFeature = (feature: string) => {
       break;
 
     /* =====================================================
-       PERFORMANCE
-       ===================================================== */
-
-    case "Performance":
-      router.push({
-        pathname: "/(super_admin)/explore",
-        params: { feature: "Performance" },
-      });
-      break;
-
-    case "Publish Result":
-    case "Add Performance":
-    case "Create Performance":
-      router.push({
-        pathname: "/(super_admin)/explore",
-        params: { feature: "Add Performance" },
-      });
-      break;
-
-    /* =====================================================
        FEEDBACK
        ===================================================== */
 
@@ -340,15 +307,10 @@ export const openDashboardFeature = (feature: string) => {
       });
       break;
 
-    /* =====================================================
-       REPORTS
-       ===================================================== */
-
-    case "Reports":
-    case "Generate Report":
+      case "Pending Registrations":
       router.push({
         pathname: "/(super_admin)/explore",
-        params: { feature: "Reports" },
+        params: { feature: "Pending Registrations" },
       });
       break;
 
@@ -416,17 +378,6 @@ export const openDashboardFeature = (feature: string) => {
       router.push({
         pathname: "/(super_admin)/explore",
         params: { feature: "Settings" },
-      });
-      break;
-
-    /* =====================================================
-       AUDIT LOGS
-       ===================================================== */
-
-    case "Audit Logs":
-      router.push({
-        pathname: "/(super_admin)/explore",
-        params: { feature: "Audit Logs" },
       });
       break;
 

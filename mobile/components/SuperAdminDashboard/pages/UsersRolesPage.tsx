@@ -17,12 +17,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type UserRole =
-  | 'Administrator'
-  | 'Super Admin'
-  | 'Branch Manager'
-  | 'Teacher'
-  | 'Accountant'
-  | 'Staff';
+  | 'Admin'
+  | 'Teacher';
 
 type UserStatus = 'Active' | 'Inactive';
 
@@ -46,8 +42,8 @@ const initialUsers: UserRecord[] = [
     employeeId: 'VLCC-EMP-001',
     email: 'vikram.shah@vlcc.com',
     mobile: '+91 98765 60001',
-    branch: 'Main Branch',
-    role: 'Super Admin',
+    branch: 'All Branches',
+    role: 'Admin',
     status: 'Active',
     lastLogin: '05 Sep 2026, 09:42 AM',
     joinedDate: '12 Jan 2023',
@@ -59,7 +55,7 @@ const initialUsers: UserRecord[] = [
     email: 'amit.kulkarni@vlcc.com',
     mobile: '+91 98765 60002',
     branch: 'Pune Branch',
-    role: 'Branch Manager',
+    role: 'Admin',
     status: 'Active',
     lastLogin: '05 Sep 2026, 08:55 AM',
     joinedDate: '18 Mar 2023',
@@ -71,7 +67,7 @@ const initialUsers: UserRecord[] = [
     email: 'priya.mehta@vlcc.com',
     mobile: '+91 98765 60003',
     branch: 'Mumbai Branch',
-    role: 'Branch Manager',
+    role: 'Admin',
     status: 'Active',
     lastLogin: '05 Sep 2026, 09:15 AM',
     joinedDate: '22 Apr 2023',
@@ -83,7 +79,7 @@ const initialUsers: UserRecord[] = [
     email: 'rahul.patil@vlcc.com',
     mobile: '+91 98765 60004',
     branch: 'Nashik Branch',
-    role: 'Administrator',
+    role: 'Teacher',
     status: 'Active',
     lastLogin: '04 Sep 2026, 06:32 PM',
     joinedDate: '09 Jun 2023',
@@ -95,7 +91,7 @@ const initialUsers: UserRecord[] = [
     email: 'sneha.joshi@vlcc.com',
     mobile: '+91 98765 60005',
     branch: 'Nagpur Branch',
-    role: 'Administrator',
+    role: 'Teacher',
     status: 'Active',
     lastLogin: '05 Sep 2026, 08:20 AM',
     joinedDate: '14 Jul 2023',
@@ -130,23 +126,11 @@ const initialUsers: UserRecord[] = [
     employeeId: 'VLCC-EMP-008',
     email: 'karan.malhotra@vlcc.com',
     mobile: '+91 98765 60008',
-    branch: 'Main Branch',
-    role: 'Accountant',
+    branch: 'Pune Branch',
+    role: 'Admin',
     status: 'Active',
     lastLogin: '04 Sep 2026, 04:12 PM',
     joinedDate: '11 Oct 2023',
-  },
-  {
-    id: 9,
-    name: 'Pooja Verma',
-    employeeId: 'VLCC-EMP-009',
-    email: 'pooja.verma@vlcc.com',
-    mobile: '+91 98765 60009',
-    branch: 'Mumbai Branch',
-    role: 'Staff',
-    status: 'Inactive',
-    lastLogin: '22 Aug 2026, 03:10 PM',
-    joinedDate: '07 Nov 2023',
   },
 ];
 
@@ -154,83 +138,37 @@ const roleColors: Record<
   UserRole,
   { bg: string; text: string; icon: string }
 > = {
-  'Super Admin': {
+  'Admin': {
     bg: '#F1EAFF',
     text: '#7040D5',
     icon: 'shield-crown-outline',
   },
-  Administrator: {
-    bg: '#EAF2FF',
-    text: '#2675E8',
-    icon: 'shield-account-outline',
-  },
-  'Branch Manager': {
-    bg: '#E7F8EF',
-    text: '#35A96E',
-    icon: 'office-building-outline',
-  },
+
   Teacher: {
     bg: '#FFF1E2',
     text: '#E88713',
-    icon: 'teach',
-  },
-  Accountant: {
-    bg: '#FFE9F0',
-    text: '#E95386',
-    icon: 'calculator-variant-outline',
-  },
-  Staff: {
-    bg: '#F0F1F5',
-    text: '#687386',
-    icon: 'account-outline',
+    icon: 'school-outline',
   },
 };
 
 const rolePermissions: Record<UserRole, string[]> = {
-  'Super Admin': [
-    'Full system access',
-    'Manage users and roles',
-    'Manage branches',
-    'Manage students',
-    'Manage teachers',
-    'Manage courses and batches',
-    'Manage fees and accounts',
-    'View reports and audit logs',
-  ],
-  Administrator: [
-    'Manage students',
-    'Manage teachers',
-    'Manage courses',
-    'Manage batches',
-    'Manage attendance',
-    'Manage examinations',
-    'View reports',
-  ],
-  'Branch Manager': [
+  'Admin': [
     'Manage branch students',
     'Manage branch teachers',
     'Manage batches',
-    'View attendance',
-    'View fees',
+    'Manage subjects',
+    'Manage attendance',
+    'Manage examinations',
+    'Manage branch fees',
     'View branch reports',
   ],
+
   Teacher: [
     'View assigned students',
     'Manage attendance',
     'Manage assignments',
     'Manage examinations',
     'View student performance',
-  ],
-  Accountant: [
-    'Manage fee collection',
-    'Manage receipts',
-    'View payment history',
-    'View financial reports',
-  ],
-  Staff: [
-    'View assigned information',
-    'Update basic records',
-    'View announcements',
   ],
 };
 
@@ -275,7 +213,7 @@ export default function UsersRolesPage() {
   const [branch, setBranch] = useState('');
 
   const [selectedRole, setSelectedRole] =
-    useState<UserRole>('Staff');
+      useState<UserRole>('Teacher');
 
   const totalUsers = users.length;
 
@@ -287,23 +225,16 @@ export default function UsersRolesPage() {
     (user) => user.status === 'Inactive'
   ).length;
 
-  const administrators = users.filter(
-    (user) =>
-      user.role === 'Administrator' ||
-      user.role === 'Super Admin'
+  const admins = users.filter(
+  (user) =>
+      user.role === 'Admin'
   ).length;
 
-  const branchManagers = users.filter(
+  const teachers = users.filter(
     (user) =>
-      user.role === 'Branch Manager'
+      user.role === 'Teacher'
   ).length;
 
-  const staffUsers = users.filter(
-    (user) =>
-      user.role === 'Teacher' ||
-      user.role === 'Accountant' ||
-      user.role === 'Staff'
-  ).length;
 
   const filteredUsers = useMemo(() => {
     const query = search
@@ -842,33 +773,6 @@ export default function UsersRolesPage() {
         >
           Users & Roles
         </Text>
-
-        <TouchableOpacity
-          style={styles.addButton}
-          activeOpacity={0.85}
-          onPress={() => {
-            router.push({
-              pathname: '/(tabs)/explore',
-              params: {
-                feature: 'Add User',
-              },
-            });
-          }}
-        >
-          <MaterialCommunityIcons
-            name="plus"
-            size={16}
-            color="#7040D5"
-          />
-
-          <Text
-            style={
-              styles.addButtonText
-            }
-          >
-            Add User
-          </Text>
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -908,10 +812,10 @@ export default function UsersRolesPage() {
           }
         >
           {renderSummaryCard(
-            'Total Users',
-            String(totalUsers),
-            'account-group-outline',
-            'purple'
+          'Total Users',
+          String(totalUsers),
+          'account-group-outline',
+          'purple'
           )}
 
           {renderSummaryCard(
@@ -929,24 +833,17 @@ export default function UsersRolesPage() {
           )}
 
           {renderSummaryCard(
-            'Administrators',
-            String(administrators),
+            'Admins',
+            String(admins),
             'shield-account-outline',
             'blue'
           )}
 
           {renderSummaryCard(
-            'Branch Managers',
-            String(branchManagers),
-            'office-building-outline',
+            'Teachers',
+            String(teachers),
+            'school-outline',
             'orange'
-          )}
-
-          {renderSummaryCard(
-            'Staff Users',
-            String(staffUsers),
-            'account-multiple-outline',
-            'purple'
           )}
         </View>
 
@@ -1001,11 +898,8 @@ export default function UsersRolesPage() {
             'All',
             'Active',
             'Inactive',
-            'Administrator',
-            'Branch Manager',
+            'Admin',
             'Teacher',
-            'Accountant',
-            'Staff',
           ].map((filter) => (
             <TouchableOpacity
               key={filter}

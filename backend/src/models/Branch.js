@@ -18,7 +18,33 @@ const branchSchema = new mongoose.Schema(
 
     address: {
       type: String,
+      required: true,
       trim: true,
+    },
+
+    city: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    state: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    contactNumber: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
     },
 
     status: {

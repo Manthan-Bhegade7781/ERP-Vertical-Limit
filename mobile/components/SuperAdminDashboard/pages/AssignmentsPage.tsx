@@ -25,7 +25,7 @@ type AssignmentStatus =
   | 'Upcoming'
   | 'Due Today'
   | 'Completed'
-  | 'Evaluation Pending';
+;
 
 type SubmissionStatus =
   | 'Submitted'
@@ -108,7 +108,7 @@ const initialAssignments: Assignment[] = [
       'Complete the Physics assignment for Chapter 2: Electrostatic Potential and Capacitance. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
     instructions:
       'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
-    status: 'Evaluation Pending',
+    status: 'Active',
   },
   {
     id: 3,
@@ -196,7 +196,7 @@ const initialAssignments: Assignment[] = [
       'Complete the Physics assignment for Chapter 6: Electromagnetic Induction. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
     instructions:
       'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
-    status: 'Evaluation Pending',
+    status: 'Active',
   },
   {
     id: 7,
@@ -284,7 +284,7 @@ const initialAssignments: Assignment[] = [
       'Complete the Physics assignment for Chapter 10: Wave Optics. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
     instructions:
       'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
-    status: 'Evaluation Pending',
+    status: 'Active',
   },
   {
     id: 11,
@@ -372,7 +372,7 @@ const initialAssignments: Assignment[] = [
       'Complete the Physics assignment for Chapter 14: Semiconductor Electronics. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
     instructions:
       'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
-    status: 'Evaluation Pending',
+    status: 'Active',
   },
   {
     id: 15,
@@ -416,7 +416,7 @@ const initialAssignments: Assignment[] = [
       'Complete the Mathematics assignment for Chapter 2: Inverse Trigonometric Functions. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
     instructions:
       'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
-    status: 'Evaluation Pending',
+    status: 'Active',
   },
   {
     id: 17,
@@ -504,7 +504,7 @@ const initialAssignments: Assignment[] = [
       'Complete the Mathematics assignment for Chapter 6: Application of Derivatives. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
     instructions:
       'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
-    status: 'Evaluation Pending',
+    status: 'Active',
   },
   {
     id: 21,
@@ -592,7 +592,7 @@ const initialAssignments: Assignment[] = [
       'Complete the Mathematics assignment for Chapter 10: Vector Algebra. Cover the key concepts, important formulas or principles, solved examples, diagrams where applicable and practice questions.',
     instructions:
       'Prepare chapter notes, solve the assigned questions step by step and submit the completed work before the due date.',
-    status: 'Evaluation Pending',
+    status: 'Active',
   },
   {
     id: 25,
@@ -777,11 +777,6 @@ const statusColors: Record<
     icon: 'check-all',
   },
 
-  'Evaluation Pending': {
-    bg: '#FFE9F0',
-    text: '#E95386',
-    icon: 'clipboard-check-outline',
-  },
 };
 
 export default function AssignmentsPage() {
@@ -941,18 +936,7 @@ export default function AssignmentsPage() {
       (item) => item.status === 'Due Today'
     ).length;
 
-  const totalSubmitted = assignments.reduce(
-    (sum, item) =>
-      sum + item.submitted,
-    0
-  );
-
-  const pendingEvaluation =
-    assignments.filter(
-      (item) =>
-        item.status ===
-        'Evaluation Pending'
-    ).length;
+  
 
   /* =====================================================
      ACTIONS
@@ -1710,14 +1694,7 @@ export default function AssignmentsPage() {
         assignment.status
       ];
 
-    const submissionPercentage =
-      assignment.students > 0
-        ? Math.round(
-            (assignment.submitted /
-              assignment.students) *
-              100
-          )
-        : 0;
+
 
     return (
       <View
@@ -1898,43 +1875,6 @@ export default function AssignmentsPage() {
         </View>
 
         <View
-          style={styles.progressSection}
-        >
-          <View
-            style={styles.progressHeader}
-          >
-            <Text
-              style={
-                styles.progressLabel
-              }
-            >
-              Submission Progress
-            </Text>
-
-            <Text
-              style={
-                styles.progressPercentage
-              }
-            >
-              {submissionPercentage}%
-            </Text>
-          </View>
-
-          <View
-            style={styles.progressTrack}
-          >
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${submissionPercentage}%`,
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-        <View
           style={styles.assignmentBottom}
         >
           <View
@@ -1967,8 +1907,7 @@ export default function AssignmentsPage() {
           <Text
             style={styles.studentCount}
           >
-            {assignment.submitted}/
-            {assignment.students} Submitted
+            {assignment.maxMarks > 0 ? `${assignment.maxMarks} Marks` : 'Assignment'}
           </Text>
         </View>
 
@@ -2136,7 +2075,7 @@ export default function AssignmentsPage() {
           style={styles.addButton}
           onPress={() => {
             router.push({
-              pathname: '/(tabs)/explore',
+              pathname: '/(super_admin)/explore',
               params: { feature: 'Add Assignment' },
             });
           }}
@@ -2180,7 +2119,7 @@ export default function AssignmentsPage() {
         <Text
           style={styles.managementSubtitle}
         >
-          Create assignments, track student submissions and evaluate work.
+          Create, organize and manage assignments and homework.
         </Text>
 
         {/* =====================================================
@@ -2218,19 +2157,6 @@ export default function AssignmentsPage() {
             'orange'
           )}
 
-          {renderSummaryCard(
-            'Submitted',
-            totalSubmitted,
-            'file-check-outline',
-            'green'
-          )}
-
-          {renderSummaryCard(
-            'Pending Evaluation',
-            pendingEvaluation,
-            'clipboard-alert-outline',
-            'pink'
-          )}
         </View>
 
         {/* =====================================================
@@ -2292,7 +2218,6 @@ export default function AssignmentsPage() {
             'Upcoming',
             'Due Today',
             'Completed',
-            'Evaluation Pending',
           ].map((item) => {
             const active =
               filter === item;
@@ -2469,84 +2394,6 @@ export default function AssignmentsPage() {
                 style={styles.actionText}
               >
                 Edit Assignment
-              </Text>
-
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color="#A0A8B5"
-              />
-            </TouchableOpacity>
-
-            {/* SUBMISSIONS */}
-            <TouchableOpacity
-              style={styles.actionItem}
-              onPress={() => {
-                if (
-                  selectedAssignment
-                ) {
-                  openSubmissions(
-                    selectedAssignment
-                  );
-                }
-              }}
-            >
-              <View
-                style={styles.actionIcon}
-              >
-                <MaterialCommunityIcons
-                  name="file-document-multiple-outline"
-                  size={20}
-                  color="#35B878"
-                />
-              </View>
-
-              <Text
-                style={styles.actionText}
-              >
-                View Submissions
-              </Text>
-
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color="#A0A8B5"
-              />
-            </TouchableOpacity>
-
-            {/* EVALUATE */}
-            <TouchableOpacity
-              style={styles.actionItem}
-              onPress={() => {
-                if (
-                  selectedAssignment
-                ) {
-                  openEvaluation(
-                    selectedAssignment
-                  );
-                }
-              }}
-            >
-              <View
-                style={[
-                  styles.actionIcon,
-                  {
-                    backgroundColor:
-                      '#FFF1E2',
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="clipboard-check-outline"
-                  size={20}
-                  color="#F7941D"
-                />
-              </View>
-
-              <Text
-                style={styles.actionText}
-              >
-                Evaluate
               </Text>
 
               <MaterialCommunityIcons
@@ -2963,120 +2810,6 @@ export default function AssignmentsPage() {
                   </Text>
                 </View>
 
-                <View
-                  style={
-                    styles.submissionOverview
-                  }
-                >
-                  <View
-                    style={
-                      styles.overviewItem
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.overviewValue
-                      }
-                    >
-                      {
-                        selectedAssignment.students
-                      }
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.overviewLabel
-                      }
-                    >
-                      Students
-                    </Text>
-                  </View>
-
-                  <View
-                    style={
-                      styles.overviewItem
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.overviewValue,
-                        {
-                          color:
-                            '#35B878',
-                        },
-                      ]}
-                    >
-                      {
-                        selectedAssignment.submitted
-                      }
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.overviewLabel
-                      }
-                    >
-                      Submitted
-                    </Text>
-                  </View>
-
-                  <View
-                    style={
-                      styles.overviewItem
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.overviewValue,
-                        {
-                          color:
-                            '#E95386',
-                        },
-                      ]}
-                    >
-                      {
-                        selectedAssignment.pending
-                      }
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.overviewLabel
-                      }
-                    >
-                      Pending
-                    </Text>
-                  </View>
-
-                  <View
-                    style={
-                      styles.overviewItem
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.overviewValue,
-                        {
-                          color:
-                            '#F7941D',
-                        },
-                      ]}
-                    >
-                      {
-                        selectedAssignment.late
-                      }
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.overviewLabel
-                      }
-                    >
-                      Late
-                    </Text>
-                  </View>
-                </View>
-
                 {/* DOWNLOAD BUTTON */}
                 <TouchableOpacity
                   style={
@@ -3103,31 +2836,6 @@ export default function AssignmentsPage() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* SUBMISSIONS BUTTON */}
-                <TouchableOpacity
-                  style={
-                    styles.viewSubmissionsButton
-                  }
-                  onPress={() =>
-                    openSubmissions(
-                      selectedAssignment
-                    )
-                  }
-                >
-                  <MaterialCommunityIcons
-                    name="file-document-multiple-outline"
-                    size={19}
-                    color="#7040D5"
-                  />
-
-                  <Text
-                    style={
-                      styles.viewSubmissionsButtonText
-                    }
-                  >
-                    View Submissions
-                  </Text>
-                </TouchableOpacity>
               </ScrollView>
             )}
           </View>
@@ -3355,550 +3063,6 @@ export default function AssignmentsPage() {
         </View>
       </Modal>
 
-      {/* =====================================================
-          SUBMISSIONS MODAL
-          ===================================================== */}
-
-      <Modal
-        visible={
-          showSubmissionsModal
-        }
-        transparent
-        animationType="slide"
-        onRequestClose={() =>
-          setShowSubmissionsModal(
-            false
-          )
-        }
-      >
-        <View
-          style={styles.modalOverlay}
-        >
-          <View
-            style={[
-              styles.resultsModal,
-              {
-                width: isDesktop
-                  ? 760
-                  : '96%',
-                maxHeight: '92%',
-              },
-            ]}
-          >
-            <View
-              style={styles.modalHeader}
-            >
-              <View
-                style={{ flex: 1 }}
-              >
-                <Text
-                  style={styles.modalTitle}
-                >
-                  Student Submissions
-                </Text>
-
-                <Text
-                  style={styles.modalSubtitle}
-                  numberOfLines={2}
-                >
-                  {
-                    selectedAssignment?.title
-                  }
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() =>
-                  setShowSubmissionsModal(
-                    false
-                  )
-                }
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={27}
-                  color="#748096"
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* SUBMISSION SUMMARY */}
-            <View
-              style={
-                styles.resultSummaryContainer
-              }
-            >
-              <View
-                style={
-                  styles.resultSummaryCard
-                }
-              >
-                <Text
-                  style={
-                    styles.resultSummaryValue
-                  }
-                >
-                  {
-                    selectedAssignment?.students ??
-                    0
-                  }
-                </Text>
-
-                <Text
-                  style={
-                    styles.resultSummaryLabel
-                  }
-                >
-                  Students
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.resultSummaryCard
-                }
-              >
-                <Text
-                  style={[
-                    styles.resultSummaryValue,
-                    {
-                      color:
-                        '#35B878',
-                    },
-                  ]}
-                >
-                  {submittedCount}
-                </Text>
-
-                <Text
-                  style={
-                    styles.resultSummaryLabel
-                  }
-                >
-                  Submitted
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.resultSummaryCard
-                }
-              >
-                <Text
-                  style={[
-                    styles.resultSummaryValue,
-                    {
-                      color:
-                        '#E95386',
-                    },
-                  ]}
-                >
-                  {pendingCount}
-                </Text>
-
-                <Text
-                  style={
-                    styles.resultSummaryLabel
-                  }
-                >
-                  Pending
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.resultSummaryCard
-                }
-              >
-                <Text
-                  style={[
-                    styles.resultSummaryValue,
-                    {
-                      color:
-                        '#F7941D',
-                    },
-                  ]}
-                >
-                  {lateCount}
-                </Text>
-
-                <Text
-                  style={
-                    styles.resultSummaryLabel
-                  }
-                >
-                  Late
-                </Text>
-              </View>
-            </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={
-                false
-              }
-              contentContainerStyle={{
-                paddingBottom: 10,
-              }}
-            >
-              {assignmentSubmissions.length >
-              0 ? (
-                assignmentSubmissions.map(
-                  (student) => (
-                    <View
-                      key={
-                        student.id
-                      }
-                      style={
-                        styles.submissionCard
-                      }
-                    >
-                      <View
-                        style={
-                          styles.submissionTop
-                        }
-                      >
-                        <View
-                          style={
-                            styles.studentAvatar
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.studentAvatarText
-                            }
-                          >
-                            {student.studentName
-                              .charAt(
-                                0
-                              )
-                              .toUpperCase()}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.studentInfo
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.studentName
-                            }
-                          >
-                            {
-                              student.studentName
-                            }
-                          </Text>
-
-                          <Text
-                            style={
-                              styles.studentId
-                            }
-                          >
-                            {
-                              student.studentId
-                            }
-                          </Text>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.submissionStatus,
-                            {
-                              backgroundColor:
-                                student.status ===
-                                'Submitted'
-                                  ? '#E7F8EF'
-                                  : student.status ===
-                                    'Late'
-                                  ? '#FFF1E2'
-                                  : '#FFE9F0',
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.submissionStatusText,
-                              {
-                                color:
-                                  student.status ===
-                                  'Submitted'
-                                    ? '#35B878'
-                                    : student.status ===
-                                      'Late'
-                                    ? '#F7941D'
-                                    : '#E95386',
-                              },
-                            ]}
-                          >
-                            {
-                              student.status
-                            }
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View
-                        style={
-                          styles.submissionBottom
-                        }
-                      >
-                        <View
-                          style={
-                            styles.submissionDetail
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.submissionLabel
-                            }
-                          >
-                            Submitted
-                          </Text>
-
-                          <Text
-                            style={
-                              styles.submissionValue
-                            }
-                          >
-                            {
-                              student.submissionDate
-                            }
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.submissionDetail
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.submissionLabel
-                            }
-                          >
-                            Marks
-                          </Text>
-
-                          <Text
-                            style={
-                              styles.submissionValue
-                            }
-                          >
-                            {student.marks ??
-                              '-'}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={
-                            styles.submissionDetail
-                          }
-                        >
-                          <Text
-                            style={
-                              styles.submissionLabel
-                            }
-                          >
-                            Grade
-                          </Text>
-
-                          <Text
-                            style={[
-                              styles.submissionValue,
-                              {
-                                color:
-                                  '#7040D5',
-                              },
-                            ]}
-                          >
-                            {
-                              student.grade
-                            }
-                          </Text>
-                        </View>
-
-                        <TouchableOpacity
-                          style={
-                            styles.evaluateButton
-                          }
-                          onPress={() =>
-                            openStudentEvaluation(
-                              student
-                            )
-                          }
-                        >
-                          <MaterialCommunityIcons
-                            name="clipboard-check-outline"
-                            size={16}
-                            color="#FFFFFF"
-                          />
-
-                          <Text
-                            style={
-                              styles.evaluateButtonText
-                            }
-                          >
-                            Evaluate
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )
-                )
-              ) : (
-                <View
-                  style={
-                    styles.noSubmissionState
-                  }
-                >
-                  <MaterialCommunityIcons
-                    name="file-clock-outline"
-                    size={42}
-                    color="#AAB2C0"
-                  />
-
-                  <Text
-                    style={
-                      styles.noSubmissionTitle
-                    }
-                  >
-                    No submissions yet
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.noSubmissionText
-                    }
-                  >
-                    Students have not submitted this assignment yet.
-                  </Text>
-                </View>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* =====================================================
-          EVALUATION MODAL
-          ===================================================== */}
-
-      <Modal
-        visible={
-          showEvaluationModal
-        }
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
-          setShowEvaluationModal(
-            false
-          )
-        }
-      >
-        <View
-          style={styles.modalOverlay}
-        >
-          <View
-            style={[
-              styles.evaluationModal,
-              {
-                width: isDesktop
-                  ? 480
-                  : '92%',
-              },
-            ]}
-          >
-            <View
-              style={styles.modalHeader}
-            >
-              <View>
-                <Text
-                  style={styles.modalTitle}
-                >
-                  Evaluate Student
-                </Text>
-
-                <Text
-                  style={styles.modalSubtitle}
-                >
-                  {
-                    selectedStudent?.studentName
-                  }
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() =>
-                  setShowEvaluationModal(
-                    false
-                  )
-                }
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={24}
-                  color="#748096"
-                />
-              </TouchableOpacity>
-            </View>
-
-            <Text
-              style={styles.inputLabel}
-            >
-              Marks
-            </Text>
-
-            <TextInput
-              value={marks}
-              onChangeText={setMarks}
-              keyboardType="numeric"
-              placeholder="Enter marks out of 100"
-              placeholderTextColor="#A0A8B5"
-              style={styles.input}
-            />
-
-            <Text
-              style={styles.inputLabel}
-            >
-              Remarks
-            </Text>
-
-            <TextInput
-              value={remarks}
-              onChangeText={setRemarks}
-              multiline
-              textAlignVertical="top"
-              placeholder="Add evaluation remarks..."
-              placeholderTextColor="#A0A8B5"
-              style={[
-                styles.input,
-                {
-                  minHeight: 90,
-                  paddingTop: 11,
-                },
-              ]}
-            />
-
-            <TouchableOpacity
-              style={
-                styles.saveButton
-              }
-              onPress={
-                saveEvaluation
-              }
-            >
-              <Text
-                style={
-                  styles.saveButtonText
-                }
-              >
-                Save Evaluation
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

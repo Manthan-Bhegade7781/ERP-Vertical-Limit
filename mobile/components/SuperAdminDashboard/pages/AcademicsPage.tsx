@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   ScrollView,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -13,154 +14,215 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
-type AcademicModule = {
+const PURPLE = "#7040D5";
+
+type AcademicYear = {
   id: string;
-  title: string;
-  description: string;
-  count: string;
-  countLabel: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  iconBackground: string;
-  iconColor: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: "Active" | "Inactive";
 };
 
-const academicModules: AcademicModule[] = [
+const initialAcademicYears: AcademicYear[] = [
   {
-    id: "academic-years",
-    title: "Academic Years",
-    description: "Create and manage academic years",
-    count: "2",
-    countLabel: "Years",
-    icon: "calendar-range-outline",
-    iconBackground: "#F1EAFF",
-    iconColor: "#7040D5",
+    id: "ay-2026-27",
+    name: "2026-27",
+    startDate: "01/06/2026",
+    endDate: "31/03/2027",
+    status: "Active",
   },
   {
-    id: "standards",
-    title: "Standards / Classes",
-    description: "Manage standards and academic classes",
-    count: "5",
-    countLabel: "Standards",
-    icon: "school-outline",
-    iconBackground: "#EAF2FF",
-    iconColor: "#2675E8",
-  },
-  {
-    id: "curriculum",
-    title: "Curriculum",
-    description: "Configure curriculum by standard",
-    count: "6",
-    countLabel: "Curriculums",
-    icon: "book-open-page-variant-outline",
-    iconBackground: "#E7F8EF",
-    iconColor: "#35B878",
-  },
-  {
-    id: "terms",
-    title: "Academic Terms",
-    description: "Manage terms and academic periods",
-    count: "2",
-    countLabel: "Active Terms",
-    icon: "calendar-clock-outline",
-    iconBackground: "#FFF1E2",
-    iconColor: "#F7941D",
-  },
-  {
-    id: "subject-allocation",
-    title: "Subject Allocation",
-    description: "Assign subjects to standards and batches",
-    count: "18",
-    countLabel: "Allocations",
-    icon: "book-account-outline",
-    iconBackground: "#F1EAFF",
-    iconColor: "#7040D5",
-  },
-  {
-    id: "faculty-allocation",
-    title: "Faculty Allocation",
-    description: "Assign faculty to subjects and classes",
-    count: "24",
-    countLabel: "Assignments",
-    icon: "account-tie-outline",
-    iconBackground: "#EAF2FF",
-    iconColor: "#2675E8",
-  },
-  {
-    id: "grading",
-    title: "Grading & Evaluation",
-    description: "Configure grades and evaluation rules",
-    count: "4",
-    countLabel: "Grade Levels",
-    icon: "chart-box-outline",
-    iconBackground: "#FFF1E2",
-    iconColor: "#F7941D",
-  },
-  {
-    id: "academic-rules",
-    title: "Academic Rules",
-    description: "Manage promotion and passing criteria",
-    count: "8",
-    countLabel: "Rules",
-    icon: "clipboard-check-outline",
-    iconBackground: "#FFE9F0",
-    iconColor: "#E95386",
+    id: "ay-2025-26",
+    name: "2025-26",
+    startDate: "01/06/2025",
+    endDate: "31/03/2026",
+    status: "Inactive",
   },
 ];
 
-const filterOptions = ["All", "Active", "Configuration"];
+const FILTER_OPTIONS = ["All", "Active", "Inactive"];
 
 export default function AcademicsPage() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
   const isDesktop = width >= 900;
+
   const contentWidth = isDesktop
     ? Math.min(width - 250 - 40, 1500)
     : width - 32;
 
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>(
+    initialAcademicYears
+  );
+
   const [search, setSearch] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("All");
 
-  const filteredModules = useMemo(() => {
+  const [editingYear, setEditingYear] =
+    useState<AcademicYear | null>(null);
+
+  const [editYearName, setEditYearName] = useState("");
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
+  const [editStatus, setEditStatus] = useState<
+    "Active" | "Inactive"
+  >("Active");
+
+  const filteredAcademicYears = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return academicModules.filter((module) => {
+    return academicYears.filter((year) => {
       const matchesSearch =
         !query ||
-        module.title.toLowerCase().includes(query) ||
-        module.description.toLowerCase().includes(query);
+        year.name.toLowerCase().includes(query) ||
+        year.startDate.toLowerCase().includes(query) ||
+        year.endDate.toLowerCase().includes(query);
 
       const matchesFilter =
         selectedFilter === "All" ||
-        (selectedFilter === "Active" &&
-          !["academic-rules", "grading"].includes(module.id)) ||
-        (selectedFilter === "Configuration" &&
-          ["curriculum", "grading", "academic-rules"].includes(module.id));
+        year.status === selectedFilter;
 
       return matchesSearch && matchesFilter;
     });
-  }, [search, selectedFilter]);
+  }, [academicYears, search, selectedFilter]);
+
+  const activeAcademicYear =
+    academicYears.find((year) => year.status === "Active") || null;
+
+  const inactiveCount = academicYears.filter(
+    (year) => year.status === "Inactive"
+  ).length;
 
   const handleBack = () => {
     router.replace("/(tabs)");
   };
 
-  const handleAddAcademicInfo = () => {
+  const handleAddAcademicYear = () => {
     router.push({
-      pathname: "/(tabs)/explore",
-      params: { feature: "Add Academic Info" },
+      pathname: "/(super_admin)/explore",
+      params: {
+        feature: "Add Academic Info",
+      },
     });
   };
 
-  const handleManage = (module: AcademicModule) => {
+  const handleViewAcademicYear = (year: AcademicYear) => {
     Alert.alert(
-      module.title,
-      `${module.description}.\n\nThis module is ready to be connected to its dedicated page.`
+      year.name,
+      `Start Date: ${year.startDate}\nEnd Date: ${year.endDate}\nStatus: ${year.status}`
+    );
+  };
+
+  const handleToggleStatus = (year: AcademicYear) => {
+    const nextStatus =
+      year.status === "Active" ? "Inactive" : "Active";
+
+    if (nextStatus === "Active") {
+      const anotherActiveYear = academicYears.find(
+        (item) =>
+          item.id !== year.id &&
+          item.status === "Active"
+      );
+
+      if (anotherActiveYear) {
+        Alert.alert(
+          "Active Academic Year",
+          `${anotherActiveYear.name} is already active. Only one academic year should be active at a time.`
+        );
+        return;
+      }
+    }
+
+    setAcademicYears((current) =>
+      current.map((item) =>
+        item.id === year.id
+          ? {
+              ...item,
+              status: nextStatus,
+            }
+          : item
+      )
+    );
+  };
+
+  const handleEditAcademicYear = (year: AcademicYear) => {
+    setEditingYear(year);
+    setEditYearName(year.name);
+    setEditStartDate(year.startDate);
+    setEditEndDate(year.endDate);
+    setEditStatus(year.status);
+  };
+
+  const handleSaveEditedAcademicYear = () => {
+    if (!editingYear) return;
+
+    if (!editYearName.trim()) {
+      Alert.alert(
+        "Required Field",
+        "Please enter the academic year."
+      );
+      return;
+    }
+
+    if (!editStartDate.trim()) {
+      Alert.alert(
+        "Required Field",
+        "Please enter the start date."
+      );
+      return;
+    }
+
+    if (!editEndDate.trim()) {
+      Alert.alert(
+        "Required Field",
+        "Please enter the end date."
+      );
+      return;
+    }
+
+    if (editStatus === "Active") {
+      const anotherActiveYear = academicYears.find(
+        (item) =>
+          item.id !== editingYear.id &&
+          item.status === "Active"
+      );
+
+      if (anotherActiveYear) {
+        Alert.alert(
+          "Active Academic Year",
+          `${anotherActiveYear.name} is already active. Only one academic year should be active at a time.`
+        );
+        return;
+      }
+    }
+
+    setAcademicYears((current) =>
+      current.map((item) =>
+        item.id === editingYear.id
+          ? {
+              ...item,
+              name: editYearName.trim(),
+              startDate: editStartDate.trim(),
+              endDate: editEndDate.trim(),
+              status: editStatus,
+            }
+          : item
+      )
+    );
+
+    setEditingYear(null);
+
+    Alert.alert(
+      "Academic Year Updated",
+      `${editYearName.trim()} has been updated successfully.`
     );
   };
 
   return (
     <View style={styles.screen}>
+      {/* Header */}
       <View
         style={[
           styles.header,
@@ -184,21 +246,25 @@ export default function AcademicsPage() {
 
           <View style={styles.headerTitleArea}>
             <Text style={styles.headerTitle} numberOfLines={1}>
-              Academics
+              Academic Years
             </Text>
           </View>
 
           <TouchableOpacity
             style={styles.headerAction}
-            onPress={handleAddAcademicInfo}
+            onPress={handleAddAcademicYear}
             activeOpacity={0.85}
           >
             <MaterialCommunityIcons
               name="plus"
               size={18}
-              color="#7040D5"
+              color={PURPLE}
             />
-            <Text style={styles.headerActionText} numberOfLines={1}>
+
+            <Text
+              style={styles.headerActionText}
+              numberOfLines={1}
+            >
               Add Academic Year
             </Text>
           </TouchableOpacity>
@@ -216,18 +282,26 @@ export default function AcademicsPage() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[styles.content, { width: contentWidth }]}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleArea}>
-              <Text style={styles.sectionTitle} numberOfLines={1}>
-                Academic Management
-              </Text>
-              <Text style={styles.sectionSubtitle} numberOfLines={2}>
-                Manage academic structure, curriculum and evaluation
-              </Text>
-            </View>
+        <View
+          style={[
+            styles.content,
+            {
+              width: contentWidth,
+            },
+          ]}
+        >
+          {/* Page Header */}
+          <View style={styles.pageHeader}>
+            <Text style={styles.pageTitle}>
+              Academic Year Management
+            </Text>
+
+            <Text style={styles.pageSubtitle}>
+              Create and manage academic years for the institute.
+            </Text>
           </View>
 
+          {/* Statistics */}
           <View
             style={[
               styles.statsGrid,
@@ -240,12 +314,13 @@ export default function AcademicsPage() {
                 isDesktop && styles.statCardWrapperDesktop,
               ]}
             >
-              <AcademicStatCard
+              <StatCard
                 icon="calendar-range-outline"
-                title="Academic Years"
-                value="2"
-                change="Active"
-                type="purple"
+                title="Total Academic Years"
+                value={String(academicYears.length)}
+                label="Years"
+                iconBackground="#F1EAFF"
+                iconColor={PURPLE}
               />
             </View>
 
@@ -255,12 +330,13 @@ export default function AcademicsPage() {
                 isDesktop && styles.statCardWrapperDesktop,
               ]}
             >
-              <AcademicStatCard
+              <StatCard
                 icon="calendar-check-outline"
-                title="Active Year"
-                value="2026 – 27"
-                change="Current"
-                type="blue"
+                title="Active Academic Year"
+                value={activeAcademicYear?.name || "None"}
+                label="Current"
+                iconBackground="#EAF2FF"
+                iconColor="#2675E8"
                 compactValue
               />
             </View>
@@ -271,31 +347,18 @@ export default function AcademicsPage() {
                 isDesktop && styles.statCardWrapperDesktop,
               ]}
             >
-              <AcademicStatCard
-                icon="school-outline"
-                title="Standards"
-                value="5"
-                change="Active"
-                type="green"
-              />
-            </View>
-
-            <View
-              style={[
-                styles.statCardWrapper,
-                isDesktop && styles.statCardWrapperDesktop,
-              ]}
-            >
-              <AcademicStatCard
-                icon="calendar-clock-outline"
-                title="Active Terms"
-                value="2"
-                change="Current"
-                type="orange"
+              <StatCard
+                icon="calendar-remove-outline"
+                title="Inactive Years"
+                value={String(inactiveCount)}
+                label="Inactive"
+                iconBackground="#FFF1E2"
+                iconColor="#F7941D"
               />
             </View>
           </View>
 
+          {/* Search + Filters */}
           <View style={styles.filterCard}>
             <View style={styles.searchContainer}>
               <MaterialCommunityIcons
@@ -307,7 +370,7 @@ export default function AcademicsPage() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search academic modules..."
+                placeholder="Search academic years..."
                 placeholderTextColor="#A0A8B7"
                 style={styles.searchInput}
                 numberOfLines={1}
@@ -328,7 +391,7 @@ export default function AcademicsPage() {
             </View>
 
             <View style={styles.filterRow}>
-              {filterOptions.map((filter) => {
+              {FILTER_OPTIONS.map((filter) => {
                 const active = selectedFilter === filter;
 
                 return (
@@ -355,157 +418,380 @@ export default function AcademicsPage() {
             </View>
           </View>
 
+          {/* List Header */}
           <View style={styles.listHeader}>
             <View style={styles.listTitleArea}>
-              <Text style={styles.listTitle}>Academic Setup</Text>
+              <Text style={styles.listTitle}>
+                Academic Years
+              </Text>
+
               <Text style={styles.listSubtitle}>
-                {filteredModules.length} module
-                {filteredModules.length === 1 ? "" : "s"} available
+                {filteredAcademicYears.length} academic year
+                {filteredAcademicYears.length === 1 ? "" : "s"}
               </Text>
             </View>
 
-            <View style={styles.sessionBadge}>
-              <MaterialCommunityIcons
-                name="calendar-check-outline"
-                size={16}
-                color="#7040D5"
-              />
-              <Text style={styles.sessionBadgeText}>2026 – 27</Text>
-            </View>
+            {activeAcademicYear && (
+              <View style={styles.activeBadge}>
+                <MaterialCommunityIcons
+                  name="check-circle-outline"
+                  size={15}
+                  color="#35B878"
+                />
+
+                <Text style={styles.activeBadgeText}>
+                  {activeAcademicYear.name} Active
+                </Text>
+              </View>
+            )}
           </View>
 
-          {filteredModules.length === 0 ? (
+          {/* Academic Year List */}
+          {filteredAcademicYears.length === 0 ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIcon}>
                 <MaterialCommunityIcons
-                  name="magnify-close"
+                  name="calendar-search-outline"
                   size={34}
-                  color="#7040D5"
+                  color={PURPLE}
                 />
               </View>
 
-              <Text style={styles.emptyTitle}>No modules found</Text>
+              <Text style={styles.emptyTitle}>
+                No academic years found
+              </Text>
+
               <Text style={styles.emptySubtitle}>
                 Try changing your search or filter.
               </Text>
             </View>
           ) : (
-            <View
-              style={[
-                styles.moduleGrid,
-                isDesktop && styles.moduleGridDesktop,
-              ]}
-            >
-              {filteredModules.map((module) => (
-                <AcademicModuleCard
-                  key={module.id}
-                  module={module}
-                  isDesktop={isDesktop}
-                  onManage={() => handleManage(module)}
+            <View style={styles.yearList}>
+              {filteredAcademicYears.map((year) => (
+                <AcademicYearCard
+                  key={year.id}
+                  year={year}
+                  onView={() => handleViewAcademicYear(year)}
+                  onEdit={() => handleEditAcademicYear(year)}
+                  onToggleStatus={() => handleToggleStatus(year)}
                 />
               ))}
             </View>
           )}
 
+          {/* Information */}
           <View style={styles.infoBox}>
             <View style={styles.infoIcon}>
               <MaterialCommunityIcons
                 name="information-outline"
                 size={18}
-                color="#7040D5"
+                color={PURPLE}
               />
             </View>
 
             <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Academic structure</Text>
+              <Text style={styles.infoTitle}>
+                Academic year
+              </Text>
+
               <Text style={styles.infoText}>
-                Subjects are managed separately in the Subjects module.
-                Academics is used for academic years, standards, curriculum,
-                terms, allocations, grading and academic rules.
+                Academic years define the main academic period
+                used across batches, subjects, attendance,
+                examinations and reports.
               </Text>
             </View>
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={editingYear !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditingYear(null)}
+      >
+        <View style={styles.editOverlay}>
+          <View style={styles.editModal}>
+            {/* Modal Header */}
+            <View style={styles.editModalHeader}>
+              <View style={styles.editTitleArea}>
+                <View style={styles.editIconBox}>
+                  <MaterialCommunityIcons
+                    name="pencil-outline"
+                    size={21}
+                    color={PURPLE}
+                  />
+                </View>
+
+                <View style={styles.editTitleTextArea}>
+                  <Text style={styles.editModalTitle}>
+                    Edit Academic Year
+                  </Text>
+
+                  <Text style={styles.editModalSubtitle}>
+                    Update academic year details
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.editCloseButton}
+                onPress={() => setEditingYear(null)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={21}
+                  color="#707B8F"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.editScroll}
+              contentContainerStyle={styles.editScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Academic Year */}
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>
+                  Academic Year
+                  <Text style={styles.editRequired}> *</Text>
+                </Text>
+
+                <TextInput
+                  value={editYearName}
+                  onChangeText={setEditYearName}
+                  placeholder="e.g. 2026-27"
+                  placeholderTextColor="#A0A8B7"
+                  style={styles.editInput}
+                />
+              </View>
+
+              {/* Dates */}
+              <View style={styles.editRow}>
+                <View style={styles.editHalfField}>
+                  <Text style={styles.editLabel}>
+                    Start Date
+                    <Text style={styles.editRequired}> *</Text>
+                  </Text>
+
+                  <View style={styles.editDateInput}>
+                    <TextInput
+                      value={editStartDate}
+                      onChangeText={setEditStartDate}
+                      placeholder="DD/MM/YYYY"
+                      placeholderTextColor="#A0A8B7"
+                      style={styles.editDateTextInput}
+                      keyboardType="numbers-and-punctuation"
+                    />
+
+                    <MaterialCommunityIcons
+                      name="calendar-outline"
+                      size={18}
+                      color="#8A94A6"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.editHalfField}>
+                  <Text style={styles.editLabel}>
+                    End Date
+                    <Text style={styles.editRequired}> *</Text>
+                  </Text>
+
+                  <View style={styles.editDateInput}>
+                    <TextInput
+                      value={editEndDate}
+                      onChangeText={setEditEndDate}
+                      placeholder="DD/MM/YYYY"
+                      placeholderTextColor="#A0A8B7"
+                      style={styles.editDateTextInput}
+                      keyboardType="numbers-and-punctuation"
+                    />
+
+                    <MaterialCommunityIcons
+                      name="calendar-outline"
+                      size={18}
+                      color="#8A94A6"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Status */}
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>
+                  Status
+                </Text>
+
+                <View style={styles.editStatusRow}>
+                  {(["Active", "Inactive"] as const).map(
+                    (status) => {
+                      const selected =
+                        editStatus === status;
+
+                      return (
+                        <TouchableOpacity
+                          key={status}
+                          style={[
+                            styles.editStatusButton,
+                            selected &&
+                              styles.editStatusButtonSelected,
+                          ]}
+                          onPress={() =>
+                            setEditStatus(status)
+                          }
+                          activeOpacity={0.8}
+                        >
+                          <MaterialCommunityIcons
+                            name={
+                              selected
+                                ? "radiobox-marked"
+                                : "radiobox-blank"
+                            }
+                            size={18}
+                            color={
+                              selected
+                                ? PURPLE
+                                : "#8A94A6"
+                            }
+                          />
+
+                          <Text
+                            style={[
+                              styles.editStatusText,
+                              selected &&
+                                styles.editStatusTextSelected,
+                            ]}
+                          >
+                            {status}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }
+                  )}
+                </View>
+              </View>
+
+              {/* Note */}
+              <View style={styles.editNote}>
+                <MaterialCommunityIcons
+                  name="information-outline"
+                  size={18}
+                  color={PURPLE}
+                />
+
+                <Text style={styles.editNoteText}>
+                  Changes are currently saved locally. The API
+                  update will be connected later.
+                </Text>
+              </View>
+            </ScrollView>
+
+            {/* Footer */}
+            <View style={styles.editFooter}>
+              <TouchableOpacity
+                style={styles.editCancelButton}
+                onPress={() => setEditingYear(null)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.editCancelText}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.editSaveButton}
+                onPress={handleSaveEditedAcademicYear}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons
+                  name="content-save-outline"
+                  size={18}
+                  color="#FFFFFF"
+                />
+
+                <Text style={styles.editSaveText}>
+                  Save Changes
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-type AcademicStatCardProps = {
+/* -------------------------------------------------------------------------- */
+/* Statistics Card                                                            */
+/* -------------------------------------------------------------------------- */
+
+type StatCardProps = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   title: string;
   value: string;
-  change: string;
-  type: "purple" | "blue" | "green" | "orange";
+  label: string;
+  iconBackground: string;
+  iconColor: string;
   compactValue?: boolean;
 };
 
-function AcademicStatCard({
+function StatCard({
   icon,
   title,
   value,
-  change,
-  type,
+  label,
+  iconBackground,
+  iconColor,
   compactValue = false,
-}: AcademicStatCardProps) {
-  const colors = {
-    purple: {
-      background: "#F1EAFF",
-      icon: "#7040D5",
-    },
-    blue: {
-      background: "#EAF2FF",
-      icon: "#2675E8",
-    },
-    green: {
-      background: "#E7F8EF",
-      icon: "#35B878",
-    },
-    orange: {
-      background: "#FFF1E2",
-      icon: "#F7941D",
-    },
-  };
-
-  const color = colors[type];
-
+}: StatCardProps) {
   return (
     <View style={styles.statCard}>
+      {/* Top Row */}
       <View style={styles.statTopRow}>
         <View
           style={[
             styles.statIconBox,
-            { backgroundColor: color.background },
+            {
+              backgroundColor: iconBackground,
+            },
           ]}
         >
           <MaterialCommunityIcons
             name={icon}
             size={24}
-            color={color.icon}
+            color={iconColor}
           />
         </View>
 
+        {/* Label Badge */}
         <View
           style={[
             styles.changeBadge,
-            { backgroundColor: color.background },
+            {
+              backgroundColor: iconBackground,
+            },
           ]}
         >
-          <MaterialCommunityIcons
-            name="check-circle-outline"
-            size={12}
-            color={color.icon}
-          />
-          <Text style={[styles.changeText, { color: color.icon }]}>
-            {change}
+          <Text
+            style={[
+              styles.changeText,
+              {
+                color: iconColor,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {label}
           </Text>
         </View>
       </View>
 
+      {/* Bottom */}
       <View style={styles.statBottom}>
-        <Text style={styles.statTitle} numberOfLines={1}>
-          {title}
-        </Text>
         <Text
           style={[
             styles.statValue,
@@ -515,84 +801,216 @@ function AcademicStatCard({
         >
           {value}
         </Text>
+
+        <Text
+          style={styles.statTitle}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
       </View>
     </View>
   );
 }
 
-type AcademicModuleCardProps = {
-  module: AcademicModule;
-  isDesktop: boolean;
-  onManage: () => void;
+/* -------------------------------------------------------------------------- */
+/* Academic Year Card                                                         */
+/* -------------------------------------------------------------------------- */
+
+type AcademicYearCardProps = {
+  year: AcademicYear;
+  onView: () => void;
+  onEdit: () => void;
+  onToggleStatus: () => void;
 };
 
-function AcademicModuleCard({
-  module,
-  isDesktop,
-  onManage,
-}: AcademicModuleCardProps) {
+function AcademicYearCard({
+  year,
+  onView,
+  onEdit,
+  onToggleStatus,
+}: AcademicYearCardProps) {
+  const isActive = year.status === "Active";
+
   return (
-    <View
-      style={[
-        styles.moduleCard,
-        isDesktop && styles.moduleCardDesktop,
-      ]}
-    >
-      <View style={styles.moduleTop}>
+    <View style={styles.yearCard}>
+      {/* Top */}
+      <View style={styles.yearTop}>
         <View
           style={[
-            styles.moduleIconBox,
-            { backgroundColor: module.iconBackground },
+            styles.yearIconBox,
+            isActive
+              ? styles.yearIconBoxActive
+              : styles.yearIconBoxInactive,
           ]}
         >
           <MaterialCommunityIcons
-            name={module.icon}
-            size={23}
-            color={module.iconColor}
+            name="calendar-range-outline"
+            size={24}
+            color={isActive ? PURPLE : "#8A94A6"}
           />
         </View>
 
-        <View style={styles.moduleCountBadge}>
-          <Text style={styles.moduleCountBadgeText}>
-            {module.count}
+        <View style={styles.yearTitleArea}>
+          <Text
+            style={styles.yearName}
+            numberOfLines={1}
+          >
+            {year.name}
+          </Text>
+
+          <Text
+            style={styles.yearSubtitle}
+            numberOfLines={1}
+          >
+            Academic Year
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.statusBadge,
+            isActive
+              ? styles.statusBadgeActive
+              : styles.statusBadgeInactive,
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+              isActive
+                ? styles.statusDotActive
+                : styles.statusDotInactive,
+            ]}
+          />
+
+          <Text
+            style={[
+              styles.statusText,
+              isActive
+                ? styles.statusTextActive
+                : styles.statusTextInactive,
+            ]}
+          >
+            {year.status}
           </Text>
         </View>
       </View>
 
-      <View style={styles.moduleInfo}>
-        <Text style={styles.moduleName} numberOfLines={1}>
-          {module.title}
-        </Text>
-
-        <Text style={styles.moduleDescription} numberOfLines={2}>
-          {module.description}
-        </Text>
-      </View>
-
-      <View style={styles.moduleBottom}>
-        <View>
-          <Text style={styles.moduleCount}>{module.count}</Text>
-          <Text style={styles.moduleCountLabel}>
-            {module.countLabel}
+      {/* Dates */}
+      <View style={styles.dateSection}>
+        <View style={styles.dateItem}>
+          <Text style={styles.dateLabel}>
+            Start Date
           </Text>
+
+          <View style={styles.dateValueRow}>
+            <MaterialCommunityIcons
+              name="calendar-arrow-right"
+              size={16}
+              color="#8A94A6"
+            />
+
+            <Text style={styles.dateValue}>
+              {year.startDate}
+            </Text>
+          </View>
         </View>
 
+        <View style={styles.dateDivider} />
+
+        <View style={styles.dateItem}>
+          <Text style={styles.dateLabel}>
+            End Date
+          </Text>
+
+          <View style={styles.dateValueRow}>
+            <MaterialCommunityIcons
+              name="calendar-arrow-left"
+              size={16}
+              color="#8A94A6"
+            />
+
+            <Text style={styles.dateValue}>
+              {year.endDate}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Actions */}
+      <View style={styles.yearActions}>
         <TouchableOpacity
-          style={styles.manageButton}
-          onPress={onManage}
+          style={styles.viewButton}
+          onPress={onView}
           activeOpacity={0.8}
         >
-          <Text style={styles.manageButtonText}>Manage</Text>
           <MaterialCommunityIcons
-            name="arrow-right"
-            size={15}
-            color="#7040D5"
+            name="eye-outline"
+            size={17}
+            color={PURPLE}
           />
+
+          <Text style={styles.viewButtonText}>
+            View
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={onEdit}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons
+            name="pencil-outline"
+            size={17}
+            color="#2675E8"
+          />
+
+          <Text style={styles.editButtonText}>
+            Edit
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.statusActionButton,
+            isActive
+              ? styles.deactivateButton
+              : styles.activateButton,
+          ]}
+          onPress={onToggleStatus}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons
+            name={
+              isActive
+                ? "calendar-remove-outline"
+                : "calendar-check-outline"
+            }
+            size={17}
+            color={isActive ? "#E95368" : "#35B878"}
+          />
+
+          <Text
+            style={[
+              styles.statusActionText,
+              isActive
+                ? styles.deactivateText
+                : styles.activateText,
+            ]}
+          >
+            {isActive ? "Deactivate" : "Activate"}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Styles                                                                     */
+/* -------------------------------------------------------------------------- */
 
 const styles = StyleSheet.create({
   screen: {
@@ -600,8 +1018,268 @@ const styles = StyleSheet.create({
     backgroundColor: "#F7F8FC",
   },
 
+  /* Edit Modal */
+
+editOverlay: {
+  flex: 1,
+  backgroundColor: "rgba(18, 22, 35, 0.45)",
+  justifyContent: "flex-end",
+},
+
+editModal: {
+  width: "100%",
+  maxHeight: "88%",
+  backgroundColor: "#FFFFFF",
+  borderTopLeftRadius: 22,
+  borderTopRightRadius: 22,
+  paddingTop: 18,
+  paddingHorizontal: 16,
+  paddingBottom: 10,
+},
+
+editModalHeader: {
+  width: "100%",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  paddingBottom: 15,
+  borderBottomWidth: 1,
+  borderBottomColor: "#EEF0F5",
+},
+
+editTitleArea: {
+  flex: 1,
+  minWidth: 0,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+},
+
+editIconBox: {
+  width: 42,
+  height: 42,
+  borderRadius: 11,
+  backgroundColor: "#F1EAFF",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+},
+
+editTitleTextArea: {
+  flex: 1,
+  minWidth: 0,
+},
+
+editModalTitle: {
+  fontFamily: "PoppinsSemiBold",
+  fontSize: 16,
+  color: "#172033",
+},
+
+editModalSubtitle: {
+  marginTop: 2,
+  fontFamily: "PoppinsRegular",
+  fontSize: 9,
+  color: "#858D9F",
+},
+
+editCloseButton: {
+  width: 36,
+  height: 36,
+  borderRadius: 10,
+  backgroundColor: "#F4F5F8",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+},
+
+editScroll: {
+  width: "100%",
+},
+
+editScrollContent: {
+  paddingTop: 18,
+  paddingBottom: 10,
+},
+
+editField: {
+  width: "100%",
+  marginBottom: 16,
+},
+
+editHalfField: {
+  flex: 1,
+  minWidth: 0,
+},
+
+editRow: {
+  width: "100%",
+  flexDirection: "row",
+  gap: 9,
+  marginBottom: 16,
+},
+
+editLabel: {
+  marginBottom: 6,
+  fontFamily: "PoppinsMedium",
+  fontSize: 10.5,
+  color: "#555E70",
+},
+
+editRequired: {
+  color: "#E95386",
+},
+
+editInput: {
+  width: "100%",
+  height: 50,
+  borderWidth: 1,
+  borderColor: "#E3E7EF",
+  borderRadius: 10,
+  backgroundColor: "#FBFCFE",
+  paddingHorizontal: 12,
+  fontFamily: "PoppinsRegular",
+  fontSize: 10,
+  color: "#303544",
+},
+
+editDateInput: {
+  width: "100%",
+  height: 50,
+  borderWidth: 1,
+  borderColor: "#E3E7EF",
+  borderRadius: 10,
+  backgroundColor: "#FBFCFE",
+  paddingHorizontal: 10,
+  flexDirection: "row",
+  alignItems: "center",
+},
+
+editDateTextInput: {
+  flex: 1,
+  minWidth: 0,
+  height: 48,
+  paddingHorizontal: 1,
+  fontFamily: "PoppinsRegular",
+  fontSize: 10,
+  color: "#303544",
+},
+
+editStatusRow: {
+  width: "100%",
+  flexDirection: "row",
+  gap: 9,
+},
+
+editStatusButton: {
+  flex: 1,
+  height: 46,
+  borderWidth: 1,
+  borderColor: "#E3E7EF",
+  borderRadius: 10,
+  backgroundColor: "#FBFCFE",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+},
+
+editStatusButtonSelected: {
+  borderColor: "#CDB8F5",
+  backgroundColor: "#F1EAFF",
+},
+
+editStatusText: {
+  fontFamily: "PoppinsMedium",
+  fontSize: 10,
+  color: "#707B8F",
+},
+
+editStatusTextSelected: {
+  color: PURPLE,
+},
+
+editNote: {
+  width: "100%",
+  flexDirection: "row",
+  alignItems: "flex-start",
+  gap: 8,
+  backgroundColor: "#F3EEFD",
+  borderWidth: 1,
+  borderColor: "#E7DDFB",
+  borderRadius: 11,
+  padding: 11,
+},
+
+editNoteText: {
+  flex: 1,
+  fontFamily: "PoppinsRegular",
+  fontSize: 9,
+  lineHeight: 14,
+  color: "#6E6680",
+},
+
+editFooter: {
+  width: "100%",
+  flexDirection: "row",
+  gap: 9,
+  paddingTop: 12,
+  borderTopWidth: 1,
+  borderTopColor: "#EEF0F5",
+},
+
+editCancelButton: {
+  flex: 1,
+  height: 48,
+  borderRadius: 10,
+  borderWidth: 1,
+  borderColor: "#DDE1E9",
+  backgroundColor: "#FFFFFF",
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+editCancelText: {
+  fontFamily: "PoppinsSemiBold",
+  fontSize: 10.5,
+  color: "#6D7789",
+},
+
+editSaveButton: {
+  flex: 1.5,
+  height: 48,
+  borderRadius: 10,
+  backgroundColor: PURPLE,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+},
+
+editSaveText: {
+  fontFamily: "PoppinsSemiBold",
+  fontSize: 10.5,
+  color: "#FFFFFF",
+},
+
+  scroll: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    alignItems: "center",
+  },
+
+  content: {
+    maxWidth: 1500,
+    paddingTop: 22,
+  },
+
+  /* Header */
+
   header: {
-    backgroundColor: "#7040D5",
+    backgroundColor: PURPLE,
     paddingHorizontal: 16,
     paddingBottom: 15,
   },
@@ -622,13 +1300,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.16)",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
 
   headerTitleArea: {
     flex: 1,
     minWidth: 0,
-    marginLeft: 2,
-    justifyContent: "center",
   },
 
   headerTitle: {
@@ -639,203 +1316,202 @@ const styles = StyleSheet.create({
   },
 
   headerAction: {
-    minHeight: 40,
-    maxWidth: "55%",
+    height: 40,
+    minWidth: 72,
+    maxWidth: 180,
     paddingHorizontal: 12,
     borderRadius: 10,
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 5,
+    flexShrink: 0,
   },
 
   headerActionText: {
-    flexShrink: 1,
     fontFamily: "PoppinsSemiBold",
-    fontSize: 11,
-    color: "#7040D5",
-    marginLeft: 5,
+    fontSize: 10.5,
+    color: PURPLE,
   },
 
-  scroll: {
-    flex: 1,
-  },
+  /* Page Header */
 
-  scrollContent: {
-    alignItems: "center",
-  },
-
-  content: {
-    paddingTop: 22,
-  },
-
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  pageHeader: {
+    width: "100%",
     marginBottom: 18,
   },
 
-  sectionTitleArea: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  sectionTitle: {
+  pageTitle: {
     fontFamily: "PoppinsBold",
     fontSize: 22,
+    lineHeight: 30,
     color: "#172033",
   },
 
-  sectionSubtitle: {
-    marginTop: 3,
+  pageSubtitle: {
+    marginTop: 4,
     fontFamily: "PoppinsRegular",
     fontSize: 11,
     lineHeight: 17,
     color: "#858D9F",
   },
 
+  /* Statistics */
+
   statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 18,
-  },
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 12,
+  marginBottom: 18,
+},
 
-  statsGridDesktop: {
-    flexWrap: "nowrap",
-  },
+statsGridDesktop: {
+  flexWrap: "nowrap",
+},
 
-  statCardWrapper: {
-    width: "48%",
-  },
+statCardWrapper: {
+  width: "48%",
+},
 
-  statCardWrapperDesktop: {
-    flex: 1,
-    width: undefined,
-  },
+statCardWrapperDesktop: {
+  flex: 1,
+  width: undefined,
+},
 
-  statCard: {
-    height: 145,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#EEF0F5",
-    padding: 16,
-    justifyContent: "space-between",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
+statCard: {
+  height: 145,
+  backgroundColor: "#FFFFFF",
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: "#EEF0F5",
+  padding: 16,
+  justifyContent: "space-between",
+  shadowColor: "#000000",
+  shadowOffset: { width: 0, height: 3 },
+  shadowOpacity: 0.05,
+  shadowRadius: 8,
+  elevation: 3,
+},
 
-  statTopRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 5,
-  },
+statTopRow: {
+  flexDirection: "row",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 5,
+},
 
-  statIconBox: {
-    width: 46,
-    height: 46,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+statIconBox: {
+  width: 46,
+  height: 46,
+  borderRadius: 13,
+  alignItems: "center",
+  justifyContent: "center",
+},
 
-  changeBadge: {
-    minHeight: 26,
-    maxWidth: "55%",
-    borderRadius: 8,
-    paddingHorizontal: 7,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+changeBadge: {
+  minHeight: 26,
+  maxWidth: "55%",
+  borderRadius: 8,
+  paddingHorizontal: 7,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+},
 
-  changeText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 9,
-    marginLeft: 3,
-  },
+changeText: {
+  fontFamily: "PoppinsSemiBold",
+  fontSize: 9,
+  marginLeft: 3,
+},
 
-  statBottom: {
-    minWidth: 0,
-  },
+statBottom: {
+  minWidth: 0,
+},
 
-  statTitle: {
-    fontFamily: "PoppinsMedium",
-    fontSize: 11,
-    color: "#748096",
-    marginBottom: 2,
-  },
+statTitle: {
+  fontFamily: "PoppinsMedium",
+  fontSize: 11,
+  color: "#748096",
+  marginBottom: 2,
+},
 
-  statValue: {
-    fontFamily: "PoppinsBold",
-    fontSize: 23,
-    color: "#172033",
-  },
+statValue: {
+  fontFamily: "PoppinsBold",
+  fontSize: 23,
+  color: "#172033",
+},
 
-  statValueCompact: {
-    fontSize: 17,
-  },
+statValueCompact: {
+  fontSize: 17,
+},
+
+  /* Search / Filter */
 
   filterCard: {
+    width: "100%",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#EEF0F5",
-    padding: 14,
-    marginBottom: 22,
+    padding: 12,
+    marginBottom: 20,
+
     shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 7,
-    elevation: 2,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
 
   searchContainer: {
-    minHeight: 52,
+    width: "100%",
+    height: 48,
     borderWidth: 1,
     borderColor: "#E3E7EF",
-    borderRadius: 11,
+    borderRadius: 10,
+    backgroundColor: "#FBFCFE",
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FBFCFE",
+    gap: 8,
   },
 
   searchInput: {
     flex: 1,
     minWidth: 0,
+    height: 46,
     fontFamily: "PoppinsRegular",
-    fontSize: 10,
-    color: "#172033",
-    marginLeft: 8,
-    paddingVertical: 0,
+    fontSize: 10.5,
+    color: "#303544",
   },
 
   filterRow: {
+    width: "100%",
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 11,
+    marginTop: 10,
   },
 
   filterButton: {
     minWidth: 70,
-    height: 34,
-    paddingHorizontal: 12,
+    height: 38,
+    paddingHorizontal: 13,
     borderRadius: 9,
-    backgroundColor: "#F5F6FA",
+    borderWidth: 1,
+    borderColor: "#E3E7EF",
+    backgroundColor: "#FBFCFE",
     alignItems: "center",
     justifyContent: "center",
   },
 
   filterButtonActive: {
-    backgroundColor: "#7040D5",
+    borderColor: "#CDB8F5",
+    backgroundColor: "#F1EAFF",
   },
 
   filterText: {
@@ -845,15 +1521,18 @@ const styles = StyleSheet.create({
   },
 
   filterTextActive: {
-    color: "#FFFFFF",
+    color: PURPLE,
   },
 
+  /* List Header */
+
   listHeader: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 13,
     gap: 10,
+    marginBottom: 12,
   },
 
   listTitleArea: {
@@ -862,206 +1541,337 @@ const styles = StyleSheet.create({
   },
 
   listTitle: {
-    fontFamily: "PoppinsBold",
-    fontSize: 18,
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 16,
     color: "#172033",
   },
 
   listSubtitle: {
+    marginTop: 2,
     fontFamily: "PoppinsRegular",
-    fontSize: 10,
-    color: "#8993A4",
-    marginTop: 1,
+    fontSize: 9.5,
+    color: "#858D9F",
   },
 
-  sessionBadge: {
-    height: 34,
+  activeBadge: {
+    minHeight: 32,
     paddingHorizontal: 10,
-    borderRadius: 9,
-    backgroundColor: "#F1EAFF",
+    borderRadius: 8,
+    backgroundColor: "#E7F8EF",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 5,
+    flexShrink: 0,
   },
 
-  sessionBadgeText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
-    color: "#7040D5",
-    marginLeft: 5,
+  activeBadgeText: {
+    fontFamily: "PoppinsMedium",
+    fontSize: 9,
+    color: "#35B878",
   },
 
-  moduleGrid: {
+  /* Academic Year List */
+
+  yearList: {
+    width: "100%",
     gap: 12,
   },
 
-  moduleGridDesktop: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-
-  moduleCard: {
+  yearCard: {
     width: "100%",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#EEF0F5",
-    padding: 15,
+    padding: 13,
+
     shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.04,
+    shadowRadius: 7,
+    elevation: 2,
   },
 
-  moduleCardDesktop: {
-    width: "32.4%",
-  },
-
-  moduleTop: {
+  yearTop: {
+    width: "100%",
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 8,
+    alignItems: "center",
+    gap: 10,
   },
 
-  moduleIconBox: {
-    width: 46,
-    height: 46,
-    borderRadius: 13,
+  yearIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
 
-  moduleCountBadge: {
-    minWidth: 34,
-    height: 28,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: "#F5F6FA",
-    alignItems: "center",
-    justifyContent: "center",
+  yearIconBoxActive: {
+    backgroundColor: "#F1EAFF",
   },
 
-  moduleCountBadgeText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
-    color: "#6D778A",
+  yearIconBoxInactive: {
+    backgroundColor: "#F1F3F6",
   },
 
-  moduleInfo: {
-    marginTop: 13,
+  yearTitleArea: {
+    flex: 1,
     minWidth: 0,
   },
 
-  moduleName: {
+  yearName: {
     fontFamily: "PoppinsSemiBold",
-    fontSize: 13,
+    fontSize: 15,
     color: "#172033",
   },
 
-  moduleDescription: {
-    marginTop: 4,
+  yearSubtitle: {
+    marginTop: 2,
     fontFamily: "PoppinsRegular",
-    fontSize: 9.5,
-    lineHeight: 14,
-    color: "#8A94A6",
+    fontSize: 9,
+    color: "#858D9F",
   },
 
-  moduleBottom: {
-    marginTop: 14,
-    paddingTop: 11,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F1F5",
+  statusBadge: {
+    minHeight: 28,
+    paddingHorizontal: 9,
+    borderRadius: 8,
     flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 8,
+    alignItems: "center",
+    gap: 5,
+    flexShrink: 0,
   },
 
-  moduleCount: {
-    fontFamily: "PoppinsBold",
-    fontSize: 18,
-    color: "#172033",
+  statusBadgeActive: {
+    backgroundColor: "#E7F8EF",
   },
 
-  moduleCountLabel: {
+  statusBadgeInactive: {
+    backgroundColor: "#F1F3F6",
+  },
+
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
+  statusDotActive: {
+    backgroundColor: "#35B878",
+  },
+
+  statusDotInactive: {
+    backgroundColor: "#8A94A6",
+  },
+
+  statusText: {
+    fontFamily: "PoppinsMedium",
+    fontSize: 9,
+  },
+
+  statusTextActive: {
+    color: "#35B878",
+  },
+
+  statusTextInactive: {
+    color: "#707B8F",
+  },
+
+  /* Dates */
+
+  dateSection: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#F0F1F5",
+  },
+
+  dateItem: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  dateLabel: {
     fontFamily: "PoppinsRegular",
     fontSize: 8.5,
-    color: "#98A1B2",
-    marginTop: 1,
+    color: "#858D9F",
+    marginBottom: 4,
   },
 
-  manageButton: {
-    height: 36,
-    minWidth: 82,
-    paddingHorizontal: 10,
+  dateValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+
+  dateValue: {
+    fontFamily: "PoppinsMedium",
+    fontSize: 10,
+    color: "#303544",
+  },
+
+  dateDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: "#E9EBF0",
+    marginHorizontal: 14,
+  },
+
+  /* Actions */
+
+  yearActions: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 12,
+  },
+
+  viewButton: {
+    minWidth: 80,
+    height: 38,
+    paddingHorizontal: 11,
     borderRadius: 9,
-    backgroundColor: "#F1EAFF",
+    borderWidth: 1,
+    borderColor: "#DCCDF8",
+    backgroundColor: "#F8F5FF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 5,
   },
 
-  manageButtonText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
-    color: "#7040D5",
-    marginRight: 4,
+  viewButtonText: {
+    fontFamily: "PoppinsMedium",
+    fontSize: 9.5,
+    color: PURPLE,
   },
+
+  editButton: {
+  minWidth: 80,
+  height: 38,
+  paddingHorizontal: 11,
+  borderRadius: 9,
+  borderWidth: 1,
+  borderColor: "#CFE0FA",
+  backgroundColor: "#F2F7FF",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 5,
+},
+
+editButtonText: {
+  fontFamily: "PoppinsMedium",
+  fontSize: 9.5,
+  color: "#2675E8",
+},
+
+  statusActionButton: {
+    minWidth: 105,
+    height: 38,
+    paddingHorizontal: 11,
+    borderRadius: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+  },
+
+  deactivateButton: {
+    backgroundColor: "#FFF0F2",
+    borderWidth: 1,
+    borderColor: "#F7CDD5",
+  },
+
+  activateButton: {
+    backgroundColor: "#EAF9F1",
+    borderWidth: 1,
+    borderColor: "#C9ECD9",
+  },
+
+  statusActionText: {
+    fontFamily: "PoppinsMedium",
+    fontSize: 9.5,
+  },
+
+  deactivateText: {
+    color: "#E95368",
+  },
+
+  activateText: {
+    color: "#35B878",
+  },
+
+  /* Empty */
 
   emptyCard: {
-    minHeight: 260,
+    width: "100%",
+    minHeight: 230,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#EEF0F5",
     alignItems: "center",
     justifyContent: "center",
-    padding: 30,
+    padding: 25,
   },
 
   emptyIcon: {
-    width: 70,
-    height: 70,
-    borderRadius: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 18,
     backgroundColor: "#F1EAFF",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 15,
+    marginBottom: 12,
   },
 
   emptyTitle: {
     fontFamily: "PoppinsSemiBold",
-    fontSize: 15,
+    fontSize: 14,
     color: "#172033",
   },
 
   emptySubtitle: {
+    marginTop: 4,
     fontFamily: "PoppinsRegular",
-    fontSize: 10.5,
-    color: "#8A94A6",
-    marginTop: 5,
+    fontSize: 9.5,
+    color: "#858D9F",
   },
 
+  /* Information */
+
   infoBox: {
-    marginTop: 14,
+    width: "100%",
     flexDirection: "row",
     backgroundColor: "#F3EEFD",
     borderWidth: 1,
     borderColor: "#E7DDFB",
     borderRadius: 12,
     padding: 12,
+    marginTop: 16,
   },
 
   infoIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
+    width: 31,
+    height: 31,
+    borderRadius: 9,
     backgroundColor: "#E7DDFB",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 9,
+    flexShrink: 0,
   },
 
   infoContent: {

@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react';
-
 import {
   Alert,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -13,1229 +11,393 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
-
-import Svg, { Circle } from 'react-native-svg';
-
 type ExaminationStatus =
-  | 'Upcoming'
-  | 'Ongoing'
-  | 'Completed'
-  | 'Results Published';
+  | 'scheduled'
+  | 'completed'
+  | 'cancelled'
+  | 'results_published';
 
 type Examination = {
-  id: number;
+  id: string;
   name: string;
   code: string;
-  course: string;
+  subject: string;
   batch: string;
   branch: string;
   date: string;
   time: string;
-  duration: string;
+  durationMinutes: number;
+  totalMarks: number;
+  passingMarks: number;
   students: number;
   status: ExaminationStatus;
 };
 
-type ResultStudent = {
-  id: number;
-  studentName: string;
-  studentId: string;
-  theory: number;
-  practical: number;
-  total: number;
-  percentage: number;
-  result: 'Pass' | 'Fail';
-};
-
-const examinations: Examination[] = [
-  { id: 1, name: 'JEE Full Syllabus Mock Test - 01', code: 'VLCC-EXM-001', course: 'JEE Main & Advanced Preparation', batch: '12th JEE - Morning', branch: 'Pune Branch', date: '15 Sep 2026', time: '09:00 AM', duration: '3 Hours', students: 72, status: 'Upcoming' },
-  { id: 2, name: 'NEET Full Syllabus Mock Test - 01', code: 'VLCC-EXM-002', course: 'NEET Preparation', batch: '12th NEET - Morning', branch: 'Mumbai Branch', date: '18 Sep 2026', time: '09:00 AM', duration: '3 Hours 20 Min', students: 68, status: 'Upcoming' },
-  { id: 3, name: 'MHT-CET PCM Mock Test - 02', code: 'VLCC-EXM-003', course: 'MHT-CET PCM Preparation', batch: '11th MHT-CET - Evening', branch: 'Pune Branch', date: '20 Sep 2026', time: '02:00 PM', duration: '3 Hours', students: 64, status: 'Upcoming' },
-  { id: 4, name: 'Class 10 Science Unit Test', code: 'VLCC-EXM-004', course: 'Foundation - Classes 8 to 10', batch: '10th Foundation - Afternoon', branch: 'Nashik Branch', date: '12 Sep 2026', time: '03:00 PM', duration: '2 Hours', students: 58, status: 'Ongoing' },
-  { id: 5, name: 'Class 9 Mathematics Unit Test', code: 'VLCC-EXM-005', course: 'Foundation - Classes 8 to 10', batch: '9th Foundation - Evening', branch: 'Nagpur Branch', date: '05 Sep 2026', time: '06:00 PM', duration: '90 Minutes', students: 52, status: 'Completed' },
-  { id: 6, name: 'Class 8 Foundation Assessment', code: 'VLCC-EXM-006', course: 'Foundation - Classes 8 to 10', batch: '8th Foundation - Evening', branch: 'Main Branch', date: '02 Sep 2026', time: '05:30 PM', duration: '90 Minutes', students: 48, status: 'Results Published' },
+/*
+ * UI-only mock data for the current frontend/backend review phase.
+ * Keep this page disconnected from the API until final integration.
+ * Replace these examples with actual API data during integration.
+ */
+const initialExaminations: Examination[] = [
+  {
+    id: 'mock-exam-1',
+    name: 'JEE Full Syllabus Mock Test - 01',
+    code: 'VLCC-EXM-001',
+    subject: 'Physics',
+    batch: '12th JEE - Morning',
+    branch: 'Pune Branch',
+    date: '20 Oct 2026',
+    time: '09:00 AM',
+    durationMinutes: 180,
+    totalMarks: 300,
+    passingMarks: 105,
+    students: 72,
+    status: 'scheduled',
+  },
+  {
+    id: 'mock-exam-2',
+    name: 'NEET Full Syllabus Mock Test - 01',
+    code: 'VLCC-EXM-002',
+    subject: 'Biology',
+    batch: '12th NEET - Morning',
+    branch: 'Mumbai Branch',
+    date: '24 Oct 2026',
+    time: '09:00 AM',
+    durationMinutes: 200,
+    totalMarks: 720,
+    passingMarks: 250,
+    students: 68,
+    status: 'scheduled',
+  },
+  {
+    id: 'mock-exam-3',
+    name: 'MHT-CET PCM Mock Test - 02',
+    code: 'VLCC-EXM-003',
+    subject: 'Mathematics',
+    batch: '11th MHT-CET - Evening',
+    branch: 'Pune Branch',
+    date: '28 Oct 2026',
+    time: '02:00 PM',
+    durationMinutes: 180,
+    totalMarks: 100,
+    passingMarks: 35,
+    students: 64,
+    status: 'scheduled',
+  },
+  {
+    id: 'mock-exam-4',
+    name: 'Class 10 Science Unit Test',
+    code: 'VLCC-EXM-004',
+    subject: 'Chemistry',
+    batch: '10th Foundation - Afternoon',
+    branch: 'Nashik Branch',
+    date: '12 Sep 2026',
+    time: '03:00 PM',
+    durationMinutes: 120,
+    totalMarks: 100,
+    passingMarks: 35,
+    students: 58,
+    status: 'completed',
+  },
+  {
+    id: 'mock-exam-5',
+    name: 'Class 9 Mathematics Unit Test',
+    code: 'VLCC-EXM-005',
+    subject: 'Mathematics',
+    batch: '9th Foundation - Evening',
+    branch: 'Nagpur Branch',
+    date: '05 Sep 2026',
+    time: '06:00 PM',
+    durationMinutes: 90,
+    totalMarks: 100,
+    passingMarks: 35,
+    students: 52,
+    status: 'completed',
+  },
+  {
+    id: 'mock-exam-6',
+    name: 'Class 8 Foundation Assessment',
+    code: 'VLCC-EXM-006',
+    subject: 'Mathematics',
+    batch: '8th Foundation - Evening',
+    branch: 'Main Branch',
+    date: '02 Sep 2026',
+    time: '05:30 PM',
+    durationMinutes: 90,
+    totalMarks: 100,
+    passingMarks: 35,
+    students: 48,
+    status: 'results_published',
+  },
 ];
 
-const publishedResults: Record<string, ResultStudent[]> = {
-  'VLCC-EXM-005': [
-    {
-      id: 1,
-      studentName: 'Kavya Mehta',
-      studentId: 'VLCC-STU-001',
-      theory: 82,
-      practical: 88,
-      total: 170,
-      percentage: 85,
-      result: 'Pass',
-    },
-    {
-      id: 2,
-      studentName: 'Pooja Verma',
-      studentId: 'VLCC-STU-002',
-      theory: 76,
-      practical: 84,
-      total: 160,
-      percentage: 80,
-      result: 'Pass',
-    },
-    {
-      id: 3,
-      studentName: 'Sneha Deshmukh',
-      studentId: 'VLCC-STU-003',
-      theory: 71,
-      practical: 79,
-      total: 150,
-      percentage: 75,
-      result: 'Pass',
-    },
-    {
-      id: 4,
-      studentName: 'Riya Kulkarni',
-      studentId: 'VLCC-STU-004',
-      theory: 42,
-      practical: 38,
-      total: 80,
-      percentage: 40,
-      result: 'Fail',
-    },
-    {
-      id: 5,
-      studentName: 'Ananya Patil',
-      studentId: 'VLCC-STU-005',
-      theory: 68,
-      practical: 73,
-      total: 141,
-      percentage: 70.5,
-      result: 'Pass',
-    },
-  ],
-
-  'VLCC-EXM-006': [
-    {
-      id: 1,
-      studentName: 'Aarav Sharma',
-      studentId: 'VLCC-STU-006',
-      theory: 88,
-      practical: 91,
-      total: 179,
-      percentage: 89.5,
-      result: 'Pass',
-    },
-    {
-      id: 2,
-      studentName: 'Neha Joshi',
-      studentId: 'VLCC-STU-007',
-      theory: 79,
-      practical: 86,
-      total: 165,
-      percentage: 82.5,
-      result: 'Pass',
-    },
-    {
-      id: 3,
-      studentName: 'Ishita Shah',
-      studentId: 'VLCC-STU-008',
-      theory: 62,
-      practical: 69,
-      total: 131,
-      percentage: 65.5,
-      result: 'Pass',
-    },
-  ],
-};
-
-const statusColors: Record<
+const statusMeta: Record<
   ExaminationStatus,
   {
-    bg: string;
-    text: string;
+    label: string;
+    backgroundColor: string;
+    color: string;
     icon: keyof typeof MaterialCommunityIcons.glyphMap;
   }
 > = {
-  Upcoming: {
-    bg: '#FFF1E2',
-    text: '#F7941D',
+  scheduled: {
+    label: 'Scheduled',
+    backgroundColor: '#FFF1E2',
+    color: '#D97706',
     icon: 'clock-outline',
   },
-
-  Ongoing: {
-    bg: '#EAF2FF',
-    text: '#2675E8',
-    icon: 'progress-clock',
-  },
-
-  Completed: {
-    bg: '#E7F8EF',
-    text: '#35B878',
+  completed: {
+    label: 'Completed',
+    backgroundColor: '#E7F8EF',
+    color: '#25865B',
     icon: 'check-circle-outline',
   },
-
-  'Results Published': {
-    bg: '#F1EAFF',
-    text: '#7040D5',
+  cancelled: {
+    label: 'Cancelled',
+    backgroundColor: '#FFE9F0',
+    color: '#D93665',
+    icon: 'close-circle-outline',
+  },
+  results_published: {
+    label: 'Results Published',
+    backgroundColor: '#F1EAFF',
+    color: '#7040D5',
     icon: 'file-certificate-outline',
   },
 };
 
+const formatDuration = (minutes: number) => {
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours > 0 && remainingMinutes > 0) {
+    return `${hours} hr ${remainingMinutes} min`;
+  }
+  if (hours > 0) {
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+  return `${minutes} minutes`;
+};
+
 export default function ExaminationsPage() {
   const insets = useSafeAreaInsets();
-
   const { width } = useWindowDimensions();
-
   const isDesktop = width >= 900;
 
+  const [examinations, setExaminations] =
+    useState<Examination[]>(initialExaminations);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'All' | ExaminationStatus>('All');
+  const [selectedExam, setSelectedExam] = useState<Examination | null>(null);
+  const [showActions, setShowActions] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
-  const [filter, setFilter] =
-    useState<'All' | ExaminationStatus>('All');
-
-  const [selectedExam, setSelectedExam] =
-    useState<Examination | null>(null);
-
-  const [showActions, setShowActions] =
-    useState(false);
-
-  const [showViewModal, setShowViewModal] =
-    useState(false);
-
-  const [showEditModal, setShowEditModal] =
-    useState(false);
-
-  const [showResultsModal, setShowResultsModal] =
-    useState(false);
-
-  /* =====================================================
-     FILTER
-     ===================================================== */
+  const [editName, setEditName] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editDuration, setEditDuration] = useState('');
+  const [editTotalMarks, setEditTotalMarks] = useState('');
+  const [editPassingMarks, setEditPassingMarks] = useState('');
 
   const filteredExaminations = useMemo(() => {
-    const value = search.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
 
     return examinations.filter((exam) => {
       const matchesSearch =
-        !value ||
-        exam.name.toLowerCase().includes(value) ||
-        exam.code.toLowerCase().includes(value) ||
-        exam.course.toLowerCase().includes(value) ||
-        exam.batch.toLowerCase().includes(value) ||
-        exam.branch.toLowerCase().includes(value);
+        !query ||
+        exam.name.toLowerCase().includes(query) ||
+        exam.code.toLowerCase().includes(query) ||
+        exam.subject.toLowerCase().includes(query) ||
+        exam.batch.toLowerCase().includes(query) ||
+        exam.branch.toLowerCase().includes(query);
 
-      const matchesFilter =
-        filter === 'All' ||
-        exam.status === filter;
-
+      const matchesFilter = filter === 'All' || exam.status === filter;
       return matchesSearch && matchesFilter;
     });
-  }, [search, filter]);
-
-  /* =====================================================
-     SUMMARY
-     ===================================================== */
+  }, [examinations, search, filter]);
 
   const totalExams = examinations.length;
-
-  const upcoming = examinations.filter(
-    (item) => item.status === 'Upcoming'
+  const scheduledCount = examinations.filter(
+    (exam) => exam.status === 'scheduled',
+  ).length;
+  const completedCount = examinations.filter(
+    (exam) => exam.status === 'completed',
+  ).length;
+  const cancelledCount = examinations.filter(
+    (exam) => exam.status === 'cancelled',
+  ).length;
+  const publishedCount = examinations.filter(
+    (exam) => exam.status === 'results_published',
   ).length;
 
-  const ongoing = examinations.filter(
-    (item) => item.status === 'Ongoing'
-  ).length;
-
-  const completed = examinations.filter(
-    (item) => item.status === 'Completed'
-  ).length;
-
-  const published = examinations.filter(
-    (item) => item.status === 'Results Published'
-  ).length;
-
-  /* =====================================================
-     TOP 3
-     ===================================================== */
-
-  const topThreeStudents = useMemo(() => {
-    const allResults =
-      Object.values(publishedResults).flat();
-
-    return [...allResults]
-      .sort(
-        (a, b) =>
-          b.percentage - a.percentage
-      )
-      .slice(0, 3);
-  }, []);
-
-  /* =====================================================
-     ACTIONS
-     ===================================================== */
-
-  const openActions = (
-    exam: Examination
-  ) => {
+  const openActions = (exam: Examination) => {
     setSelectedExam(exam);
     setShowActions(true);
   };
 
-  const openView = (
-    exam: Examination
-  ) => {
+  const openView = (exam: Examination) => {
     setSelectedExam(exam);
     setShowActions(false);
     setShowViewModal(true);
   };
 
-  const openEdit = (
-    exam: Examination
-  ) => {
+  const openEdit = (exam: Examination) => {
     setSelectedExam(exam);
+    setEditName(exam.name);
+    setEditDate(exam.date);
+    setEditTime(exam.time);
+    setEditDuration(String(exam.durationMinutes));
+    setEditTotalMarks(String(exam.totalMarks));
+    setEditPassingMarks(String(exam.passingMarks));
     setShowActions(false);
     setShowEditModal(true);
   };
 
-  const openPublishedResults = (
-    exam: Examination
-  ) => {
-    setSelectedExam(exam);
-    setShowActions(false);
-    setShowViewModal(false);
-    setShowResultsModal(true);
+  const saveEdit = () => {
+    if (!selectedExam) return;
+
+    const durationMinutes = Number(editDuration);
+    const totalMarks = Number(editTotalMarks);
+    const passingMarks = Number(editPassingMarks);
+
+    if (
+      !editName.trim() ||
+      !editDate.trim() ||
+      !editTime.trim() ||
+      !Number.isFinite(durationMinutes) ||
+      durationMinutes <= 0 ||
+      !Number.isFinite(totalMarks) ||
+      totalMarks <= 0 ||
+      !Number.isFinite(passingMarks) ||
+      passingMarks < 0 ||
+      passingMarks > totalMarks
+    ) {
+      Alert.alert(
+        'Invalid details',
+        'Enter a name, date, time, valid duration, total marks and passing marks. Passing marks cannot exceed total marks.',
+      );
+      return;
+    }
+
+    setExaminations((current) =>
+      current.map((exam) =>
+        exam.id === selectedExam.id
+          ? {
+              ...exam,
+              name: editName.trim(),
+              date: editDate.trim(),
+              time: editTime.trim(),
+              durationMinutes,
+              totalMarks,
+              passingMarks,
+            }
+          : exam,
+      ),
+    );
+
+    setSelectedExam((current) =>
+      current
+        ? {
+            ...current,
+            name: editName.trim(),
+            date: editDate.trim(),
+            time: editTime.trim(),
+            durationMinutes,
+            totalMarks,
+            passingMarks,
+          }
+        : current,
+    );
+
+    setShowEditModal(false);
+    Alert.alert(
+      'Updated locally',
+      'The mock examination has been updated on this screen. API integration is intentionally not enabled yet.',
+    );
   };
 
-  /* =====================================================
-     DELETE
-     ===================================================== */
-
-  const deleteExam = (
-    exam: Examination
-  ) => {
+  const cancelExam = (exam: Examination) => {
     setShowActions(false);
 
+    if (exam.status === 'cancelled') {
+      Alert.alert('Already cancelled', 'This examination is already cancelled.');
+      return;
+    }
+
     Alert.alert(
-      'Delete Examination',
-      `Are you sure you want to delete "${exam.name}"?`,
+      'Cancel Examination',
+      `Are you sure you want to cancel "${exam.name}"?`,
       [
+        { text: 'Keep Examination', style: 'cancel' },
         {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
+          text: 'Cancel Examination',
           style: 'destructive',
           onPress: () => {
+            setExaminations((current) =>
+              current.map((item) =>
+                item.id === exam.id
+                  ? { ...item, status: 'cancelled' }
+                  : item,
+              ),
+            );
+            if (selectedExam?.id === exam.id) {
+              setSelectedExam({ ...exam, status: 'cancelled' });
+            }
             Alert.alert(
-              'Deleted',
-              'The examination has been deleted.'
+              'Cancelled locally',
+              'The mock examination is now marked as cancelled on this screen. No API request was made.',
             );
           },
         },
-      ]
+      ],
     );
   };
-
-  /* =====================================================
-     PUBLISH
-     ===================================================== */
-
-  const publishResults = (
-    exam: Examination
-  ) => {
-    setShowActions(false);
-
-    Alert.alert(
-      'Publish Results',
-      `Publish results for ${exam.name}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Publish',
-          onPress: () => {
-            Alert.alert(
-              'Results Published',
-              'The examination results have been published successfully.'
-            );
-          },
-        },
-      ]
-    );
-  };
-
-  /* =====================================================
-     RESULTS
-     ===================================================== */
-
-  const getResults = (
-    exam: Examination | null
-  ) => {
-    if (!exam) {
-      return [];
-    }
-
-    return publishedResults[exam.code] ?? [];
-  };
-
-  const results =
-    getResults(selectedExam);
-
-  const passedResults =
-    results.filter(
-      (item) => item.result === 'Pass'
-    ).length;
-
-  const failedResults =
-    results.filter(
-      (item) => item.result === 'Fail'
-    ).length;
-
-  const passPercentage =
-    results.length > 0
-      ? (
-          (passedResults /
-            results.length) *
-          100
-        ).toFixed(1)
-      : '0';
-
-  /* =====================================================
-     PDF HTML
-     ===================================================== */
-
-  const createResultHtml = (
-    exam: Examination
-  ) => {
-    const examResults =
-      getResults(exam);
-
-    const passed =
-      examResults.filter(
-        (student) =>
-          student.result === 'Pass'
-      ).length;
-
-    const failed =
-      examResults.filter(
-        (student) =>
-          student.result === 'Fail'
-      ).length;
-
-    const passRate =
-      examResults.length > 0
-        ? (
-            (passed /
-              examResults.length) *
-            100
-          ).toFixed(1)
-        : '0';
-
-    const rows = examResults
-      .map(
-        (student, index) => `
-          <tr>
-            <td>${index + 1}</td>
-
-            <td>
-              <strong>
-                ${student.studentName}
-              </strong>
-
-              <br/>
-
-              <span class="student-id">
-                ${student.studentId}
-              </span>
-            </td>
-
-            <td>
-              ${student.theory}
-            </td>
-
-            <td>
-              ${student.practical}
-            </td>
-
-            <td>
-              ${student.total}
-            </td>
-
-            <td>
-              ${student.percentage}%
-            </td>
-
-            <td>
-              <span class="${
-                student.result === 'Pass'
-                  ? 'pass'
-                  : 'fail'
-              }">
-                ${student.result}
-              </span>
-            </td>
-          </tr>
-        `
-      )
-      .join('');
-
-    return `
-      <!DOCTYPE html>
-
-      <html>
-        <head>
-          <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1.0"
-          />
-
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              padding: 30px;
-              color: #172033;
-            }
-
-            .header {
-              background: #7040D5;
-              color: white;
-              padding: 24px;
-              border-radius: 12px;
-              margin-bottom: 25px;
-            }
-
-            .brand {
-              font-size: 13px;
-              opacity: 0.85;
-              margin-bottom: 6px;
-            }
-
-            h1 {
-              margin: 0;
-              font-size: 25px;
-            }
-
-            h2 {
-              font-size: 18px;
-              margin-top: 25px;
-            }
-
-            .details {
-              border: 1px solid #e6e8ef;
-              border-radius: 10px;
-              padding: 18px;
-              margin-bottom: 20px;
-            }
-
-            .detail {
-              margin-bottom: 8px;
-            }
-
-            .label {
-              color: #748096;
-              font-size: 11px;
-            }
-
-            .value {
-              font-size: 13px;
-              font-weight: bold;
-            }
-
-            .summary {
-              display: flex;
-              gap: 10px;
-              margin-bottom: 20px;
-            }
-
-            .summary-card {
-              flex: 1;
-              background: #f7f8fc;
-              border-radius: 10px;
-              padding: 15px;
-              text-align: center;
-            }
-
-            .summary-value {
-              font-size: 20px;
-              font-weight: bold;
-            }
-
-            .summary-label {
-              color: #748096;
-              font-size: 10px;
-              margin-top: 4px;
-            }
-
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 15px;
-              font-size: 10px;
-            }
-
-            th {
-              background: #f1eaff;
-              color: #7040D5;
-              padding: 10px;
-              text-align: left;
-            }
-
-            td {
-              border-bottom: 1px solid #eeeeee;
-              padding: 10px;
-            }
-
-            .student-id {
-              color: #748096;
-              font-size: 8px;
-            }
-
-            .pass {
-              color: #35B878;
-              font-weight: bold;
-            }
-
-            .fail {
-              color: #E95386;
-              font-weight: bold;
-            }
-
-            .footer {
-              margin-top: 30px;
-              text-align: center;
-              color: #9aa3b2;
-              font-size: 9px;
-            }
-          </style>
-        </head>
-
-        <body>
-
-          <div class="header">
-            <div class="brand">
-              VLCC ERP PORTAL
-            </div>
-
-            <h1>
-              Published Examination Result
-            </h1>
-          </div>
-
-          <div class="details">
-
-            <div class="detail">
-              <span class="label">
-                Examination
-              </span>
-
-              <br/>
-
-              <span class="value">
-                ${exam.name}
-              </span>
-            </div>
-
-            <div class="detail">
-              <span class="label">
-                Examination Code
-              </span>
-
-              <br/>
-
-              <span class="value">
-                ${exam.code}
-              </span>
-            </div>
-
-            <div class="detail">
-              <span class="label">
-                Course
-              </span>
-
-              <br/>
-
-              <span class="value">
-                ${exam.course}
-              </span>
-            </div>
-
-            <div class="detail">
-              <span class="label">
-                Batch
-              </span>
-
-              <br/>
-
-              <span class="value">
-                ${exam.batch}
-              </span>
-            </div>
-
-            <div class="detail">
-              <span class="label">
-                Branch
-              </span>
-
-              <br/>
-
-              <span class="value">
-                ${exam.branch}
-              </span>
-            </div>
-
-            <div class="detail">
-              <span class="label">
-                Examination Date
-              </span>
-
-              <br/>
-
-              <span class="value">
-                ${exam.date}
-              </span>
-            </div>
-
-          </div>
-
-          <div class="summary">
-
-            <div class="summary-card">
-              <div class="summary-value">
-                ${examResults.length}
-              </div>
-
-              <div class="summary-label">
-                Students
-              </div>
-            </div>
-
-            <div class="summary-card">
-              <div class="summary-value">
-                ${passed}
-              </div>
-
-              <div class="summary-label">
-                Passed
-              </div>
-            </div>
-
-            <div class="summary-card">
-              <div class="summary-value">
-                ${failed}
-              </div>
-
-              <div class="summary-label">
-                Failed
-              </div>
-            </div>
-
-            <div class="summary-card">
-              <div class="summary-value">
-                ${passRate}%
-              </div>
-
-              <div class="summary-label">
-                Pass Percentage
-              </div>
-            </div>
-
-          </div>
-
-          <h2>
-            Student-wise Result
-          </h2>
-
-          <table>
-
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Student</th>
-                <th>Theory</th>
-                <th>Practical</th>
-                <th>Total</th>
-                <th>%</th>
-                <th>Result</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${rows}
-            </tbody>
-
-          </table>
-
-          <div class="footer">
-            Generated by VLCC ERP Portal
-          </div>
-
-        </body>
-      </html>
-    `;
-  };
-
-  /* =====================================================
-     GENERATE PDF
-     ===================================================== */
-
-  const generateResultPDF = async (
-    exam: Examination
-  ): Promise<string | null> => {
-    try {
-      const examResults =
-        getResults(exam);
-
-      if (examResults.length === 0) {
-        Alert.alert(
-          'No Results',
-          'No published results are available for this examination.'
-        );
-
-        return null;
-      }
-
-      const { uri } =
-        await Print.printToFileAsync({
-          html: createResultHtml(exam),
-        });
-
-      return uri;
-    } catch (error) {
-      console.error(
-        'PDF generation error:',
-        error
-      );
-
-      Alert.alert(
-        'PDF Error',
-        'Unable to generate the result PDF.'
-      );
-
-      return null;
-    }
-  };
-
-  /* =====================================================
-     DOWNLOAD PDF
-     ===================================================== */
-
-  const downloadResultPDF = async (
-    exam: Examination
-  ) => {
-    const uri =
-      await generateResultPDF(exam);
-
-    if (!uri) {
-      return;
-    }
-
-    try {
-      const available =
-        await Sharing.isAvailableAsync();
-
-      if (!available) {
-        Alert.alert(
-          'PDF Generated',
-          'The result PDF was generated successfully.'
-        );
-
-        return;
-      }
-
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle:
-          `${exam.name} - Result PDF`,
-        UTI: 'com.adobe.pdf',
-      });
-    } catch (error) {
-      console.error(
-        'PDF sharing error:',
-        error
-      );
-
-      Alert.alert(
-        'Share Error',
-        'Unable to share the result PDF.'
-      );
-    }
-  };
-
-  /* =====================================================
-     DIRECT WHATSAPP
-     ===================================================== */
-
-  const shareResultOnWhatsApp = async (
-    exam: Examination
-  ) => {
-    const examResults =
-      getResults(exam);
-
-    if (examResults.length === 0) {
-      Alert.alert(
-        'No Results',
-        'No published results are available for this examination.'
-      );
-
-      return;
-    }
-
-    const passed =
-      examResults.filter(
-        (item) =>
-          item.result === 'Pass'
-      ).length;
-
-    const failed =
-      examResults.filter(
-        (item) =>
-          item.result === 'Fail'
-      ).length;
-
-    const passRate =
-      (
-        (passed /
-          examResults.length) *
-        100
-      ).toFixed(1);
-
-    const topStudent =
-      [...examResults].sort(
-        (a, b) =>
-          b.percentage - a.percentage
-      )[0];
-
-    const message =
-      `*VLCC ERP Portal*\n\n` +
-      `*Published Examination Result*\n\n` +
-      `*Examination:* ${exam.name}\n` +
-      `*Code:* ${exam.code}\n` +
-      `*Course:* ${exam.course}\n` +
-      `*Batch:* ${exam.batch}\n` +
-      `*Branch:* ${exam.branch}\n` +
-      `*Date:* ${exam.date}\n\n` +
-      `*Result Summary*\n` +
-      `Students: ${examResults.length}\n` +
-      `Passed: ${passed}\n` +
-      `Failed: ${failed}\n` +
-      `Pass Rate: ${passRate}%\n\n` +
-      `*Top Performer*\n` +
-      `${topStudent.studentName} - ${topStudent.percentage}%\n\n` +
-      `The detailed result PDF is available from the VLCC ERP Portal.`;
-
-    try {
-      const whatsappUrl =
-        `whatsapp://send?text=${encodeURIComponent(
-          message
-        )}`;
-
-      const supported =
-        await Linking.canOpenURL(
-          whatsappUrl
-        );
-
-      if (supported) {
-        await Linking.openURL(
-          whatsappUrl
-        );
-
-        return;
-      }
-
-      /*
-       * Fallback for devices where
-       * the whatsapp:// scheme is unavailable.
-       */
-      const webUrl =
-        `https://wa.me/?text=${encodeURIComponent(
-          message
-        )}`;
-
-      await Linking.openURL(
-        webUrl
-      );
-    } catch (error) {
-      console.error(
-        'WhatsApp error:',
-        error
-      );
-
-      Alert.alert(
-        'WhatsApp Error',
-        'WhatsApp could not be opened on this device.'
-      );
-    }
-  };
-
-  /* =====================================================
-     SUMMARY CARD
-     ===================================================== */
 
   const renderSummaryCard = (
     title: string,
     value: number,
     icon: keyof typeof MaterialCommunityIcons.glyphMap,
-    type:
-      | 'purple'
-      | 'blue'
-      | 'green'
-      | 'orange'
+    color: 'purple' | 'blue' | 'green' | 'orange' | 'pink',
   ) => {
-    const backgrounds = {
-      purple: '#F1EAFF',
-      blue: '#EAF2FF',
-      green: '#E7F8EF',
-      orange: '#FFF1E2',
-    };
-
-    const icons = {
-      purple: '#7040D5',
-      blue: '#2675E8',
-      green: '#35B878',
-      orange: '#F7941D',
-    };
+    const palette = {
+      purple: { bg: '#F1EAFF', fg: '#7040D5' },
+      blue: { bg: '#EAF2FF', fg: '#2675E8' },
+      green: { bg: '#E7F8EF', fg: '#25865B' },
+      orange: { bg: '#FFF1E2', fg: '#D97706' },
+      pink: { bg: '#FFE9F0', fg: '#D93665' },
+    }[color];
 
     return (
       <View
+        key={title}
         style={[
           styles.summaryCard,
-          {
-            width: isDesktop
-              ? '18.8%'
-              : '48%',
-          },
+          { width: isDesktop ? '18.8%' : '48%' },
         ]}
       >
-        <View
-          style={[
-            styles.summaryIcon,
-            {
-              backgroundColor:
-                backgrounds[type],
-            },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name={icon}
-            size={21}
-            color={icons[type]}
-          />
+        <View style={[styles.summaryIcon, { backgroundColor: palette.bg }]}>
+          <MaterialCommunityIcons name={icon} size={21} color={palette.fg} />
         </View>
-
-        <Text style={styles.summaryValue}>
-          {value}
-        </Text>
-
-        <Text style={styles.summaryLabel}>
-          {title}
-        </Text>
+        <Text style={styles.summaryValue}>{value}</Text>
+        <Text style={styles.summaryLabel}>{title}</Text>
       </View>
     );
   };
 
-  /* =====================================================
-     TOP 3 ATTRACTIVE SVG CARD
-     ===================================================== */
-
-  const renderTopThreeCard = () => {
-    const size = isDesktop ? 100 : 94;
-
-    const center = 50;
-    const outerRadius = 38;
-    const innerRadius = 29;
-
-    const outerCircumference =
-      2 *
-      Math.PI *
-      outerRadius;
-
-    const innerCircumference =
-      2 *
-      Math.PI *
-      innerRadius;
-
-    return (
-      <View
-        style={[
-          styles.topThreeCard,
-          {
-            width: isDesktop
-              ? '18.8%'
-              : '48%',
-          },
-        ]}
-      >
-        <View
-          style={styles.topThreeTitleRow}
-        >
-          <MaterialCommunityIcons
-            name="trophy-outline"
-            size={15}
-            color="#7040D5"
-          />
-
-          <Text
-            style={styles.topThreeSmallTitle}
-          >
-            TOP PERFORMERS
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.topThreeCircle,
-            {
-              width: size,
-              height: size,
-            },
-          ]}
-        >
-          <Svg
-            width={size}
-            height={size}
-            viewBox="0 0 100 100"
-          >
-            {/* outer outline */}
-            <Circle
-              cx={center}
-              cy={center}
-              r={outerRadius}
-              fill="none"
-              stroke="#E7DDFB"
-              strokeWidth="3"
-            />
-
-            {/* outer progress */}
-            <Circle
-              cx={center}
-              cy={center}
-              r={outerRadius}
-              fill="none"
-              stroke="#7040D5"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeDasharray={`${outerCircumference} ${outerCircumference}`}
-              strokeDashoffset={
-                outerCircumference * 0.08
-              }
-              transform="rotate(-90 50 50)"
-            />
-
-            {/* inner outline */}
-            <Circle
-              cx={center}
-              cy={center}
-              r={innerRadius}
-              fill="none"
-              stroke="#F0EAFE"
-              strokeWidth="2"
-            />
-          </Svg>
-
-          <View
-            style={styles.topThreeCenter}
-          >
-            <MaterialCommunityIcons
-              name="trophy"
-              size={17}
-              color="#F7941D"
-            />
-
-            <Text
-              style={styles.topThreeText}
-            >
-              Top 3
-            </Text>
-
-            <Text
-              style={styles.topThreeSubtext}
-            >
-              Students
-            </Text>
-          </View>
-        </View>
-
-        <View
-          style={styles.medalRow}
-        >
-          <View
-            style={[
-              styles.medalDot,
-              {
-                backgroundColor:
-                  '#F7941D',
-              },
-            ]}
-          >
-            <Text
-              style={styles.medalNumber}
-            >
-              1
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.medalDot,
-              {
-                backgroundColor:
-                  '#8B94A5',
-              },
-            ]}
-          >
-            <Text
-              style={styles.medalNumber}
-            >
-              2
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.medalDot,
-              {
-                backgroundColor:
-                  '#C77B45',
-              },
-            ]}
-          >
-            <Text
-              style={styles.medalNumber}
-            >
-              3
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  /* =====================================================
-     EXAM CARD
-     ===================================================== */
-
-  const renderExaminationCard = (
-    exam: Examination
-  ) => {
-    const status =
-      statusColors[exam.status];
+  const renderExaminationCard = (exam: Examination) => {
+    const status = statusMeta[exam.status];
 
     return (
       <View
         key={exam.id}
         style={[
           styles.examCard,
-          {
-            width: isDesktop
-              ? '48.9%'
-              : '100%',
-          },
+          { width: isDesktop ? '48.9%' : '100%' },
         ]}
       >
         <View style={styles.examTop}>
@@ -1246,12 +408,11 @@ export default function ExaminationsPage() {
               color="#7040D5"
             />
           </View>
-
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`Actions for ${exam.name}`}
             style={styles.moreButton}
-            onPress={() =>
-              openActions(exam)
-            }
+            onPress={() => openActions(exam)}
           >
             <MaterialCommunityIcons
               name="dots-vertical"
@@ -1261,16 +422,10 @@ export default function ExaminationsPage() {
           </TouchableOpacity>
         </View>
 
-        <Text
-          style={styles.examName}
-          numberOfLines={2}
-        >
+        <Text style={styles.examName} numberOfLines={2}>
           {exam.name}
         </Text>
-
-        <Text style={styles.examCode}>
-          {exam.code}
-        </Text>
+        <Text style={styles.examCode}>{exam.code}</Text>
 
         <View style={styles.infoRow}>
           <MaterialCommunityIcons
@@ -1278,34 +433,23 @@ export default function ExaminationsPage() {
             size={15}
             color="#748096"
           />
-
-          <Text style={styles.infoText}>
-            {exam.course}
-          </Text>
+          <Text style={styles.infoText}>{exam.subject}</Text>
         </View>
-
         <View style={styles.infoRow}>
           <MaterialCommunityIcons
             name="account-group-outline"
             size={15}
             color="#748096"
           />
-
-          <Text style={styles.infoText}>
-            {exam.batch}
-          </Text>
+          <Text style={styles.infoText}>{exam.batch}</Text>
         </View>
-
         <View style={styles.infoRow}>
           <MaterialCommunityIcons
             name="office-building-outline"
             size={15}
             color="#748096"
           />
-
-          <Text style={styles.infoText}>
-            {exam.branch}
-          </Text>
+          <Text style={styles.infoText}>{exam.branch}</Text>
         </View>
 
         <View style={styles.examDetails}>
@@ -1315,143 +459,67 @@ export default function ExaminationsPage() {
               size={16}
               color="#7040D5"
             />
-
-            <Text style={styles.detailText}>
-              {exam.date}
-            </Text>
+            <Text style={styles.detailText}>{exam.date}</Text>
           </View>
-
           <View style={styles.detailItem}>
             <MaterialCommunityIcons
               name="clock-outline"
               size={16}
               color="#7040D5"
             />
-
-            <Text style={styles.detailText}>
-              {exam.time}
-            </Text>
+            <Text style={styles.detailText}>{exam.time}</Text>
           </View>
         </View>
 
         <View style={styles.examBottom}>
-          <View
-            style={[
-              styles.statusBadge,
-              {
-                backgroundColor:
-                  status.bg,
-              },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name={status.icon}
-              size={13}
-              color={status.text}
-            />
-
-            <Text
-              style={[
-                styles.statusText,
-                {
-                  color: status.text,
-                },
-              ]}
-            >
-              {exam.status}
+          <View style={[styles.statusBadge, { backgroundColor: status.backgroundColor }]}>
+            <MaterialCommunityIcons name={status.icon} size={13} color={status.color} />
+            <Text style={[styles.statusText, { color: status.color }]}>
+              {status.label}
             </Text>
           </View>
-
-          <Text style={styles.studentCount}>
-            {exam.students} Students
-          </Text>
+          <Text style={styles.studentCount}>{exam.students} Students</Text>
         </View>
 
-        {exam.status ===
-          'Results Published' && (
-          <TouchableOpacity
-            style={
-              styles.viewResultsSmallButton
-            }
-            onPress={() =>
-              openPublishedResults(exam)
-            }
-          >
-            <MaterialCommunityIcons
-              name="file-eye-outline"
-              size={17}
-              color="#7040D5"
-            />
-
-            <Text
-              style={
-                styles.viewResultsSmallText
-              }
-            >
-              View Published Results
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.viewButton}
+          onPress={() => openView(exam)}
+          activeOpacity={0.85}
+        >
+          <MaterialCommunityIcons name="eye-outline" size={17} color="#7040D5" />
+          <Text style={styles.viewButtonText}>View Examination</Text>
+        </TouchableOpacity>
       </View>
     );
   };
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          paddingTop: insets.top,
-        },
-      ]}
-    >
-      {/* =====================================================
-          HEADER
-          ===================================================== */}
-
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        {/* BACK ARROW */}
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
           activeOpacity={0.8}
         >
-          <MaterialCommunityIcons
-            name="arrow-left"
-            size={22}
-            color="#FFFFFF"
-          />
+          <MaterialCommunityIcons name="arrow-left" size={22} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <View
-          style={styles.headerTextContainer}
-        >
-          <Text style={styles.headerTitle}>
-            Examinations
-          </Text>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.headerTitle}>Examinations</Text>
         </View>
 
-        {/* SMALL ADD EXAMINATION BUTTON */}
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => {
+          onPress={() =>
             router.push({
-              pathname: '/(tabs)/explore',
+              pathname: '/(super_admin)/explore',
               params: { feature: 'Add Examination' },
-            });
-          }}
+            })
+          }
           activeOpacity={0.85}
         >
-          <MaterialCommunityIcons
-            name="plus"
-            size={17}
-            color="#7040D5"
-          />
-
-          <Text
-            style={styles.addButtonText}
-            numberOfLines={1}
-          >
+          <MaterialCommunityIcons name="plus" size={17} color="#7040D5" />
+          <Text style={styles.addButtonText} numberOfLines={1}>
             Add Examination
           </Text>
         </TouchableOpacity>
@@ -1461,1381 +529,276 @@ export default function ExaminationsPage() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
-          {
-            paddingBottom:
-              insets.bottom + 30,
-          },
+          { paddingBottom: insets.bottom + 30 },
         ]}
       >
-        {/* =====================================================
-            MANAGEMENT TITLE
-            ===================================================== */}
-
-        <Text
-          style={styles.managementTitle}
-        >
-          Examination Management
+        <Text style={styles.managementTitle}>Examination Management</Text>
+        <Text style={styles.managementSubtitle}>
+          Manage scheduled examinations, completed assessments and examination status.
         </Text>
 
-        <Text
-          style={styles.managementSubtitle}
-        >
-          Manage upcoming examinations, ongoing assessments and published results.
-        </Text>
-
-        {/* =====================================================
-            SUMMARY CARDS
-            ===================================================== */}
-
-        <View
-          style={styles.summaryGrid}
-        >
-          {renderSummaryCard(
-            'Total Exams',
-            totalExams,
-            'file-document-multiple-outline',
-            'purple'
-          )}
-
-          {renderSummaryCard(
-            'Upcoming',
-            upcoming,
-            'calendar-clock',
-            'orange'
-          )}
-
-          {renderSummaryCard(
-            'Ongoing',
-            ongoing,
-            'progress-clock',
-            'blue'
-          )}
-
-          {renderSummaryCard(
-            'Completed',
-            completed,
-            'check-circle-outline',
-            'green'
-          )}
-
-          {renderSummaryCard(
-            'Results Published',
-            published,
-            'file-certificate-outline',
-            'purple'
-          )}
-
-          {renderTopThreeCard()}
+        <View style={styles.summaryGrid}>
+          {renderSummaryCard('Total Exams', totalExams, 'file-document-multiple-outline', 'purple')}
+          {renderSummaryCard('Scheduled', scheduledCount, 'calendar-clock', 'orange')}
+          {renderSummaryCard('Completed', completedCount, 'check-circle-outline', 'green')}
+          {renderSummaryCard('Cancelled', cancelledCount, 'close-circle-outline', 'pink')}
+          {renderSummaryCard('Results Published', publishedCount, 'file-certificate-outline', 'blue')}
         </View>
 
-        {/* =====================================================
-            SEARCH
-            ===================================================== */}
-
-        <View
-          style={styles.searchContainer}
-        >
-          <View
-            style={styles.searchBox}
-          >
-            <MaterialCommunityIcons
-              name="magnify"
-              size={20}
-              color="#9AA3B2"
-            />
-
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBox}>
+            <MaterialCommunityIcons name="magnify" size={20} color="#9AA3B2" />
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search examination, course, batch or branch..."
+              placeholder="Search examination, subject, batch or branch..."
               placeholderTextColor="#A0A8B5"
               style={styles.searchInput}
+              returnKeyType="search"
             />
-
             {search.length > 0 && (
-              <TouchableOpacity
-                onPress={() =>
-                  setSearch('')
-                }
-              >
-                <MaterialCommunityIcons
-                  name="close-circle"
-                  size={18}
-                  color="#9AA3B2"
-                />
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <MaterialCommunityIcons name="close-circle" size={18} color="#9AA3B2" />
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* =====================================================
-            FILTERS
-            ===================================================== */}
-
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={
-            false
-          }
-          contentContainerStyle={
-            styles.filterContainer
-          }
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContainer}
         >
-          {[
-            'All',
-            'Upcoming',
-            'Ongoing',
-            'Completed',
-            'Results Published',
-          ].map((item) => {
-            const active =
-              filter === item;
+          {(
+            [
+              'All',
+              'scheduled',
+              'completed',
+              'cancelled',
+              'results_published',
+            ] as const
+          ).map((item) => {
+            const active = filter === item;
+            const label =
+              item === 'All' ? 'All' : statusMeta[item].label;
 
             return (
               <TouchableOpacity
                 key={item}
-                style={[
-                  styles.filterButton,
-                  active &&
-                    styles.filterButtonActive,
-                ]}
-                onPress={() =>
-                  setFilter(
-                    item as
-                      | 'All'
-                      | ExaminationStatus
-                  )
-                }
+                style={[styles.filterButton, active && styles.filterButtonActive]}
+                onPress={() => setFilter(item)}
               >
-                <Text
-                  style={[
-                    styles.filterText,
-                    active &&
-                      styles.filterTextActive,
-                  ]}
-                >
-                  {item}
+                <Text style={[styles.filterText, active && styles.filterTextActive]}>
+                  {label}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
 
-        {/* =====================================================
-            EXAMINATION LIST
-            ===================================================== */}
-
-        {filteredExaminations.length ===
-        0 ? (
-          <View
-            style={styles.emptyState}
-          >
-            <MaterialCommunityIcons
-              name="file-search-outline"
-              size={48}
-              color="#B1B8C5"
-            />
-
-            <Text
-              style={styles.emptyTitle}
-            >
-              No examinations found
-            </Text>
-
-            <Text
-              style={styles.emptySubtitle}
-            >
+        {filteredExaminations.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons name="file-search-outline" size={48} color="#B1B8C5" />
+            <Text style={styles.emptyTitle}>No examinations found</Text>
+            <Text style={styles.emptySubtitle}>
               Try changing your search or filter.
             </Text>
           </View>
         ) : (
-          <View
-            style={styles.examGrid}
-          >
-            {filteredExaminations.map(
-              renderExaminationCard
-            )}
+          <View style={styles.examGrid}>
+            {filteredExaminations.map(renderExaminationCard)}
           </View>
         )}
       </ScrollView>
 
-      {/* =====================================================
-          ACTION MODAL
-          ===================================================== */}
-
+      {/* Examination actions */}
       <Modal
         visible={showActions}
         transparent
         animationType="fade"
-        onRequestClose={() =>
-          setShowActions(false)
-        }
+        onRequestClose={() => setShowActions(false)}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() =>
-            setShowActions(false)
-          }
-        >
-          <Pressable
-            style={styles.actionModal}
-            onPress={(event) =>
-              event.stopPropagation()
-            }
-          >
-            <View
-              style={styles.modalHandle}
-            />
-
-            <Text
-              style={styles.modalTitle}
-            >
-              Examination Actions
-            </Text>
-
-            <Text
-              style={styles.modalSubtitle}
-              numberOfLines={2}
-            >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowActions(false)}>
+          <Pressable style={styles.actionModal} onPress={(event) => event.stopPropagation()}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Examination Actions</Text>
+            <Text style={styles.modalSubtitle} numberOfLines={2}>
               {selectedExam?.name}
             </Text>
 
-            {/* VIEW */}
             <TouchableOpacity
               style={styles.actionItem}
-              onPress={() => {
-                if (selectedExam) {
-                  openView(
-                    selectedExam
-                  );
-                }
-              }}
+              onPress={() => selectedExam && openView(selectedExam)}
             >
-              <View
-                style={styles.actionIcon}
-              >
-                <MaterialCommunityIcons
-                  name="eye-outline"
-                  size={20}
-                  color="#7040D5"
-                />
+              <View style={styles.actionIcon}>
+                <MaterialCommunityIcons name="eye-outline" size={20} color="#7040D5" />
               </View>
-
-              <Text
-                style={styles.actionText}
-              >
-                View Examination
-              </Text>
-
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color="#A0A8B5"
-              />
+              <Text style={styles.actionText}>View Examination</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#A0A8B5" />
             </TouchableOpacity>
 
-            {/* EDIT */}
             <TouchableOpacity
               style={styles.actionItem}
-              onPress={() => {
-                if (selectedExam) {
-                  openEdit(
-                    selectedExam
-                  );
-                }
-              }}
+              onPress={() => selectedExam && openEdit(selectedExam)}
             >
-              <View
-                style={styles.actionIcon}
-              >
-                <MaterialCommunityIcons
-                  name="pencil-outline"
-                  size={20}
-                  color="#2675E8"
-                />
+              <View style={[styles.actionIcon, { backgroundColor: '#EAF2FF' }]}>
+                <MaterialCommunityIcons name="pencil-outline" size={20} color="#2675E8" />
               </View>
-
-              <Text
-                style={styles.actionText}
-              >
-                Edit Examination
-              </Text>
-
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color="#A0A8B5"
-              />
+              <Text style={styles.actionText}>Edit Examination</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#A0A8B5" />
             </TouchableOpacity>
 
-            {/* PUBLISH */}
-            {selectedExam?.status !==
-              'Results Published' && (
-              <TouchableOpacity
-                style={styles.actionItem}
-                onPress={() => {
-                  if (selectedExam) {
-                    publishResults(
-                      selectedExam
-                    );
-                  }
-                }}
-              >
-                <View
-                  style={
-                    styles.actionIcon
-                  }
-                >
-                  <MaterialCommunityIcons
-                    name="publish"
-                    size={20}
-                    color="#35B878"
-                  />
-                </View>
-
-                <Text
-                  style={
-                    styles.actionText
-                  }
-                >
-                  Publish Results
-                </Text>
-
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={20}
-                  color="#A0A8B5"
-                />
-              </TouchableOpacity>
-            )}
-
-            {/* DELETE */}
             <TouchableOpacity
-              style={styles.actionItem}
-              onPress={() => {
-                if (selectedExam) {
-                  deleteExam(
-                    selectedExam
-                  );
-                }
-              }}
+              style={[styles.actionItem, { borderBottomWidth: 0 }]}
+              onPress={() => selectedExam && cancelExam(selectedExam)}
+              disabled={selectedExam?.status === 'cancelled'}
             >
-              <View
-                style={[
-                  styles.actionIcon,
-                  {
-                    backgroundColor:
-                      '#FFE9F0',
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="delete-outline"
-                  size={20}
-                  color="#E95386"
-                />
+              <View style={[styles.actionIcon, { backgroundColor: '#FFE9F0' }]}>
+                <MaterialCommunityIcons name="close-circle-outline" size={20} color="#D93665" />
               </View>
-
-              <Text
-                style={[
-                  styles.actionText,
-                  {
-                    color: '#E95386',
-                  },
-                ]}
-              >
-                Delete Examination
+              <Text style={[styles.actionText, { color: '#D93665' }]}>
+                {selectedExam?.status === 'cancelled' ? 'Already Cancelled' : 'Cancel Examination'}
               </Text>
-
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color="#A0A8B5"
-              />
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#A0A8B5" />
             </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* =====================================================
-          VIEW EXAMINATION
-          ===================================================== */}
-
+      {/* View examination */}
       <Modal
         visible={showViewModal}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setShowViewModal(false)
-        }
+        onRequestClose={() => setShowViewModal(false)}
       >
-        <View
-          style={styles.modalOverlay}
-        >
-          <View
-            style={[
-              styles.largeModal,
-              {
-                maxHeight: '90%',
-                width: isDesktop
-                  ? 650
-                  : '94%',
-              },
-            ]}
-          >
-            <View
-              style={styles.modalHeader}
-            >
-              <View>
-                <Text
-                  style={styles.modalTitle}
-                >
-                  Examination Details
-                </Text>
-
-                <Text
-                  style={styles.modalSubtitle}
-                >
-                  {selectedExam?.code}
-                </Text>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.largeModal, { width: isDesktop ? 650 : '94%', maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Examination Details</Text>
+                <Text style={styles.modalSubtitle}>{selectedExam?.code}</Text>
               </View>
-
-              <TouchableOpacity
-                onPress={() =>
-                  setShowViewModal(
-                    false
-                  )
-                }
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={24}
-                  color="#748096"
-                />
+              <TouchableOpacity onPress={() => setShowViewModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color="#748096" />
               </TouchableOpacity>
             </View>
 
             {selectedExam && (
-              <ScrollView
-                showsVerticalScrollIndicator={
-                  false
-                }
-              >
-                <Text
-                  style={styles.detailTitle}
-                >
-                  {selectedExam.name}
-                </Text>
-
-                <View
-                  style={styles.detailGrid}
-                >
-                  <View
-                    style={styles.detailBox}
-                  >
-                    <Text
-                      style={
-                        styles.detailLabel
-                      }
-                    >
-                      Course
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.detailValue
-                      }
-                    >
-                      {selectedExam.course}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={styles.detailBox}
-                  >
-                    <Text
-                      style={
-                        styles.detailLabel
-                      }
-                    >
-                      Batch
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.detailValue
-                      }
-                    >
-                      {selectedExam.batch}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={styles.detailBox}
-                  >
-                    <Text
-                      style={
-                        styles.detailLabel
-                      }
-                    >
-                      Branch
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.detailValue
-                      }
-                    >
-                      {selectedExam.branch}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={styles.detailBox}
-                  >
-                    <Text
-                      style={
-                        styles.detailLabel
-                      }
-                    >
-                      Date
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.detailValue
-                      }
-                    >
-                      {selectedExam.date}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={styles.detailBox}
-                  >
-                    <Text
-                      style={
-                        styles.detailLabel
-                      }
-                    >
-                      Time
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.detailValue
-                      }
-                    >
-                      {selectedExam.time}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={styles.detailBox}
-                  >
-                    <Text
-                      style={
-                        styles.detailLabel
-                      }
-                    >
-                      Duration
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.detailValue
-                      }
-                    >
-                      {selectedExam.duration}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={styles.detailBox}
-                  >
-                    <Text
-                      style={
-                        styles.detailLabel
-                      }
-                    >
-                      Students
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.detailValue
-                      }
-                    >
-                      {selectedExam.students}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={styles.detailBox}
-                  >
-                    <Text
-                      style={
-                        styles.detailLabel
-                      }
-                    >
-                      Status
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          alignSelf:
-                            'flex-start',
-                          backgroundColor:
-                            statusColors[
-                              selectedExam
-                                .status
-                            ].bg,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          {
-                            color:
-                              statusColors[
-                                selectedExam
-                                  .status
-                              ].text,
-                          },
-                        ]}
-                      >
-                        {
-                          selectedExam.status
-                        }
-                      </Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.detailTitle}>{selectedExam.name}</Text>
+                <View style={styles.detailGrid}>
+                  {[
+                    ['Subject', selectedExam.subject],
+                    ['Batch', selectedExam.batch],
+                    ['Branch', selectedExam.branch],
+                    ['Date', selectedExam.date],
+                    ['Start Time', selectedExam.time],
+                    ['Duration', formatDuration(selectedExam.durationMinutes)],
+                    ['Students', String(selectedExam.students)],
+                    ['Total Marks', String(selectedExam.totalMarks)],
+                    ['Passing Marks', String(selectedExam.passingMarks)],
+                    ['Status', statusMeta[selectedExam.status].label],
+                  ].map(([label, value]) => (
+                    <View key={label} style={styles.detailBox}>
+                      <Text style={styles.detailLabel}>{label}</Text>
+                      <Text style={styles.detailValue}>{value}</Text>
                     </View>
-                  </View>
+                  ))}
                 </View>
-
-                {selectedExam.status ===
-                  'Results Published' && (
-                  <TouchableOpacity
-                    style={
-                      styles.resultsButton
-                    }
-                    onPress={() =>
-                      openPublishedResults(
-                        selectedExam
-                      )
-                    }
-                  >
-                    <MaterialCommunityIcons
-                      name="file-certificate-outline"
-                      size={20}
-                      color="#FFFFFF"
-                    />
-
-                    <Text
-                      style={
-                        styles.resultsButtonText
-                      }
-                    >
-                      View Published Results
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                <Text style={styles.uiOnlyNote}>
+                  This page currently uses mock data. Backend integration will be completed after all module reviews.
+                </Text>
               </ScrollView>
             )}
           </View>
         </View>
       </Modal>
 
-      {/* =====================================================
-          EDIT MODAL
-          ===================================================== */}
-
+      {/* Edit examination - local mock state only */}
       <Modal
         visible={showEditModal}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setShowEditModal(false)
-        }
+        onRequestClose={() => setShowEditModal(false)}
       >
-        <View
-          style={styles.modalOverlay}
-        >
-          <View
-            style={[
-              styles.largeModal,
-              {
-                width: isDesktop
-                  ? 600
-                  : '94%',
-              },
-            ]}
-          >
-            <View
-              style={styles.modalHeader}
-            >
-              <View>
-                <Text
-                  style={styles.modalTitle}
-                >
-                  Edit Examination
-                </Text>
-
-                <Text
-                  style={styles.modalSubtitle}
-                >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.largeModal, { width: isDesktop ? 600 : '94%', maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Edit Examination</Text>
+                <Text style={styles.modalSubtitle}>
                   Update examination information
                 </Text>
               </View>
-
-              <TouchableOpacity
-                onPress={() =>
-                  setShowEditModal(
-                    false
-                  )
-                }
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={24}
-                  color="#748096"
-                />
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color="#748096" />
               </TouchableOpacity>
             </View>
 
-            {selectedExam && (
-              <ScrollView
-                showsVerticalScrollIndicator={
-                  false
-                }
-              >
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Examination Name
-                </Text>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.inputLabel}>Examination Name</Text>
+              <TextInput value={editName} onChangeText={setEditName} style={styles.input} />
 
-                <TextInput
-                  defaultValue={
-                    selectedExam.name
-                  }
-                  style={styles.input}
-                />
-
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Course
-                </Text>
-
-                <TextInput
-                  defaultValue={
-                    selectedExam.course
-                  }
-                  style={styles.input}
-                />
-
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Batch
-                </Text>
-
-                <TextInput
-                  defaultValue={
-                    selectedExam.batch
-                  }
-                  style={styles.input}
-                />
-
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Branch
-                </Text>
-
-                <TextInput
-                  defaultValue={
-                    selectedExam.branch
-                  }
-                  style={styles.input}
-                />
-
-                <View
-                  style={styles.twoInputs}
-                >
-                  <View
-                    style={{ flex: 1 }}
-                  >
-                    <Text
-                      style={
-                        styles.inputLabel
-                      }
-                    >
-                      Date
-                    </Text>
-
-                    <TextInput
-                      defaultValue={
-                        selectedExam.date
-                      }
-                      style={styles.input}
-                    />
-                  </View>
-
-                  <View
-                    style={{ flex: 1 }}
-                  >
-                    <Text
-                      style={
-                        styles.inputLabel
-                      }
-                    >
-                      Time
-                    </Text>
-
-                    <TextInput
-                      defaultValue={
-                        selectedExam.time
-                      }
-                      style={styles.input}
-                    />
-                  </View>
+              <View style={styles.twoInputs}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Date</Text>
+                  <TextInput
+                    value={editDate}
+                    onChangeText={setEditDate}
+                    style={styles.input}
+                    placeholder="DD/MM/YYYY"
+                    placeholderTextColor="#A0A8B5"
+                  />
                 </View>
-
-                <TouchableOpacity
-                  style={
-                    styles.saveButton
-                  }
-                  onPress={() => {
-                    setShowEditModal(
-                      false
-                    );
-
-                    Alert.alert(
-                      'Updated',
-                      'Examination details have been updated.'
-                    );
-                  }}
-                >
-                  <Text
-                    style={
-                      styles.saveButtonText
-                    }
-                  >
-                    Save Changes
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* =====================================================
-          PUBLISHED RESULTS
-          ===================================================== */}
-
-      <Modal
-        visible={showResultsModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() =>
-          setShowResultsModal(
-            false
-          )
-        }
-      >
-        <View
-          style={styles.modalOverlay}
-        >
-          <View
-            style={[
-              styles.resultsModal,
-              {
-                width: isDesktop
-                  ? 850
-                  : '96%',
-                maxHeight: '92%',
-              },
-            ]}
-          >
-            <View
-              style={styles.modalHeader}
-            >
-              <View
-                style={{ flex: 1 }}
-              >
-                <Text
-                  style={styles.modalTitle}
-                >
-                  Published Results
-                </Text>
-
-                <Text
-                  style={styles.modalSubtitle}
-                  numberOfLines={2}
-                >
-                  {selectedExam?.name}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Start Time</Text>
+                  <TextInput
+                    value={editTime}
+                    onChangeText={setEditTime}
+                    style={styles.input}
+                    placeholder="09:00 AM"
+                    placeholderTextColor="#A0A8B5"
+                  />
+                </View>
               </View>
 
-              <TouchableOpacity
-                onPress={() =>
-                  setShowResultsModal(
-                    false
-                  )
-                }
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={28}
-                  color="#748096"
-                />
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.inputLabel}>Duration (minutes)</Text>
+              <TextInput
+                value={editDuration}
+                onChangeText={setEditDuration}
+                style={styles.input}
+                keyboardType="number-pad"
+              />
 
-            {selectedExam && (
-              <>
-                <ScrollView
-                  showsVerticalScrollIndicator={
-                    false
-                  }
-                  contentContainerStyle={{
-                    paddingBottom: 10,
-                  }}
-                >
-                  {/* EXAM HEADER */}
-                  <View
-                    style={
-                      styles.resultExamHeader
-                    }
-                  >
-                    <View
-                      style={
-                        styles.resultExamIcon
-                      }
-                    >
-                      <MaterialCommunityIcons
-                        name="file-certificate-outline"
-                        size={27}
-                        color="#7040D5"
-                      />
-                    </View>
-
-                    <View
-                      style={{ flex: 1 }}
-                    >
-                      <Text
-                        style={
-                          styles.resultExamName
-                        }
-                      >
-                        {
-                          selectedExam.name
-                        }
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.resultExamCode
-                        }
-                      >
-                        {
-                          selectedExam.code
-                        }{' '}
-                        •{' '}
-                        {
-                          selectedExam.branch
-                        }
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* RESULT SUMMARY */}
-                  <View
-                    style={
-                      styles.resultSummaryContainer
-                    }
-                  >
-                    <View
-                      style={
-                        styles.resultSummaryCard
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.resultSummaryValue
-                        }
-                      >
-                        {results.length}
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.resultSummaryLabel
-                        }
-                      >
-                        Students
-                      </Text>
-                    </View>
-
-                    <View
-                      style={
-                        styles.resultSummaryCard
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.resultSummaryValue,
-                          {
-                            color:
-                              '#35B878',
-                          },
-                        ]}
-                      >
-                        {passedResults}
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.resultSummaryLabel
-                        }
-                      >
-                        Passed
-                      </Text>
-                    </View>
-
-                    <View
-                      style={
-                        styles.resultSummaryCard
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.resultSummaryValue,
-                          {
-                            color:
-                              '#E95386',
-                          },
-                        ]}
-                      >
-                        {failedResults}
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.resultSummaryLabel
-                        }
-                      >
-                        Failed
-                      </Text>
-                    </View>
-
-                    <View
-                      style={
-                        styles.resultSummaryCard
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.resultSummaryValue,
-                          {
-                            color:
-                              '#7040D5',
-                          },
-                        ]}
-                      >
-                        {passPercentage}%
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.resultSummaryLabel
-                        }
-                      >
-                        Pass Rate
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text
-                    style={
-                      styles.resultsSectionTitle
-                    }
-                  >
-                    Student-wise Results
-                  </Text>
-
-                  {/* RESULTS */}
-                  <View
-                    style={styles.resultsList}
-                  >
-                    {results.map(
-                      (
-                        student,
-                        index
-                      ) => (
-                        <View
-                          key={
-                            student.id
-                          }
-                          style={
-                            styles.resultStudentCard
-                          }
-                        >
-                          <View
-                            style={
-                              styles.resultStudentTop
-                            }
-                          >
-                            <View
-                              style={
-                                styles.resultStudentNumber
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.resultStudentNumberText
-                                }
-                              >
-                                {index + 1}
-                              </Text>
-                            </View>
-
-                            <View
-                              style={
-                                styles.resultStudentInfo
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.resultStudentName
-                                }
-                              >
-                                {
-                                  student.studentName
-                                }
-                              </Text>
-
-                              <Text
-                                style={
-                                  styles.resultStudentId
-                                }
-                              >
-                                {
-                                  student.studentId
-                                }
-                              </Text>
-                            </View>
-
-                            <View
-                              style={[
-                                styles.resultBadge,
-                                {
-                                  backgroundColor:
-                                    student.result ===
-                                    'Pass'
-                                      ? '#E7F8EF'
-                                      : '#FFE9F0',
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.resultBadgeText,
-                                  {
-                                    color:
-                                      student.result ===
-                                      'Pass'
-                                        ? '#35B878'
-                                        : '#E95386',
-                                  },
-                                ]}
-                              >
-                                {
-                                  student.result
-                                }
-                              </Text>
-                            </View>
-                          </View>
-
-                          <View
-                            style={
-                              styles.marksRow
-                            }
-                          >
-                            <View
-                              style={
-                                styles.markItem
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.markLabel
-                                }
-                              >
-                                Theory
-                              </Text>
-
-                              <Text
-                                style={
-                                  styles.markValue
-                                }
-                              >
-                                {
-                                  student.theory
-                                }
-                              </Text>
-                            </View>
-
-                            <View
-                              style={
-                                styles.markItem
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.markLabel
-                                }
-                              >
-                                Practical
-                              </Text>
-
-                              <Text
-                                style={
-                                  styles.markValue
-                                }
-                              >
-                                {
-                                  student.practical
-                                }
-                              </Text>
-                            </View>
-
-                            <View
-                              style={
-                                styles.markItem
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.markLabel
-                                }
-                              >
-                                Total
-                              </Text>
-
-                              <Text
-                                style={
-                                  styles.markValue
-                                }
-                              >
-                                {
-                                  student.total
-                                }
-                              </Text>
-                            </View>
-
-                            <View
-                              style={
-                                styles.markItem
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.markLabel
-                                }
-                              >
-                                Percentage
-                              </Text>
-
-                              <Text
-                                style={[
-                                  styles.markValue,
-                                  {
-                                    color:
-                                      '#7040D5',
-                                  },
-                                ]}
-                              >
-                                {
-                                  student.percentage
-                                }
-                                %
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-                      )
-                    )}
-                  </View>
-                </ScrollView>
-
-                {/* RESULT ACTIONS */}
-                <View
-                  style={
-                    styles.resultActionContainer
-                  }
-                >
-                  {/* PDF */}
-                  <TouchableOpacity
-                    style={
-                      styles.downloadResultButton
-                    }
-                    onPress={() =>
-                      downloadResultPDF(
-                        selectedExam
-                      )
-                    }
-                    activeOpacity={0.85}
-                  >
-                    <MaterialCommunityIcons
-                      name="file-pdf-box"
-                      size={21}
-                      color="#FFFFFF"
-                    />
-
-                    <Text
-                      style={
-                        styles.downloadResultButtonText
-                      }
-                    >
-                      Download Result PDF
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* DIRECT WHATSAPP */}
-                  <TouchableOpacity
-                    style={
-                      styles.whatsappButton
-                    }
-                    onPress={() =>
-                      shareResultOnWhatsApp(
-                        selectedExam
-                      )
-                    }
-                    activeOpacity={0.85}
-                  >
-                    <MaterialCommunityIcons
-                      name="whatsapp"
-                      size={22}
-                      color="#FFFFFF"
-                    />
-
-                    <Text
-                      style={
-                        styles.whatsappButtonText
-                      }
-                    >
-                      Share via WhatsApp
-                    </Text>
-                  </TouchableOpacity>
+              <View style={styles.twoInputs}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Total Marks</Text>
+                  <TextInput
+                    value={editTotalMarks}
+                    onChangeText={setEditTotalMarks}
+                    style={styles.input}
+                    keyboardType="number-pad"
+                  />
                 </View>
-              </>
-            )}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Passing Marks</Text>
+                  <TextInput
+                    value={editPassingMarks}
+                    onChangeText={setEditPassingMarks}
+                    style={styles.input}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.saveButton} onPress={saveEdit}>
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+              <Text style={styles.uiOnlyNote}>
+                Changes are local to this screen only. No API request is made.
+              </Text>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2844,19 +807,10 @@ export default function ExaminationsPage() {
 }
 
 const styles = StyleSheet.create({
-  /* =====================================================
-     MAIN
-     ===================================================== */
-
   container: {
     flex: 1,
     backgroundColor: '#F7F8FC',
   },
-
-  /* =====================================================
-     HEADER
-     ===================================================== */
-
   header: {
     minHeight: 72,
     backgroundColor: '#7040D5',
@@ -2865,7 +819,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   backButton: {
     width: 34,
     height: 34,
@@ -2874,27 +827,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 7,
   },
-
   headerTextContainer: {
     flex: 1,
     minWidth: 0,
     paddingRight: 7,
     justifyContent: 'center',
   },
-
   headerTitle: {
     fontFamily: 'PoppinsBold',
     fontSize: 20,
     color: '#FFFFFF',
   },
-
-  /*
-   * Compact button so it fits
-   * properly on mobile.
-   */
   addButton: {
-    minHeight: 34,
-    width: 132,
+    minHeight: 36,
+    width: 136,
     borderRadius: 9,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
@@ -2904,7 +850,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     marginLeft: 8,
   },
-
   addButtonText: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 9.5,
@@ -2912,34 +857,23 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     flexShrink: 1,
   },
-
-  /* =====================================================
-     CONTENT
-     ===================================================== */
-
   content: {
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-
   managementTitle: {
     fontFamily: 'PoppinsBold',
     fontSize: 20,
     color: '#172033',
   },
-
   managementSubtitle: {
     fontFamily: 'PoppinsRegular',
     fontSize: 10,
+    lineHeight: 16,
     color: '#748096',
     marginTop: 3,
     marginBottom: 17,
   },
-
-  /* =====================================================
-     SUMMARY
-     ===================================================== */
-
   summaryGrid: {
     width: '100%',
     flexDirection: 'row',
@@ -2947,7 +881,6 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'space-between',
   },
-
   summaryCard: {
     minHeight: 105,
     backgroundColor: '#FFFFFF',
@@ -2956,15 +889,11 @@ const styles = StyleSheet.create({
     borderColor: '#EEF0F5',
     padding: 13,
     shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 7,
     elevation: 2,
   },
-
   summaryIcon: {
     width: 39,
     height: 39,
@@ -2972,117 +901,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   summaryValue: {
     fontFamily: 'PoppinsBold',
     fontSize: 19,
     color: '#172033',
     marginTop: 7,
   },
-
   summaryLabel: {
     fontFamily: 'PoppinsMedium',
     fontSize: 8.5,
     color: '#748096',
     marginTop: 1,
   },
-
-  /* =====================================================
-     TOP 3 CARD
-     ===================================================== */
-
-  topThreeCard: {
-    minHeight: 105,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-
-    /*
-     * Attractive purple outline
-     */
-    borderWidth: 1.5,
-    borderColor: '#DCCCF8',
-
-    paddingVertical: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    shadowColor: '#7040D5',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 7,
-    elevation: 2,
-  },
-
-  topThreeTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: -1,
-  },
-
-  topThreeSmallTitle: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 6.5,
-    color: '#7040D5',
-    letterSpacing: 0.5,
-    marginLeft: 3,
-  },
-
-  topThreeCircle: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  topThreeCenter: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  topThreeText: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 13,
-    color: '#172033',
-    marginTop: 0,
-  },
-
-  topThreeSubtext: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 6.5,
-    color: '#748096',
-  },
-
-  medalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: -1,
-  },
-
-  medalDot: {
-    width: 15,
-    height: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  medalNumber: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 6,
-    color: '#FFFFFF',
-  },
-
-  /* =====================================================
-     SEARCH
-     ===================================================== */
-
   searchContainer: {
     marginTop: 18,
   },
-
   searchBox: {
     minHeight: 45,
     backgroundColor: '#FFFFFF',
@@ -3093,7 +926,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   searchInput: {
     flex: 1,
     fontFamily: 'PoppinsRegular',
@@ -3102,16 +934,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     paddingVertical: 8,
   },
-
-  /* =====================================================
-     FILTER
-     ===================================================== */
-
   filterContainer: {
     paddingVertical: 14,
     gap: 8,
   },
-
   filterButton: {
     paddingHorizontal: 14,
     minHeight: 34,
@@ -3121,56 +947,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
   },
-
   filterButtonActive: {
     backgroundColor: '#7040D5',
     borderColor: '#7040D5',
   },
-
   filterText: {
     fontFamily: 'PoppinsMedium',
     fontSize: 9,
     color: '#748096',
   },
-
   filterTextActive: {
     color: '#FFFFFF',
   },
-
-  /* =====================================================
-     EXAM CARDS
-     ===================================================== */
-
   examGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 13,
     justifyContent: 'space-between',
   },
-
   examCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#EEF0F5',
     padding: 15,
-
     shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
-
   examTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-
   examIcon: {
     width: 46,
     height: 46,
@@ -3179,7 +990,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   moreButton: {
     width: 34,
     height: 34,
@@ -3188,7 +998,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   examName: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 13,
@@ -3196,20 +1005,17 @@ const styles = StyleSheet.create({
     color: '#172033',
     marginTop: 12,
   },
-
   examCode: {
     fontFamily: 'PoppinsMedium',
     fontSize: 8.5,
     color: '#7040D5',
     marginTop: 2,
   },
-
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
   },
-
   infoText: {
     flex: 1,
     fontFamily: 'PoppinsRegular',
@@ -3217,35 +1023,34 @@ const styles = StyleSheet.create({
     color: '#748096',
     marginLeft: 7,
   },
-
   examDetails: {
     marginTop: 13,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F0F1F5',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 8,
     justifyContent: 'space-between',
   },
-
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   detailText: {
     fontFamily: 'PoppinsMedium',
     fontSize: 8.5,
     color: '#566176',
     marginLeft: 5,
   },
-
   examBottom: {
     marginTop: 13,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 8,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-
   statusBadge: {
     minHeight: 27,
     paddingHorizontal: 9,
@@ -3253,20 +1058,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   statusText: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 8,
     marginLeft: 4,
   },
-
   studentCount: {
     fontFamily: 'PoppinsMedium',
     fontSize: 8.5,
     color: '#748096',
   },
-
-  viewResultsSmallButton: {
+  viewButton: {
     height: 36,
     borderRadius: 9,
     backgroundColor: '#F1EAFF',
@@ -3275,18 +1077,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  viewResultsSmallText: {
+  viewButtonText: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 8.5,
     color: '#7040D5',
     marginLeft: 5,
   },
-
-  /* =====================================================
-     EMPTY
-     ===================================================== */
-
   emptyState: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -3297,34 +1093,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#EEF0F5',
   },
-
   emptyTitle: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 14,
     color: '#172033',
     marginTop: 12,
   },
-
   emptySubtitle: {
     fontFamily: 'PoppinsRegular',
     fontSize: 9.5,
     color: '#748096',
     marginTop: 3,
+    textAlign: 'center',
   },
-
-  /* =====================================================
-     MODALS
-     ===================================================== */
-
   modalOverlay: {
     flex: 1,
-    backgroundColor:
-      'rgba(20, 24, 35, 0.45)',
+    backgroundColor: 'rgba(20, 24, 35, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 12,
   },
-
   actionModal: {
     width: '94%',
     maxWidth: 500,
@@ -3332,7 +1120,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 18,
   },
-
   modalHandle: {
     width: 35,
     height: 4,
@@ -3341,27 +1128,23 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 14,
   },
-
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-
   modalTitle: {
     fontFamily: 'PoppinsBold',
     fontSize: 17,
     color: '#172033',
   },
-
   modalSubtitle: {
     fontFamily: 'PoppinsRegular',
     fontSize: 9,
     color: '#748096',
     marginTop: 2,
   },
-
   actionItem: {
     minHeight: 54,
     borderBottomWidth: 1,
@@ -3369,7 +1152,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   actionIcon: {
     width: 38,
     height: 38,
@@ -3378,7 +1160,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   actionText: {
     flex: 1,
     fontFamily: 'PoppinsMedium',
@@ -3386,26 +1167,22 @@ const styles = StyleSheet.create({
     color: '#172033',
     marginLeft: 11,
   },
-
   largeModal: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 19,
   },
-
   detailTitle: {
     fontFamily: 'PoppinsBold',
     fontSize: 16,
     color: '#172033',
     marginBottom: 14,
   },
-
   detailGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
   },
-
   detailBox: {
     width: '48%',
     minHeight: 70,
@@ -3413,41 +1190,24 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     padding: 11,
   },
-
   detailLabel: {
     fontFamily: 'PoppinsMedium',
     fontSize: 8,
     color: '#748096',
   },
-
   detailValue: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 10,
     color: '#172033',
     marginTop: 5,
   },
-
-  resultsButton: {
-    height: 45,
-    borderRadius: 10,
-    backgroundColor: '#7040D5',
-    marginTop: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+  uiOnlyNote: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
+    lineHeight: 15,
+    color: '#748096',
+    marginTop: 14,
   },
-
-  resultsButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10,
-    color: '#FFFFFF',
-    marginLeft: 6,
-  },
-
-  /* =====================================================
-     EDIT
-     ===================================================== */
-
   inputLabel: {
     fontFamily: 'PoppinsMedium',
     fontSize: 9,
@@ -3455,7 +1215,6 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     marginTop: 8,
   },
-
   input: {
     minHeight: 43,
     borderWidth: 1,
@@ -3466,12 +1225,10 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     color: '#172033',
   },
-
   twoInputs: {
     flexDirection: 'row',
     gap: 10,
   },
-
   saveButton: {
     height: 45,
     borderRadius: 10,
@@ -3480,226 +1237,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 20,
   },
-
   saveButtonText: {
     fontFamily: 'PoppinsSemiBold',
     fontSize: 10,
     color: '#FFFFFF',
-  },
-
-  /* =====================================================
-     RESULTS MODAL
-     ===================================================== */
-
-  resultsModal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 18,
-  },
-
-  resultExamHeader: {
-    backgroundColor: '#F7F4FF',
-    borderRadius: 13,
-    padding: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  resultExamIcon: {
-    width: 49,
-    height: 49,
-    borderRadius: 13,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 11,
-  },
-
-  resultExamName: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 11,
-    color: '#172033',
-  },
-
-  resultExamCode: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 8,
-    color: '#748096',
-    marginTop: 3,
-  },
-
-  resultSummaryContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 13,
-  },
-
-  resultSummaryCard: {
-    flex: 1,
-    minHeight: 75,
-    borderRadius: 11,
-    backgroundColor: '#F7F8FC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  resultSummaryValue: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 18,
-    color: '#172033',
-  },
-
-  resultSummaryLabel: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 7.5,
-    color: '#748096',
-    marginTop: 2,
-  },
-
-  resultsSectionTitle: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 12,
-    color: '#172033',
-    marginTop: 17,
-    marginBottom: 8,
-  },
-
-  resultsList: {
-    gap: 9,
-  },
-
-  resultStudentCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EEF0F5',
-    borderRadius: 12,
-    padding: 11,
-  },
-
-  resultStudentTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  resultStudentNumber: {
-    width: 29,
-    height: 29,
-    borderRadius: 9,
-    backgroundColor: '#F1EAFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  resultStudentNumberText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9,
-    color: '#7040D5',
-  },
-
-  resultStudentInfo: {
-    flex: 1,
-    marginLeft: 9,
-  },
-
-  resultStudentName: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10,
-    color: '#172033',
-  },
-
-  resultStudentId: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 7.5,
-    color: '#8B94A5',
-    marginTop: 1,
-  },
-
-  resultBadge: {
-    minWidth: 48,
-    height: 25,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 7,
-  },
-
-  resultBadgeText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 7.5,
-  },
-
-  marksRow: {
-    flexDirection: 'row',
-    marginTop: 10,
-    paddingTop: 9,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F1F5',
-  },
-
-  markItem: {
-    flex: 1,
-  },
-
-  markLabel: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 7,
-    color: '#8B94A5',
-  },
-
-  markValue: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10,
-    color: '#172033',
-    marginTop: 2,
-  },
-
-  /* =====================================================
-     RESULT BUTTONS
-     ===================================================== */
-
-  resultActionContainer: {
-    borderTopWidth: 1,
-    borderTopColor: '#EEF0F5',
-    paddingTop: 12,
-    marginTop: 12,
-    gap: 8,
-  },
-
-  downloadResultButton: {
-    height: 45,
-    borderRadius: 10,
-    backgroundColor: '#7040D5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-
-  downloadResultButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9.5,
-    color: '#FFFFFF',
-    marginLeft: 6,
-  },
-
-  /*
-   * Green WhatsApp button.
-   *
-   * This now opens WhatsApp directly
-   * instead of expo-sharing.
-   */
-  whatsappButton: {
-    height: 45,
-    borderRadius: 10,
-    backgroundColor: '#25D366',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-
-  whatsappButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9.5,
-    color: '#FFFFFF',
-    marginLeft: 6,
   },
 });

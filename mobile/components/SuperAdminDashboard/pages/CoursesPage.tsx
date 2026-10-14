@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from "react";
 
 import {
   Alert,
@@ -12,44 +12,106 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
-} from 'react-native';
+} from "react-native";
 
-import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Subject = {
   id: string;
   name: string;
-  subjectId: string;
-  category: string;
+  code: string;
+  standard: string;
+  type: string;
   duration: string;
-  branch: string;
-  students: number;
-  fee: string;
-  status: 'Active' | 'Inactive';
+  description: string;
+  status: "Active" | "Inactive";
 };
 
 const initialSubjects: Subject[] = [
-  { id: '1', name: 'Physics', subjectId: 'VLCC-SUB-001', category: 'Core Science', duration: '12 Months', branch: 'Pune Branch', students: 684, fee: 'Included in Batch Fee', status: 'Active' },
-  { id: '2', name: 'Chemistry', subjectId: 'VLCC-SUB-002', category: 'Core Science', duration: '12 Months', branch: 'Mumbai Branch', students: 592, fee: 'Included in Batch Fee', status: 'Active' },
-  { id: '3', name: 'Mathematics', subjectId: 'VLCC-SUB-003', category: 'Core Science', duration: '12 Months', branch: 'Pune Branch', students: 812, fee: 'Included in Batch Fee', status: 'Active' },
-  { id: '4', name: 'Biology', subjectId: 'VLCC-SUB-004', category: 'Core Science', duration: '12 Months', branch: 'Nashik Branch', students: 476, fee: 'Included in Batch Fee', status: 'Active' },
-  { id: '5', name: 'English', subjectId: 'VLCC-SUB-005', category: 'Language', duration: '12 Months', branch: 'Nagpur Branch', students: 388, fee: 'Included in Batch Fee', status: 'Active' },
-  { id: '6', name: 'Aptitude & Logical Reasoning', subjectId: 'VLCC-SUB-006', category: 'Competitive Preparation', duration: '12 Months', branch: 'Main Branch', students: 356, fee: 'Included in Batch Fee', status: 'Active' },
+  {
+    id: "1",
+    name: "Physics",
+    code: "PHY12",
+    standard: "12th",
+    type: "Core",
+    duration: "1 Year",
+    description: "Physics subject for 12th standard.",
+    status: "Active",
+  },
+  {
+    id: "2",
+    name: "Chemistry",
+    code: "CHEM12",
+    standard: "12th",
+    type: "Core",
+    duration: "1 Year",
+    description: "Chemistry subject for 12th standard.",
+    status: "Active",
+  },
+  {
+    id: "3",
+    name: "Mathematics",
+    code: "MATH10",
+    standard: "10th",
+    type: "Core",
+    duration: "1 Year",
+    description: "Mathematics subject for 10th standard.",
+    status: "Active",
+  },
+  {
+    id: "4",
+    name: "Biology",
+    code: "BIO12",
+    standard: "12th",
+    type: "Core",
+    duration: "1 Year",
+    description: "Biology subject for 12th standard.",
+    status: "Active",
+  },
+  {
+    id: "5",
+    name: "English",
+    code: "ENG10",
+    standard: "10th",
+    type: "Core",
+    duration: "1 Year",
+    description: "English subject for 10th standard.",
+    status: "Active",
+  },
+  {
+    id: "6",
+    name: "Aptitude & Logical Reasoning",
+    code: "APT11",
+    standard: "11th",
+    type: "Entrance",
+    duration: "1 Year",
+    description: "Aptitude and logical reasoning preparation.",
+    status: "Active",
+  },
 ];
 
-const branches = [
-  'Pune Branch',
-  'Mumbai Branch',
-  'Nashik Branch',
-  'Nagpur Branch',
-  'Main Branch',
+const standardOptions = [
+  "8th",
+  "9th",
+  "10th",
+  "11th",
+  "12th",
 ];
 
-const categories = ['Core Science', 'Language', 'Competitive Preparation', 'Foundation', 'Board Preparation'];
+const subjectTypeOptions = [
+  "Core",
+  "Foundation",
+  "Entrance",
+];
 
-export default function CoursesPage() {
+const statusOptions = [
+  "Active",
+  "Inactive",
+];
+
+export default function SubjectsPage() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
@@ -58,10 +120,10 @@ export default function CoursesPage() {
   const [subjects, setSubjects] =
     useState<Subject[]>(initialSubjects);
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   const [selectedSubject, setSelectedSubject] =
-    useState<subject | null>(null);
+    useState<Subject | null>(null);
 
   const [showActions, setShowActions] =
     useState(false);
@@ -69,18 +131,23 @@ export default function CoursesPage() {
   const [showEditModal, setShowEditModal] =
     useState(false);
 
-  const [showBranchList, setShowBranchList] =
+  const [showStandardList, setShowStandardList] =
     useState(false);
 
-  const [showCategoryList, setShowCategoryList] =
+  const [showTypeList, setShowTypeList] =
     useState(false);
 
-  const [editName, setEditName] = useState('');
-  const [editCategory, setEditCategory] = useState('');
-  const [editDuration, setEditDuration] = useState('');
-  const [editBranch, setEditBranch] = useState('');
-  const [editStudents, setEditStudents] = useState('');
-  const [editFee, setEditFee] = useState('');
+  const [showStatusList, setShowStatusList] =
+    useState(false);
+
+  const [editName, setEditName] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [editStandard, setEditStandard] = useState("");
+  const [editType, setEditType] = useState("");
+  const [editDuration, setEditDuration] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editStatus, setEditStatus] =
+    useState<"Active" | "Inactive">("Active");
 
   const filteredSubjects = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -92,37 +159,37 @@ export default function CoursesPage() {
     return subjects.filter((subject) =>
       [
         subject.name,
-        subject.subjectId,
-        subject.category,
+        subject.code,
+        subject.standard,
+        subject.type,
         subject.duration,
-        subject.branch,
-        String(subject.students),
-        subject.fee,
+        subject.description,
+        subject.status,
       ]
-        .join(' ')
+        .join(" ")
         .toLowerCase()
         .includes(query)
     );
   }, [search, subjects]);
 
   const activeSubjects = subjects.filter(
-    (subject) => subject.status === 'Active'
+    (subject) => subject.status === "Active"
   ).length;
 
   const inactiveSubjects = subjects.filter(
-    (subject) => subject.status === 'Inactive'
+    (subject) => subject.status === "Inactive"
   ).length;
 
   const openAddSubject = () => {
     router.push({
-      pathname: '/(tabs)/explore',
+      pathname: "/(super_admin)/explore",
       params: {
-        feature: 'Add Subject',
+        feature: "Add Subject",
       },
     });
   };
 
-  const openSubjectActions = (subject: subject) => {
+  const openSubjectActions = (subject: Subject) => {
     setSelectedSubject(subject);
     setShowActions(true);
   };
@@ -136,7 +203,9 @@ export default function CoursesPage() {
 
     Alert.alert(
       selectedSubject.name,
-      `subject ID: ${selectedSubject.subjectId}\n\nCategory: ${selectedSubject.category}\nDuration: ${selectedSubject.duration}\nBranch: ${selectedSubject.branch}\nStudents: ${selectedSubject.students}\nSubject Fee: ${selectedSubject.fee}`
+      `Subject Code: ${selectedSubject.code}\n\nStandard: ${selectedSubject.standard}\nSubject Type: ${selectedSubject.type}\nDuration: ${selectedSubject.duration}\nStatus: ${selectedSubject.status}\n\nDescription: ${
+        selectedSubject.description || "No description added."
+      }`
     );
   };
 
@@ -146,11 +215,12 @@ export default function CoursesPage() {
     }
 
     setEditName(selectedSubject.name);
-    setEditCategory(selectedSubject.category);
+    setEditCode(selectedSubject.code);
+    setEditStandard(selectedSubject.standard);
+    setEditType(selectedSubject.type);
     setEditDuration(selectedSubject.duration);
-    setEditBranch(selectedSubject.branch);
-    setEditStudents(String(selectedSubject.students));
-    setEditFee(selectedSubject.fee);
+    setEditDescription(selectedSubject.description);
+    setEditStatus(selectedSubject.status);
 
     setShowActions(false);
     setShowEditModal(true);
@@ -163,110 +233,142 @@ export default function CoursesPage() {
 
     if (!editName.trim()) {
       Alert.alert(
-        'Required',
-        'Please enter the subject name.'
+        "Required",
+        "Please enter the subject name."
       );
       return;
     }
 
-    if (!editCategory) {
+    if (!editCode.trim()) {
       Alert.alert(
-        'Required',
-        'Please select a category.'
+        "Required",
+        "Please enter the subject code."
+      );
+      return;
+    }
+
+    if (!editStandard) {
+      Alert.alert(
+        "Required",
+        "Please select a standard."
+      );
+      return;
+    }
+
+    if (!editType) {
+      Alert.alert(
+        "Required",
+        "Please select a subject type."
       );
       return;
     }
 
     if (!editDuration.trim()) {
       Alert.alert(
-        'Required',
-        'Please enter the subject duration.'
+        "Required",
+        "Please enter the subject duration."
       );
       return;
     }
 
-    if (!editBranch) {
+    if (!editStatus) {
       Alert.alert(
-        'Required',
-        'Please select a branch.'
+        "Required",
+        "Please select a status."
       );
       return;
     }
 
-    const studentCount =
-      Number(editStudents.replace(/[^0-9]/g, '')) || 0;
+    const updatedSubject: Subject = {
+      ...selectedSubject,
+      name: editName.trim(),
+      code: editCode.trim().toUpperCase(),
+      standard: editStandard,
+      type: editType,
+      duration: editDuration.trim(),
+      description: editDescription.trim(),
+      status: editStatus,
+    };
 
     setSubjects((currentSubjects) =>
       currentSubjects.map((subject) =>
         subject.id === selectedSubject.id
-          ? {
-              ...subject,
-              name: editName.trim(),
-              category: editCategory,
-              duration: editDuration.trim(),
-              branch: editBranch,
-              students: studentCount,
-              fee: editFee.trim(),
-            }
+          ? updatedSubject
           : subject
       )
     );
 
-    setSelectedSubject((current) =>
-      current
-        ? {
-            ...current,
-            name: editName.trim(),
-            category: editCategory,
-            duration: editDuration.trim(),
-            branch: editBranch,
-            students: studentCount,
-            fee: editFee.trim(),
-          }
-        : null
-    );
-
+    setSelectedSubject(updatedSubject);
     setShowEditModal(false);
 
     Alert.alert(
-      'Updated',
-      'subject information has been updated successfully.'
+      "Updated",
+      "Subject information has been updated successfully."
     );
   };
 
-  const deleteSubject = () => {
+  const toggleSubjectStatus = () => {
     if (!selectedSubject) {
       return;
     }
 
-    const subjectId = selectedSubject.id;
-    const subjectName = selectedSubject.name;
+    const isActive = selectedSubject.status === "Active";
+
+    const nextStatus: "Active" | "Inactive" =
+      isActive ? "Inactive" : "Active";
+
+    const action = isActive
+      ? "deactivate"
+      : "activate";
+
+    const actionTitle = isActive
+      ? "Deactivate subject"
+      : "Activate subject";
+
+    const successTitle = isActive
+      ? "Subject Deactivated"
+      : "Subject Activated";
+
+    const successMessage = isActive
+      ? `${selectedSubject.name} has been deactivated successfully.`
+      : `${selectedSubject.name} has been activated successfully.`;
 
     setShowActions(false);
 
     Alert.alert(
-      'Delete subject',
-      `Are you sure you want to delete ${subjectName}? This action cannot be undone.`,
+      actionTitle,
+      isActive
+        ? `Are you sure you want to deactivate ${selectedSubject.name}? The subject will remain in the system but will no longer be active.`
+        : `Are you sure you want to activate ${selectedSubject.name}?`,
       [
         {
-          text: 'Cancel',
-          style: 'cancel',
+          text: "Cancel",
+          style: "cancel",
         },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text:
+            action === "deactivate"
+              ? "Deactivate"
+              : "Activate",
           onPress: () => {
+            const updatedSubject = {
+              ...selectedSubject,
+              status: nextStatus,
+            };
+
             setSubjects((currentSubjects) =>
-              currentSubjects.filter(
-                (subject) => subject.id !== subjectId
+              currentSubjects.map((subject) =>
+                subject.id === selectedSubject.id
+                  ? updatedSubject
+                  : subject
               )
             );
 
-            setSelectedSubject(null);
+            setSelectedSubject(updatedSubject);
 
             Alert.alert(
-              'Deleted',
-              `${subjectName} has been deleted successfully.`
+              successTitle,
+              successMessage
             );
           },
         },
@@ -277,7 +379,7 @@ export default function CoursesPage() {
   const renderSubject = ({
     item,
   }: {
-    item: subject;
+    item: Subject;
   }) => {
     return (
       <TouchableOpacity
@@ -302,12 +404,12 @@ export default function CoursesPage() {
           </Text>
 
           <Text style={styles.subjectId}>
-            {item.subjectId}
+            {item.code}
           </Text>
 
           <View style={styles.detailRow}>
             <MaterialCommunityIcons
-              name="shape-outline"
+              name="school-outline"
               size={14}
               color="#8A98A9"
             />
@@ -316,13 +418,13 @@ export default function CoursesPage() {
               style={styles.detailText}
               numberOfLines={1}
             >
-              {item.category}
+              {item.standard} • {item.type}
             </Text>
           </View>
 
           <View style={styles.detailRow}>
             <MaterialCommunityIcons
-              name="office-building-outline"
+              name="clock-outline"
               size={14}
               color="#8A98A9"
             />
@@ -331,24 +433,16 @@ export default function CoursesPage() {
               style={styles.detailText}
               numberOfLines={1}
             >
-              {item.branch}
+              {item.duration}
             </Text>
           </View>
         </View>
 
         <View style={styles.subjectMeta}>
-          <Text style={styles.durationText}>
-            {item.duration}
-          </Text>
-
-          <Text style={styles.studentsText}>
-            {item.students} students
-          </Text>
-
           <View
             style={[
               styles.statusBadge,
-              item.status === 'Active'
+              item.status === "Active"
                 ? styles.activeBadge
                 : styles.inactiveBadge,
             ]}
@@ -356,7 +450,7 @@ export default function CoursesPage() {
             <View
               style={[
                 styles.statusDot,
-                item.status === 'Active'
+                item.status === "Active"
                   ? styles.activeDot
                   : styles.inactiveDot,
               ]}
@@ -365,7 +459,7 @@ export default function CoursesPage() {
             <Text
               style={[
                 styles.statusText,
-                item.status === 'Active'
+                item.status === "Active"
                   ? styles.activeText
                   : styles.inactiveText,
               ]}
@@ -392,7 +486,6 @@ export default function CoursesPage() {
 
   return (
     <View style={styles.container}>
-
       {/* HEADER */}
 
       <View
@@ -421,7 +514,7 @@ export default function CoursesPage() {
             style={styles.headerTitle}
             numberOfLines={1}
           >
-            subjects
+            Subjects
           </Text>
         </View>
 
@@ -447,27 +540,24 @@ export default function CoursesPage() {
       {/* CONTENT */}
 
       <View style={styles.content}>
-
         {/* PAGE HEADING */}
 
         <View style={styles.headingRow}>
           <View style={styles.headingInfo}>
             <Text style={styles.pageTitle}>
-              subject Management
+              Subject Management
             </Text>
 
             <Text style={styles.pageDescription}>
-              Manage subjects, curriculum, branches,
-              duration and student enrollment.
+              Manage academic subjects, standards,
+              subject types, duration and status.
             </Text>
           </View>
-
         </View>
 
         {/* SUMMARY CARDS */}
 
         <View style={styles.summaryGrid}>
-
           <View style={styles.summaryCard}>
             <View
               style={[
@@ -484,11 +574,11 @@ export default function CoursesPage() {
 
             <View style={styles.summaryInfo}>
               <Text style={styles.summaryLabel}>
-                Total subjects
+                Total Subjects
               </Text>
 
               <Text style={styles.summaryValue}>
-                68
+                {subjects.length}
               </Text>
             </View>
           </View>
@@ -509,7 +599,7 @@ export default function CoursesPage() {
 
             <View style={styles.summaryInfo}>
               <Text style={styles.summaryLabel}>
-                Active subjects
+                Active Subjects
               </Text>
 
               <Text style={styles.summaryValue}>
@@ -534,11 +624,11 @@ export default function CoursesPage() {
 
             <View style={styles.summaryInfo}>
               <Text style={styles.summaryLabel}>
-                New subjects
+                Active + Inactive
               </Text>
 
               <Text style={styles.summaryValue}>
-                5
+                {subjects.length}
               </Text>
             </View>
           </View>
@@ -567,13 +657,11 @@ export default function CoursesPage() {
               </Text>
             </View>
           </View>
-
         </View>
 
         {/* SEARCH */}
 
         <View style={styles.searchBox}>
-
           <MaterialCommunityIcons
             name="magnify"
             size={21}
@@ -590,7 +678,7 @@ export default function CoursesPage() {
 
           {search.length > 0 && (
             <TouchableOpacity
-              onPress={() => setSearch('')}
+              onPress={() => setSearch("")}
               activeOpacity={0.7}
             >
               <MaterialCommunityIcons
@@ -600,16 +688,14 @@ export default function CoursesPage() {
               />
             </TouchableOpacity>
           )}
-
         </View>
 
         {/* LIST HEADER */}
 
         <View style={styles.listHeader}>
-
           <View>
             <Text style={styles.listTitle}>
-              All subjects
+              All Subjects
             </Text>
 
             <Text style={styles.listCount}>
@@ -617,10 +703,7 @@ export default function CoursesPage() {
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.filterButton}
-            activeOpacity={0.8}
-          >
+          <View style={styles.filterButton}>
             <MaterialCommunityIcons
               name="filter-variant"
               size={17}
@@ -630,11 +713,10 @@ export default function CoursesPage() {
             <Text style={styles.filterText}>
               Filter
             </Text>
-          </TouchableOpacity>
-
+          </View>
         </View>
 
-        {/* subject LIST */}
+        {/* SUBJECT LIST */}
 
         <FlatList
           data={filteredSubjects}
@@ -644,7 +726,6 @@ export default function CoursesPage() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-
               <View style={styles.emptyIcon}>
                 <MaterialCommunityIcons
                   name="book-search-outline"
@@ -660,11 +741,9 @@ export default function CoursesPage() {
               <Text style={styles.emptyText}>
                 Try changing your search.
               </Text>
-
             </View>
           }
         />
-
       </View>
 
       {/* ACTION MODAL */}
@@ -676,11 +755,8 @@ export default function CoursesPage() {
         onRequestClose={() => setShowActions(false)}
       >
         <View style={styles.modalOverlay}>
-
           <View style={styles.actionSheet}>
-
             <View style={styles.actionHeader}>
-
               <View style={styles.actionSubjectIcon}>
                 <MaterialCommunityIcons
                   name="book-open-outline"
@@ -690,7 +766,6 @@ export default function CoursesPage() {
               </View>
 
               <View style={styles.actionSubjectInfo}>
-
                 <Text
                   style={styles.actionSubjectName}
                   numberOfLines={1}
@@ -699,9 +774,8 @@ export default function CoursesPage() {
                 </Text>
 
                 <Text style={styles.actionSubjectId}>
-                  {selectedSubject?.subjectId}
+                  {selectedSubject?.code}
                 </Text>
-
               </View>
 
               <TouchableOpacity
@@ -714,7 +788,6 @@ export default function CoursesPage() {
                   color="#7A8798"
                 />
               </TouchableOpacity>
-
             </View>
 
             <View style={styles.actionDivider} />
@@ -726,7 +799,6 @@ export default function CoursesPage() {
               onPress={viewSubject}
               activeOpacity={0.75}
             >
-
               <View
                 style={[
                   styles.actionIcon,
@@ -741,15 +813,13 @@ export default function CoursesPage() {
               </View>
 
               <View style={styles.actionTextContainer}>
-
                 <Text style={styles.actionTitle}>
-                  View subject
+                  View Subject
                 </Text>
 
                 <Text style={styles.actionDescription}>
                   View complete subject information
                 </Text>
-
               </View>
 
               <MaterialCommunityIcons
@@ -757,7 +827,6 @@ export default function CoursesPage() {
                 size={20}
                 color="#A0ADBC"
               />
-
             </TouchableOpacity>
 
             {/* EDIT */}
@@ -767,7 +836,6 @@ export default function CoursesPage() {
               onPress={openEditSubject}
               activeOpacity={0.75}
             >
-
               <View
                 style={[
                   styles.actionIcon,
@@ -782,15 +850,13 @@ export default function CoursesPage() {
               </View>
 
               <View style={styles.actionTextContainer}>
-
                 <Text style={styles.actionTitle}>
-                  Edit subject
+                  Edit Subject
                 </Text>
 
                 <Text style={styles.actionDescription}>
                   Update subject information and details
                 </Text>
-
               </View>
 
               <MaterialCommunityIcons
@@ -798,57 +864,73 @@ export default function CoursesPage() {
                 size={20}
                 color="#A0ADBC"
               />
-
             </TouchableOpacity>
 
-            {/* DELETE */}
+            {/* ACTIVATE / DEACTIVATE */}
 
             <TouchableOpacity
               style={[
                 styles.actionItem,
-                styles.deleteAction,
+                styles.statusAction,
               ]}
-              onPress={deleteSubject}
+              onPress={toggleSubjectStatus}
               activeOpacity={0.75}
             >
-
-              <View style={styles.deleteIcon}>
-
+              <View
+                style={[
+                  styles.actionIcon,
+                  selectedSubject?.status === "Active"
+                    ? styles.orangeBg
+                    : styles.greenBg,
+                ]}
+              >
                 <MaterialCommunityIcons
-                  name="delete-outline"
+                  name={
+                    selectedSubject?.status === "Active"
+                      ? "book-off-outline"
+                      : "book-check-outline"
+                  }
                   size={21}
-                  color="#E95368"
+                  color={
+                    selectedSubject?.status === "Active"
+                      ? "#F7941D"
+                      : "#35B878"
+                  }
                 />
-
               </View>
 
               <View style={styles.actionTextContainer}>
-
                 <Text
                   style={[
                     styles.actionTitle,
-                    styles.deleteTitle,
+                    selectedSubject?.status === "Active"
+                      ? styles.deactivateTitle
+                      : styles.activateTitle,
                   ]}
                 >
-                  Delete subject
+                  {selectedSubject?.status === "Active"
+                    ? "Deactivate Subject"
+                    : "Activate Subject"}
                 </Text>
 
                 <Text style={styles.actionDescription}>
-                  Permanently remove this subject
+                  {selectedSubject?.status === "Active"
+                    ? "Make this subject inactive"
+                    : "Make this subject active again"}
                 </Text>
-
               </View>
 
               <MaterialCommunityIcons
                 name="chevron-right"
                 size={20}
-                color="#E95368"
+                color={
+                  selectedSubject?.status === "Active"
+                    ? "#F7941D"
+                    : "#35B878"
+                }
               />
-
             </TouchableOpacity>
-
           </View>
-
         </View>
       </Modal>
 
@@ -861,28 +943,23 @@ export default function CoursesPage() {
         onRequestClose={() => setShowEditModal(false)}
       >
         <View style={styles.editModalOverlay}>
-
           <View
             style={[
               styles.editModal,
               isDesktop && styles.editModalDesktop,
             ]}
           >
-
             {/* EDIT HEADER */}
 
             <View style={styles.editHeader}>
-
               <View>
-
                 <Text style={styles.editTitle}>
-                  Edit subject
+                  Edit Subject
                 </Text>
 
                 <Text style={styles.editSubtitle}>
-                  subject Information
+                  Subject Information
                 </Text>
-
               </View>
 
               <TouchableOpacity
@@ -895,7 +972,6 @@ export default function CoursesPage() {
                   color="#64748B"
                 />
               </TouchableOpacity>
-
             </View>
 
             <ScrollView
@@ -903,17 +979,14 @@ export default function CoursesPage() {
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.editContent}
             >
-
-              {/* subject NAME */}
+              {/* SUBJECT NAME */}
 
               <View style={styles.editField}>
-
                 <Text style={styles.editLabel}>
-                  subject Name
+                  Subject Name
                 </Text>
 
                 <View style={styles.editInputBox}>
-
                   <MaterialCommunityIcons
                     name="book-open-outline"
                     size={19}
@@ -927,29 +1000,129 @@ export default function CoursesPage() {
                     placeholder="Enter subject name"
                     placeholderTextColor="#A3AFBE"
                   />
-
                 </View>
-
               </View>
 
-              {/* CATEGORY */}
+              {/* SUBJECT CODE */}
 
               <View style={styles.editField}>
-
                 <Text style={styles.editLabel}>
-                  Category
+                  Subject Code
+                </Text>
+
+                <View style={styles.editInputBox}>
+                  <MaterialCommunityIcons
+                    name="identifier"
+                    size={19}
+                    color="#8A98A9"
+                  />
+
+                  <TextInput
+                    value={editCode}
+                    onChangeText={setEditCode}
+                    style={styles.editInput}
+                    placeholder="Example: PHY12"
+                    placeholderTextColor="#A3AFBE"
+                    autoCapitalize="characters"
+                  />
+                </View>
+              </View>
+
+              {/* STANDARD */}
+
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>
+                  Standard
                 </Text>
 
                 <TouchableOpacity
                   style={styles.editInputBox}
-                  onPress={() =>
-                    setShowCategoryList(
-                      !showCategoryList
-                    )
-                  }
+                  onPress={() => {
+                    setShowStandardList(
+                      !showStandardList
+                    );
+                    setShowTypeList(false);
+                    setShowStatusList(false);
+                  }}
                   activeOpacity={0.8}
                 >
+                  <MaterialCommunityIcons
+                    name="school-outline"
+                    size={19}
+                    color="#8A98A9"
+                  />
 
+                  <Text style={styles.editSelectText}>
+                    {editStandard || "Select standard"}
+                  </Text>
+
+                  <MaterialCommunityIcons
+                    name={
+                      showStandardList
+                        ? "chevron-up"
+                        : "chevron-down"
+                    }
+                    size={19}
+                    color="#8A98A9"
+                  />
+                </TouchableOpacity>
+
+                {showStandardList && (
+                  <View style={styles.dropdown}>
+                    {standardOptions.map(
+                      (standard) => (
+                        <TouchableOpacity
+                          key={standard}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setEditStandard(
+                              standard
+                            );
+                            setShowStandardList(
+                              false
+                            );
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={
+                              styles.dropdownText
+                            }
+                          >
+                            {standard}
+                          </Text>
+
+                          {editStandard ===
+                            standard && (
+                            <MaterialCommunityIcons
+                              name="check"
+                              size={18}
+                              color="#7040D5"
+                            />
+                          )}
+                        </TouchableOpacity>
+                      )
+                    )}
+                  </View>
+                )}
+              </View>
+
+              {/* SUBJECT TYPE */}
+
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>
+                  Subject Type
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.editInputBox}
+                  onPress={() => {
+                    setShowTypeList(!showTypeList);
+                    setShowStandardList(false);
+                    setShowStatusList(false);
+                  }}
+                  activeOpacity={0.8}
+                >
                   <MaterialCommunityIcons
                     name="shape-outline"
                     size={19}
@@ -957,65 +1130,63 @@ export default function CoursesPage() {
                   />
 
                   <Text style={styles.editSelectText}>
-                    {editCategory || 'Select category'}
+                    {editType || "Select subject type"}
                   </Text>
 
                   <MaterialCommunityIcons
                     name={
-                      showCategoryList
-                        ? 'chevron-up'
-                        : 'chevron-down'
+                      showTypeList
+                        ? "chevron-up"
+                        : "chevron-down"
                     }
                     size={19}
                     color="#8A98A9"
                   />
-
                 </TouchableOpacity>
 
-                {showCategoryList && (
+                {showTypeList && (
                   <View style={styles.dropdown}>
+                    {subjectTypeOptions.map(
+                      (type) => (
+                        <TouchableOpacity
+                          key={type}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setEditType(type);
+                            setShowTypeList(false);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={
+                              styles.dropdownText
+                            }
+                          >
+                            {type}
+                          </Text>
 
-                    {categories.map((category) => (
-                      <TouchableOpacity
-                        key={category}
-                        style={styles.dropdownItem}
-                        onPress={() => {
-                          setEditCategory(category);
-                          setShowCategoryList(false);
-                        }}
-                        activeOpacity={0.7}
-                      >
-
-                        <Text style={styles.dropdownText}>
-                          {category}
-                        </Text>
-
-                        {editCategory === category && (
-                          <MaterialCommunityIcons
-                            name="check"
-                            size={18}
-                            color="#7040D5"
-                          />
-                        )}
-
-                      </TouchableOpacity>
-                    ))}
-
+                          {editType === type && (
+                            <MaterialCommunityIcons
+                              name="check"
+                              size={18}
+                              color="#7040D5"
+                            />
+                          )}
+                        </TouchableOpacity>
+                      )
+                    )}
                   </View>
                 )}
-
               </View>
 
               {/* DURATION */}
 
               <View style={styles.editField}>
-
                 <Text style={styles.editLabel}>
                   Duration
                 </Text>
 
                 <View style={styles.editInputBox}>
-
                   <MaterialCommunityIcons
                     name="clock-outline"
                     size={19}
@@ -1026,159 +1197,128 @@ export default function CoursesPage() {
                     value={editDuration}
                     onChangeText={setEditDuration}
                     style={styles.editInput}
-                    placeholder="Example: 6 Months"
+                    placeholder="Example: 1 Year"
                     placeholderTextColor="#A3AFBE"
                   />
-
                 </View>
-
               </View>
 
-              {/* BRANCH */}
+              {/* STATUS */}
 
               <View style={styles.editField}>
-
                 <Text style={styles.editLabel}>
-                  Branch
+                  Status
                 </Text>
 
                 <TouchableOpacity
                   style={styles.editInputBox}
-                  onPress={() =>
-                    setShowBranchList(!showBranchList)
-                  }
+                  onPress={() => {
+                    setShowStatusList(
+                      !showStatusList
+                    );
+                    setShowStandardList(false);
+                    setShowTypeList(false);
+                  }}
                   activeOpacity={0.8}
                 >
-
-                  <MaterialCommunityIcons
-                    name="office-building-outline"
-                    size={19}
-                    color="#8A98A9"
-                  />
-
-                  <Text style={styles.editSelectText}>
-                    {editBranch || 'Select branch'}
-                  </Text>
-
                   <MaterialCommunityIcons
                     name={
-                      showBranchList
-                        ? 'chevron-up'
-                        : 'chevron-down'
+                      editStatus === "Active"
+                        ? "check-circle-outline"
+                        : "pause-circle-outline"
                     }
                     size={19}
                     color="#8A98A9"
                   />
 
+                  <Text style={styles.editSelectText}>
+                    {editStatus}
+                  </Text>
+
+                  <MaterialCommunityIcons
+                    name={
+                      showStatusList
+                        ? "chevron-up"
+                        : "chevron-down"
+                    }
+                    size={19}
+                    color="#8A98A9"
+                  />
                 </TouchableOpacity>
 
-                {showBranchList && (
+                {showStatusList && (
                   <View style={styles.dropdown}>
+                    {statusOptions.map(
+                      (status) => (
+                        <TouchableOpacity
+                          key={status}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setEditStatus(
+                              status as
+                                | "Active"
+                                | "Inactive"
+                            );
+                            setShowStatusList(
+                              false
+                            );
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={
+                              styles.dropdownText
+                            }
+                          >
+                            {status}
+                          </Text>
 
-                    {branches.map((branch) => (
-                      <TouchableOpacity
-                        key={branch}
-                        style={styles.dropdownItem}
-                        onPress={() => {
-                          setEditBranch(branch);
-                          setShowBranchList(false);
-                        }}
-                        activeOpacity={0.7}
-                      >
-
-                        <Text style={styles.dropdownText}>
-                          {branch}
-                        </Text>
-
-                        {editBranch === branch && (
-                          <MaterialCommunityIcons
-                            name="check"
-                            size={18}
-                            color="#7040D5"
-                          />
-                        )}
-
-                      </TouchableOpacity>
-                    ))}
-
+                          {editStatus === status && (
+                            <MaterialCommunityIcons
+                              name="check"
+                              size={18}
+                              color="#7040D5"
+                            />
+                          )}
+                        </TouchableOpacity>
+                      )
+                    )}
                   </View>
                 )}
-
               </View>
 
-              {/* STUDENTS */}
+              {/* DESCRIPTION */}
 
               <View style={styles.editField}>
-
                 <Text style={styles.editLabel}>
-                  Enrolled Students
+                  Description
                 </Text>
 
-                <View style={styles.editInputBox}>
-
-                  <MaterialCommunityIcons
-                    name="account-group-outline"
-                    size={19}
-                    color="#8A98A9"
-                  />
-
-                  <TextInput
-                    value={editStudents}
-                    onChangeText={setEditStudents}
-                    style={styles.editInput}
-                    placeholder="Number of students"
-                    placeholderTextColor="#A3AFBE"
-                    keyboardType="numeric"
-                  />
-
-                </View>
-
+                <TextInput
+                  value={editDescription}
+                  onChangeText={setEditDescription}
+                  style={styles.descriptionInput}
+                  placeholder="Enter subject description..."
+                  placeholderTextColor="#A3AFBE"
+                  multiline
+                  textAlignVertical="top"
+                />
               </View>
-
-              {/* FEE */}
-
-              <View style={styles.editField}>
-
-                <Text style={styles.editLabel}>
-                  subject Fee
-                </Text>
-
-                <View style={styles.editInputBox}>
-
-                  <MaterialCommunityIcons
-                    name="cash"
-                    size={19}
-                    color="#8A98A9"
-                  />
-
-                  <TextInput
-                    value={editFee}
-                    onChangeText={setEditFee}
-                    style={styles.editInput}
-                    placeholder="Example: ₹45,000"
-                    placeholderTextColor="#A3AFBE"
-                  />
-
-                </View>
-
-              </View>
-
             </ScrollView>
 
             {/* BUTTONS */}
 
             <View style={styles.editButtons}>
-
               <TouchableOpacity
                 style={styles.editCancelButton}
-                onPress={() => setShowEditModal(false)}
+                onPress={() =>
+                  setShowEditModal(false)
+                }
                 activeOpacity={0.8}
               >
-
                 <Text style={styles.editCancelText}>
                   Cancel
                 </Text>
-
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1186,7 +1326,6 @@ export default function CoursesPage() {
                 onPress={saveSubjectChanges}
                 activeOpacity={0.8}
               >
-
                 <MaterialCommunityIcons
                   name="content-save-outline"
                   size={18}
@@ -1196,16 +1335,11 @@ export default function CoursesPage() {
                 <Text style={styles.editSaveText}>
                   Save Changes
                 </Text>
-
               </TouchableOpacity>
-
             </View>
-
           </View>
-
         </View>
       </Modal>
-
     </View>
   );
 }
@@ -1213,18 +1347,16 @@ export default function CoursesPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FC',
+    backgroundColor: "#F7F8FC",
   },
 
   /* HEADER */
 
   header: {
-    width: '100%',
-    backgroundColor: '#7040D5',
-
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    width: "100%",
+    backgroundColor: "#7040D5",
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 18,
     paddingBottom: 10,
   },
@@ -1232,14 +1364,10 @@ const styles = StyleSheet.create({
   backButton: {
     width: 42,
     height: 42,
-
     borderRadius: 12,
-
-    backgroundColor: 'rgba(255,255,255,0.15)',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
 
@@ -1249,51 +1377,41 @@ const styles = StyleSheet.create({
   },
 
   headerTitle: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 21,
     lineHeight: 27,
-
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
 
   headerAddButton: {
     minHeight: 42,
-
     borderRadius: 12,
-
-    backgroundColor: '#FFFFFF',
-
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 11,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 5,
   },
 
   headerAddText: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 10.5,
-
-    color: '#7040D5',
+    color: "#7040D5",
   },
 
   /* CONTENT */
 
   content: {
     flex: 1,
-
     paddingHorizontal: 18,
     paddingTop: 18,
   },
 
   headingRow: {
-    width: '100%',
-
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
   },
 
@@ -1303,72 +1421,56 @@ const styles = StyleSheet.create({
   },
 
   pageTitle: {
-    fontFamily: 'PoppinsBold',
+    fontFamily: "PoppinsBold",
     fontSize: 21,
     lineHeight: 28,
-
-    color: '#172033',
+    color: "#172033",
   },
 
   pageDescription: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 10.5,
     lineHeight: 17,
-
-    color: '#748096',
-
+    color: "#748096",
     marginTop: 2,
   },
 
   /* SUMMARY */
 
   summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
-
     marginBottom: 16,
   },
 
   summaryCard: {
     flex: 1,
     minWidth: 145,
-
     minHeight: 78,
-
-    backgroundColor: '#FFFFFF',
-
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
-
     borderWidth: 1,
-    borderColor: '#EEF0F5',
-
+    borderColor: "#EEF0F5",
     padding: 12,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-
-    shadowColor: '#000000',
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000000",
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.05,
     shadowRadius: 6,
-
     elevation: 2,
   },
 
   summaryIcon: {
     width: 42,
     height: 42,
-
     borderRadius: 12,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 9,
   },
 
@@ -1378,166 +1480,131 @@ const styles = StyleSheet.create({
   },
 
   purpleBg: {
-    backgroundColor: '#F1EAFF',
+    backgroundColor: "#F1EAFF",
   },
 
   greenBg: {
-    backgroundColor: '#E7F8EF',
+    backgroundColor: "#E7F8EF",
   },
 
   blueBg: {
-    backgroundColor: '#EAF2FF',
+    backgroundColor: "#EAF2FF",
   },
 
   orangeBg: {
-    backgroundColor: '#FFF1E2',
+    backgroundColor: "#FFF1E2",
   },
 
   summaryLabel: {
-    fontFamily: 'PoppinsMedium',
+    fontFamily: "PoppinsMedium",
     fontSize: 9,
-
-    color: '#748096',
+    color: "#748096",
   },
 
   summaryValue: {
-    fontFamily: 'PoppinsBold',
+    fontFamily: "PoppinsBold",
     fontSize: 17,
     lineHeight: 23,
-
-    color: '#172033',
-
+    color: "#172033",
     marginTop: 1,
   },
 
   /* SEARCH */
 
   searchBox: {
-    width: '100%',
+    width: "100%",
     height: 49,
-
     borderRadius: 12,
-
     borderWidth: 1,
-    borderColor: '#E2E6EC',
-
-    backgroundColor: '#FFFFFF',
-
+    borderColor: "#E2E6EC",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 13,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 15,
   },
 
   searchInput: {
     flex: 1,
-
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 11.5,
-
-    color: '#172033',
-
+    color: "#172033",
     marginLeft: 8,
-
     paddingVertical: 0,
   },
 
   /* LIST HEADER */
 
   listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 10,
   },
 
   listTitle: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 14,
-
-    color: '#172033',
+    color: "#172033",
   },
 
   listCount: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 9,
-
-    color: '#8A98A9',
-
+    color: "#8A98A9",
     marginTop: 1,
   },
 
   filterButton: {
     height: 34,
-
     borderRadius: 9,
-
-    backgroundColor: '#F1EAFF',
-
+    backgroundColor: "#F1EAFF",
     paddingHorizontal: 10,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
 
   filterText: {
-    fontFamily: 'PoppinsMedium',
+    fontFamily: "PoppinsMedium",
     fontSize: 9.5,
-
-    color: '#7040D5',
+    color: "#7040D5",
   },
 
-  /* subject CARD */
+  /* SUBJECT CARD */
 
   listContent: {
     paddingBottom: 30,
   },
 
   subjectCard: {
-    width: '100%',
+    width: "100%",
     minHeight: 103,
-
-    backgroundColor: '#FFFFFF',
-
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
-
     borderWidth: 1,
-    borderColor: '#EEF0F5',
-
+    borderColor: "#EEF0F5",
     padding: 12,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 9,
-
-    shadowColor: '#000000',
+    shadowColor: "#000000",
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.05,
     shadowRadius: 6,
-
     elevation: 2,
   },
 
   subjectIcon: {
     width: 47,
     height: 47,
-
     borderRadius: 15,
-
-    backgroundColor: '#F1EAFF',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
+    backgroundColor: "#F1EAFF",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 11,
   },
 
@@ -1547,154 +1614,116 @@ const styles = StyleSheet.create({
   },
 
   subjectName: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 12.5,
-
-    color: '#172033',
+    color: "#172033",
   },
 
   subjectId: {
-    fontFamily: 'PoppinsMedium',
+    fontFamily: "PoppinsMedium",
     fontSize: 9,
-
-    color: '#7040D5',
-
+    color: "#7040D5",
     marginTop: 1,
     marginBottom: 3,
   },
 
   detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 2,
   },
 
   detailText: {
     flexShrink: 1,
-
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 8.5,
-
-    color: '#7A8798',
-
+    color: "#7A8798",
     marginLeft: 5,
   },
 
   subjectMeta: {
-    alignItems: 'flex-end',
-
+    alignItems: "flex-end",
     marginHorizontal: 5,
   },
 
-  durationText: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 8.5,
-
-    color: '#64748B',
-  },
-
-  studentsText: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 8,
-
-    color: '#8A98A9',
-
-    marginTop: 2,
-    marginBottom: 4,
-  },
-
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 7,
     paddingVertical: 5,
-
     borderRadius: 7,
   },
 
   activeBadge: {
-    backgroundColor: '#E7F8EF',
+    backgroundColor: "#E7F8EF",
   },
 
   inactiveBadge: {
-    backgroundColor: '#FFF1E2',
+    backgroundColor: "#FFF1E2",
   },
 
   statusDot: {
     width: 6,
     height: 6,
-
     borderRadius: 3,
-
     marginRight: 4,
   },
 
   activeDot: {
-    backgroundColor: '#35B878',
+    backgroundColor: "#35B878",
   },
 
   inactiveDot: {
-    backgroundColor: '#F7941D',
+    backgroundColor: "#F7941D",
   },
 
   statusText: {
-    fontFamily: 'PoppinsMedium',
+    fontFamily: "PoppinsMedium",
     fontSize: 8,
   },
 
   activeText: {
-    color: '#35B878',
+    color: "#35B878",
   },
 
   inactiveText: {
-    color: '#F7941D',
+    color: "#F7941D",
   },
 
   moreButton: {
     width: 30,
     height: 38,
-
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   /* EMPTY */
 
   emptyState: {
-    alignItems: 'center',
-
+    alignItems: "center",
     paddingVertical: 50,
   },
 
   emptyIcon: {
     width: 72,
     height: 72,
-
     borderRadius: 21,
-
-    backgroundColor: '#F1EAFF',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
+    backgroundColor: "#F1EAFF",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 12,
   },
 
   emptyTitle: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 14,
-
-    color: '#172033',
+    color: "#172033",
   },
 
   emptyText: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 10,
-
-    color: '#8A98A9',
-
+    color: "#8A98A9",
     marginTop: 3,
   },
 
@@ -1702,55 +1731,42 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-
-    backgroundColor: 'rgba(10,18,35,0.48)',
-
-    justifyContent: 'flex-end',
-
+    backgroundColor: "rgba(10,18,35,0.48)",
+    justifyContent: "flex-end",
     paddingHorizontal: 12,
-    paddingBottom: Platform.OS === 'android' ? 12 : 25,
+    paddingBottom: Platform.OS === "android" ? 12 : 25,
   },
 
   actionSheet: {
-    width: '100%',
-
-    backgroundColor: '#FFFFFF',
-
+    width: "100%",
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-
     paddingHorizontal: 15,
     paddingTop: 14,
     paddingBottom: 10,
-
-    shadowColor: '#000000',
+    shadowColor: "#000000",
     shadowOffset: {
       width: 0,
       height: -2,
     },
     shadowOpacity: 0.12,
     shadowRadius: 10,
-
     elevation: 10,
   },
 
   actionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 5,
   },
 
   actionSubjectIcon: {
     width: 45,
     height: 45,
-
     borderRadius: 14,
-
-    backgroundColor: '#F1EAFF',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
+    backgroundColor: "#F1EAFF",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
 
@@ -1760,59 +1776,46 @@ const styles = StyleSheet.create({
   },
 
   actionSubjectName: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 13,
-
-    color: '#172033',
+    color: "#172033",
   },
 
   actionSubjectId: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 9,
-
-    color: '#7040D5',
-
+    color: "#7040D5",
     marginTop: 1,
   },
 
   closeButton: {
     width: 34,
     height: 34,
-
     borderRadius: 10,
-
-    backgroundColor: '#F3F5F8',
-
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F3F5F8",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   actionDivider: {
     height: 1,
-
-    backgroundColor: '#EEF0F5',
-
+    backgroundColor: "#EEF0F5",
     marginVertical: 10,
   },
 
   actionItem: {
     minHeight: 68,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 7,
   },
 
   actionIcon: {
     width: 43,
     height: 43,
-
     borderRadius: 12,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
 
@@ -1822,123 +1825,89 @@ const styles = StyleSheet.create({
   },
 
   actionTitle: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 11.5,
-
-    color: '#172033',
+    color: "#172033",
   },
 
   actionDescription: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 8.5,
-
-    color: '#8A98A9',
-
+    color: "#8A98A9",
     marginTop: 2,
   },
 
-  deleteAction: {
+  statusAction: {
     marginTop: 3,
-
     borderTopWidth: 1,
-    borderTopColor: '#F0F1F4',
-
+    borderTopColor: "#F0F1F4",
     paddingTop: 10,
   },
 
-  deleteIcon: {
-    width: 43,
-    height: 43,
-
-    borderRadius: 12,
-
-    backgroundColor: '#FFF0F1',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginRight: 10,
+  deactivateTitle: {
+    color: "#F7941D",
   },
 
-  deleteTitle: {
-    color: '#E95368',
+  activateTitle: {
+    color: "#35B878",
   },
 
   /* EDIT MODAL */
 
   editModalOverlay: {
     flex: 1,
-
-    backgroundColor: 'rgba(10,18,35,0.45)',
-
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(10,18,35,0.45)",
+    justifyContent: "flex-end",
   },
 
   editModal: {
-    width: '100%',
-    maxHeight: '92%',
-
-    backgroundColor: '#F7F8FC',
-
+    width: "100%",
+    maxHeight: "92%",
+    backgroundColor: "#F7F8FC",
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-
-    overflow: 'hidden',
+    overflow: "hidden",
   },
 
   editModalDesktop: {
     width: 560,
-
-    alignSelf: 'center',
-
+    alignSelf: "center",
     borderRadius: 20,
-
     marginBottom: 20,
-
-    maxHeight: '90%',
+    maxHeight: "90%",
   },
 
   editHeader: {
     minHeight: 72,
-
-    backgroundColor: '#FFFFFF',
-
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 18,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: '#EEF0F5',
+    borderBottomColor: "#EEF0F5",
   },
 
   editTitle: {
-    fontFamily: 'PoppinsBold',
+    fontFamily: "PoppinsBold",
     fontSize: 17,
-
-    color: '#172033',
+    color: "#172033",
   },
 
   editSubtitle: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 9.5,
-
-    color: '#8A98A9',
-
+    color: "#8A98A9",
     marginTop: 1,
   },
 
   editCloseButton: {
     width: 37,
     height: 37,
-
     borderRadius: 11,
-
-    backgroundColor: '#F1F3F6',
-
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F1F3F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   editContent: {
@@ -1951,142 +1920,117 @@ const styles = StyleSheet.create({
   },
 
   editLabel: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 9.5,
-
-    color: '#445266',
-
+    color: "#445266",
     marginBottom: 6,
   },
 
   editInputBox: {
     minHeight: 48,
-
     borderRadius: 12,
-
     borderWidth: 1,
-    borderColor: '#E2E6EC',
-
-    backgroundColor: '#FFFFFF',
-
+    borderColor: "#E2E6EC",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 12,
-
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   editInput: {
     flex: 1,
-
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 11.5,
-
-    color: '#172033',
-
+    color: "#172033",
     marginLeft: 8,
-
     paddingVertical: 0,
   },
 
   editSelectText: {
     flex: 1,
-
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 11.5,
-
-    color: '#172033',
-
+    color: "#172033",
     marginLeft: 8,
+  },
+
+  descriptionInput: {
+    minHeight: 90,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E6EC",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingTop: 11,
+    fontFamily: "PoppinsRegular",
+    fontSize: 11.5,
+    color: "#172033",
   },
 
   dropdown: {
     marginTop: 5,
-
-    backgroundColor: '#FFFFFF',
-
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
-
     borderWidth: 1,
-    borderColor: '#E2E6EC',
-
-    overflow: 'hidden',
-
+    borderColor: "#E2E6EC",
+    overflow: "hidden",
     elevation: 4,
   },
 
   dropdownItem: {
     minHeight: 43,
-
     paddingHorizontal: 13,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F2F5',
+    borderBottomColor: "#F0F2F5",
   },
 
   dropdownText: {
-    fontFamily: 'PoppinsRegular',
+    fontFamily: "PoppinsRegular",
     fontSize: 10.5,
-
-    color: '#445266',
+    color: "#445266",
   },
 
   editButtons: {
-    backgroundColor: '#FFFFFF',
-
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: '#EEF0F5',
-
+    borderTopColor: "#EEF0F5",
     padding: 14,
-
-    flexDirection: 'row',
-
+    flexDirection: "row",
     gap: 10,
   },
 
   editCancelButton: {
     flex: 1,
-
     height: 48,
-
     borderRadius: 12,
-
-    backgroundColor: '#F1F3F6',
-
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F1F3F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   editCancelText: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 10.5,
-
-    color: '#66768A',
+    color: "#66768A",
   },
 
   editSaveButton: {
     flex: 1.5,
-
     height: 48,
-
     borderRadius: 12,
-
-    backgroundColor: '#7040D5',
-
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-
+    backgroundColor: "#7040D5",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
   },
 
   editSaveText: {
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: "PoppinsSemiBold",
     fontSize: 10.5,
-
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
 });

@@ -1,8 +1,29 @@
+const mongoose = require("mongoose");
+const crypto = require("crypto");
+
 const User = require("../models/User");
 const Branch = require("../models/Branch");
-const { hashPassword } = require("../utils/password");
+const Teacher = require("../models/Teacher");
+const Batch = require("../models/Batch");
+const Student = require("../models/Student");
+
+const createNotification = require("../utils/createNotification");
+
+const {
+  hashPassword,
+  comparePassword,
+} = require("../utils/password");
+
+const { generateEmployeeId } = require("../utils/employeeId");
+const { generateToken } = require("../utils/jwt");
+
+// =====================================================
+// REGISTER
+// =====================================================
 
 const register = async (req, res) => {
+  const session = await mongoose.startSession();
+
   try {
     const {
       fullName,
@@ -11,17 +32,34 @@ const register = async (req, res) => {
       mobileNumber,
       role,
       branchId,
+
+      // Teacher-specific fields
+      specialization,
+      qualification,
+      experience,
+      address,
+
+      // Student-specific fields
+      batchId,
+      guardianName,
+      guardianMobile,
     } = req.body;
 
-    // 1. Validate required fields
-    if (!fullName || !email || !password || !role || !branchId) {
+    // 1. Validate common required fields
+    if (
+      !fullName?.trim() ||
+      !email?.trim() ||
+      !password ||
+      !role ||
+      !branchId
+    ) {
       return res.status(400).json({
         success: false,
         message: "All required fields must be provided",
       });
     }
 
-    // 2. Only teacher/student can register
+    // 2. Validate registration role
     if (!["teacher", "student"].includes(role)) {
       return res.status(400).json({
         success: false,
@@ -29,7 +67,39 @@ const register = async (req, res) => {
       });
     }
 
-    // 3. Check branch
+    // 3. Validate teacher-specific fields
+    if (role === "teacher") {
+      if (
+        !qualification?.trim() ||
+        experience === undefined ||
+        experience === null ||
+        String(experience).trim() === ""
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Qualification and experience are required for teacher registration",
+        });
+      }
+    }
+
+    // 4. Validate student-specific fields
+    if (role === "student" && !batchId) {
+      return res.status(400).json({
+        success: false,
+        message: "Batch is required for student registration",
+      });
+    }
+
+    // 5. Validate branch ID
+    if (!mongoose.Types.ObjectId.isValid(branchId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid branch ID",
+      });
+    }
+
+    // 6. Check branch exists and is active
     const branch = await Branch.findOne({
       _id: branchId,
       status: "active",
@@ -42,9 +112,12 @@ const register = async (req, res) => {
       });
     }
 
-    // 4. Check existing email
+    // 7. Normalize email
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 8. Check existing email
     const existingUser = await User.findOne({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
     });
 
     if (existingUser) {
@@ -54,21 +127,142 @@ const register = async (req, res) => {
       });
     }
 
-    // 5. Hash password
+    // 9. Validate student batch
+    if (role === "student") {
+      if (!mongoose.Types.ObjectId.isValid(batchId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid batch ID",
+        });
+      }
+
+      const batch = await Batch.findOne({
+        _id: batchId,
+        branchId: branch._id,
+        isRemoved: false,
+      });
+
+      if (!batch) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid batch or the selected batch does not belong to this branch",
+        });
+      }
+    }
+
+    // 10. Hash password
     const passwordHash = await hashPassword(password);
 
-    // 6. Create pending user
-    const user = await User.create({
-      fullName,
-      email: email.toLowerCase(),
-      mobileNumber,
-      passwordHash,
-      roles: [role],
-      branchId,
-      status: "pending",
-      registrationRole: role,
-    });
+    // 11. Start transaction
+    session.startTransaction();
 
+    // 12. Create pending User
+    const [user] = await User.create(
+      [
+        {
+          fullName: fullName.trim(),
+          email: normalizedEmail,
+          mobileNumber: mobileNumber?.trim() || "",
+          passwordHash,
+          roles: [role],
+          branchId: branch._id,
+          status: "pending",
+          registrationRole: role,
+        },
+      ],
+      { session }
+    );
+
+    let teacher = null;
+    let student = null;
+
+    // 13. Create Teacher profile
+    if (role === "teacher") {
+      const employeeId = await generateEmployeeId();
+
+      const [createdTeacher] = await Teacher.create(
+        [
+          {
+            userId: user._id,
+            employeeId,
+            specialization: specialization?.trim() || "",
+            qualification: qualification.trim(),
+            experience: String(experience).trim(),
+            address: address?.trim() || "",
+            status: "inactive",
+          },
+        ],
+        { session }
+      );
+
+      teacher = createdTeacher;
+    }
+
+    // 14. Create Student profile
+    if (role === "student") {
+      // Generate a unique student ID
+      const studentId = `STU-${crypto
+        .randomUUID()
+        .replace(/-/g, "")
+        .slice(0, 12)
+        .toUpperCase()}`;
+
+      const [createdStudent] = await Student.create(
+        [
+          {
+            userId: user._id,
+            studentId,
+            batchId,
+            guardianName: guardianName?.trim() || "",
+            guardianMobile: guardianMobile?.trim() || "",
+            address: address?.trim() || "",
+            status: "inactive",
+          },
+        ],
+        { session }
+      );
+
+      student = createdStudent;
+    }
+
+    // 15. Commit registration transaction
+    await session.commitTransaction();
+
+    // =================================================
+    // 16. NOTIFY ACTIVE SUPER ADMINS ABOUT REGISTRATION
+    // =================================================
+
+    try {
+      const superAdmins = await User.find({
+        roles: "super_admin",
+        status: "active",
+      }).select("_id");
+
+      const notificationMessage =
+        `${user.fullName} has submitted a new ${role} registration ` +
+        `for the ${branch.name} branch. Approval is required.`;
+
+      await Promise.all(
+        superAdmins.map((admin) =>
+          createNotification({
+            recipient: admin._id,
+            title: `New ${role === "teacher" ? "Teacher" : "Student"} Registration`,
+            message: notificationMessage,
+            type: "registration",
+            icon: "account-plus-outline",
+          })
+        )
+      );
+    } catch (notificationError) {
+      // Do not fail registration if notification creation fails
+      console.error(
+        "New registration notification error:",
+        notificationError
+      );
+    }
+
+    // 17. Send registration response
     return res.status(201).json({
       success: true,
       message:
@@ -80,17 +274,61 @@ const register = async (req, res) => {
         role: user.registrationRole,
         status: user.status,
         branchId: user.branchId,
+
+        ...(teacher && {
+          teacher: {
+            teacherId: teacher._id,
+            employeeId: teacher.employeeId,
+            specialization: teacher.specialization,
+            qualification: teacher.qualification,
+            experience: teacher.experience,
+            address: teacher.address,
+            status: teacher.status,
+          },
+        }),
+
+        ...(student && {
+          student: {
+            studentProfileId: student._id,
+            studentId: student.studentId,
+            batchId: student.batchId,
+            guardianName: student.guardianName,
+            guardianMobile: student.guardianMobile,
+            address: student.address,
+            status: student.status,
+          },
+        }),
       },
     });
   } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+
     console.error("Registration error:", error);
+
+    // Handle duplicate email or generated IDs
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "A duplicate value already exists. Check the email, employee ID, or student ID.",
+      });
+    }
 
     return res.status(500).json({
       success: false,
       message: "Something went wrong during registration",
+      error: error.message,
     });
+  } finally {
+    await session.endSession();
   }
 };
+
+// =====================================================
+// LOGIN
+// =====================================================
 
 const login = async (req, res) => {
   try {
@@ -106,7 +344,7 @@ const login = async (req, res) => {
 
     // 2. Find user
     const user = await User.findOne({
-      email: email.toLowerCase(),
+      email: email.trim().toLowerCase(),
     });
 
     if (!user) {
@@ -139,8 +377,6 @@ const login = async (req, res) => {
     }
 
     // 4. Compare password
-    const { comparePassword } = require("../utils/password");
-
     const isPasswordValid = await comparePassword(
       password,
       user.passwordHash
@@ -154,8 +390,6 @@ const login = async (req, res) => {
     }
 
     // 5. Generate JWT
-    const { generateToken } = require("../utils/jwt");
-
     const token = generateToken(user);
 
     // 6. Return safe user information
@@ -185,6 +419,10 @@ const login = async (req, res) => {
   }
 };
 
+// =====================================================
+// GET CURRENT USER
+// =====================================================
+
 const getMe = async (req, res) => {
   try {
     return res.status(200).json({
@@ -210,6 +448,10 @@ const getMe = async (req, res) => {
     });
   }
 };
+
+// =====================================================
+// UPDATE CURRENT USER
+// =====================================================
 
 const updateMe = async (req, res) => {
   try {
@@ -245,7 +487,7 @@ const updateMe = async (req, res) => {
       });
     }
 
-    // 4. Check if another user already has this email
+    // 4. Check duplicate email
     const existingUser = await User.findOne({
       email: normalizedEmail,
       _id: { $ne: req.user._id },
@@ -258,7 +500,7 @@ const updateMe = async (req, res) => {
       });
     }
 
-    // 5. Update only allowed profile fields
+    // 5. Update allowed profile fields
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
       {
@@ -312,6 +554,10 @@ const updateMe = async (req, res) => {
     });
   }
 };
+
+// =====================================================
+// EXPORT
+// =====================================================
 
 module.exports = {
   register,

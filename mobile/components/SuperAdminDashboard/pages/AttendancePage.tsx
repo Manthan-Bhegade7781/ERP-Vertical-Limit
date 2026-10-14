@@ -552,7 +552,7 @@ export default function AttendancePage() {
    */
   const markAttendance = () => {
     router.push({
-      pathname: '/(tabs)/explore',
+      pathname: '/(super_admin)/explore',
       params: { feature: 'Mark Attendance' },
     });
   };

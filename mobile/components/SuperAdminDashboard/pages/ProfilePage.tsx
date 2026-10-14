@@ -124,7 +124,7 @@ export default function ProfilePage() {
 
   const handleChangePassword = () => {
     router.push({
-      pathname: '/(tabs)/explore',
+      pathname: '/(super_admin)/explore',
       params: {
         feature: 'Change Password',
       },

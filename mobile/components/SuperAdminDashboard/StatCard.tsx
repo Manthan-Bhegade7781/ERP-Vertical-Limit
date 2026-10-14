@@ -77,19 +77,7 @@ export default function StatCard({
             { backgroundColor: color.background },
           ]}
         >
-          <MaterialCommunityIcons
-            name="trending-up"
-            size={12}
-            color={color.icon}
-          />
-          <Text
-            style={[
-              styles.change,
-              { color: color.icon },
-            ]}
-          >
-            {change}
-          </Text>
+          <MaterialCommunityIcons name="chevron-right" size={25} color="#A0A9B8" />
         </View>
       </View>
 
@@ -145,9 +133,9 @@ const styles = StyleSheet.create({
   },
 
   changeBadge: {
-    minHeight: 27,
-    borderRadius: 8,
-    paddingHorizontal: 7,
+    minHeight: 28,
+    borderRadius: 16,
+    paddingHorizontal: 4,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -160,7 +148,7 @@ const styles = StyleSheet.create({
 
   title: {
     fontFamily: 'PoppinsMedium',
-    fontSize: 10.5,
+    fontSize: 13,
     color: '#748096',
     marginBottom: 3,
   },

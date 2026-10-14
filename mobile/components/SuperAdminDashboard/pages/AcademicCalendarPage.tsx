@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   ScrollView,
@@ -12,106 +13,87 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
 
 type CalendarEvent = {
   id: string;
   title: string;
   date: string;
+  rawDate: string;
+  branchId: string | null;
   day: string;
   category:
     | 'Holiday'
     | 'Examination'
     | 'Academic'
     | 'Event'
-    | 'Meeting';
+    | 'Meeting'
+    | 'Other';
   description: string;
   branch: string;
   status: 'Upcoming' | 'Completed';
 };
 
-const calendarEvents: CalendarEvent[] = [
-  {
-    id: '1',
-    title: 'First Semester Begins',
-    date: '08 Jun 2026',
-    day: 'Monday',
-    category: 'Academic',
-    description: 'Beginning of the academic session for the first semester.',
-    branch: 'All Branches',
-    status: 'Completed',
-  },
-  {
-    id: '2',
-    title: 'Independence Day',
-    date: '15 Aug 2026',
-    day: 'Saturday',
-    category: 'Holiday',
-    description: 'Institute holiday on the occasion of Independence Day.',
-    branch: 'All Branches',
-    status: 'Completed',
-  },
-  {
-    id: '3',
-    title: 'Internal Assessment - I',
-    date: '21 Sep 2026',
-    day: 'Monday',
-    category: 'Examination',
-    description: 'First internal assessment examination.',
-    branch: 'All Branches',
-    status: 'Upcoming',
-  },
-  {
-    id: '4',
-    title: 'Teachers Meeting',
-    date: '28 Sep 2026',
-    day: 'Monday',
-    category: 'Meeting',
-    description: 'Monthly academic review meeting for teaching staff.',
-    branch: 'Main Branch',
-    status: 'Upcoming',
-  },
-  {
-    id: '5',
-    title: 'Gandhi Jayanti',
-    date: '02 Oct 2026',
-    day: 'Friday',
-    category: 'Holiday',
-    description: 'Institute holiday on the occasion of Gandhi Jayanti.',
-    branch: 'All Branches',
-    status: 'Upcoming',
-  },
-  {
-    id: '6',
-    title: 'Annual Sports Day',
-    date: '17 Oct 2026',
-    day: 'Saturday',
-    category: 'Event',
-    description: 'Annual sports and cultural activities.',
-    branch: 'Pune Branch',
-    status: 'Upcoming',
-  },
-  {
-    id: '7',
-    title: 'Mid Semester Examination',
-    date: '09 Nov 2026',
-    day: 'Monday',
-    category: 'Examination',
-    description: 'Mid semester examination for eligible batches.',
-    branch: 'All Branches',
-    status: 'Upcoming',
-  },
-  {
-    id: '8',
-    title: 'Winter Vacation',
-    date: '21 Dec 2026',
-    day: 'Monday',
-    category: 'Holiday',
-    description: 'Winter vacation begins.',
-    branch: 'All Branches',
-    status: 'Upcoming',
-  },
-];
+type ApiCalendarEvent = {
+  _id: string;
+  title: string;
+  description?: string;
+  date: string;
+  category: CalendarEvent['category'] | 'Other';
+  branchId?: string | { _id: string; name?: string } | null;
+};
+
+type BranchOption = {
+  _id: string;
+  name: string;
+  code?: string;
+};
+
+type AcademicYearOption = {
+  _id: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  status?: 'active' | 'inactive';
+};
+
+const formatEventDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${String(date.getDate()).padStart(2, '0')} ${date.toLocaleString('en-US', { month: 'short' })} ${date.getFullYear()}`;
+};
+
+const mapApiEvent = (item: ApiCalendarEvent): CalendarEvent => {
+  const date = new Date(item.date);
+  const branchName =
+    typeof item.branchId === 'object' && item.branchId !== null
+      ? item.branchId.name || 'Selected Branch'
+      : item.branchId
+        ? 'Selected Branch'
+        : 'All Branches';
+  const normalizedCategory = item.category;
+
+  return {
+    id: item._id,
+    title: item.title,
+    date: formatEventDate(item.date),
+    rawDate: item.date,
+    branchId: typeof item.branchId === 'object' && item.branchId !== null
+      ? item.branchId._id
+      : item.branchId || null,
+    day: Number.isNaN(date.getTime())
+      ? ''
+      : date.toLocaleDateString('en-US', { weekday: 'long' }),
+    category: normalizedCategory,
+    description: item.description || '',
+    branch: branchName,
+    status: !Number.isNaN(date.getTime()) && date < new Date(new Date().setHours(0, 0, 0, 0))
+      ? 'Completed'
+      : 'Upcoming',
+  };
+};
 
 const filters = [
   'All',
@@ -120,6 +102,7 @@ const filters = [
   'Holiday',
   'Event',
   'Meeting',
+  'Other',
 ];
 
 const categoryConfig = {
@@ -148,6 +131,11 @@ const categoryConfig = {
     color: '#E95386',
     icon: 'account-group-outline' as const,
   },
+  Other: {
+    background: '#EEF1F5',
+    color: '#667085',
+    icon: 'calendar-blank-outline' as const,
+  },
 };
 
 export default function AcademicCalendarPage() {
@@ -160,17 +148,92 @@ export default function AcademicCalendarPage() {
     ? Math.min(width - 250 - 40, 1500)
     : width - 32;
 
-  const [events, setEvents] = useState<CalendarEvent[]>(calendarEvents);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [branches, setBranches] = useState<BranchOption[]>([]);
+  const [academicYear, setAcademicYear] = useState<AcademicYearOption | null>(null);
+  const [showBranchPicker, setShowBranchPicker] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState('');
   const [newEventCategory, setNewEventCategory] =
     useState<CalendarEvent['category']>('Academic');
-  const [newEventBranch, setNewEventBranch] = useState('All Branches');
+  const [newEventBranchId, setNewEventBranchId] = useState('all');
   const [newEventDescription, setNewEventDescription] = useState('');
+
+  const loadCalendarData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setLoadError('');
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [eventsResponse, branchesResponse, academicYearsResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/academic-calendar`, { method: 'GET', headers }),
+        fetch(`${API_BASE_URL}/branches`, { method: 'GET', headers }).catch(() => null),
+        fetch(`${API_BASE_URL}/academic-years`, { method: 'GET', headers }).catch(() => null),
+      ]);
+
+      const eventsResult = await eventsResponse.json().catch(() => ({}));
+      if (!eventsResponse.ok || !eventsResult.success) {
+        throw new Error(eventsResult.message || 'Unable to load academic calendar events.');
+      }
+
+      const eventData = eventsResult?.data;
+      const apiEvents: ApiCalendarEvent[] = Array.isArray(eventData)
+        ? eventData
+        : Array.isArray(eventData?.events)
+          ? eventData.events
+          : Array.isArray(eventsResult?.events)
+            ? eventsResult.events
+            : [];
+      setEvents(apiEvents.map(mapApiEvent));
+
+      if (branchesResponse?.ok) {
+        const branchesResult = await branchesResponse.json().catch(() => ({}));
+        const branchData = branchesResult?.data ?? branchesResult?.branches;
+        const branchList = Array.isArray(branchData)
+          ? branchData
+          : Array.isArray(branchData?.branches)
+            ? branchData.branches
+            : [];
+        setBranches(branchList.filter((branch: any) => branch?._id && branch?.name));
+      }
+
+      if (academicYearsResponse?.ok) {
+        const yearsResult = await academicYearsResponse.json().catch(() => ({}));
+        const yearData = yearsResult?.data ?? yearsResult?.academicYears;
+        const yearList = Array.isArray(yearData)
+          ? yearData
+          : Array.isArray(yearData?.academicYears)
+            ? yearData.academicYears
+            : [];
+        const validYears: AcademicYearOption[] = yearList.filter(
+          (year: any) => year?._id && year?.name,
+        );
+        const activeYear = validYears.find((year) => year.status === 'active') || validYears[0] || null;
+        setAcademicYear(activeYear);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to load academic calendar.';
+      setLoadError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadCalendarData();
+    }, [loadCalendarData]),
+  );
 
   const filteredEvents = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -195,24 +258,32 @@ export default function AcademicCalendarPage() {
     router.replace('/(tabs)');
   };
 
+  const resetEventForm = () => {
+    setEditingEventId(null);
+    setNewEventTitle('');
+    setNewEventDate('');
+    setNewEventCategory('Academic');
+    setNewEventBranchId('all');
+    setNewEventDescription('');
+  };
+
   const handleAddEvent = () => {
+    resetEventForm();
     setShowAddForm(true);
   };
 
-  const handleSaveNewEvent = () => {
+  const handleSaveNewEvent = async () => {
+    if (saving) return;
     if (!newEventTitle.trim()) {
       Alert.alert('Required Field', 'Please enter the event title.');
       return;
     }
-
     if (!newEventDate.trim()) {
       Alert.alert('Required Field', 'Please enter the event date.');
       return;
     }
 
-    const rawDate = newEventDate.trim();
-    const dateParts = rawDate.split(/[\/-]/).map((part) => part.trim());
-
+    const dateParts = newEventDate.trim().split(/[\/-]/).map((part) => part.trim());
     if (
       dateParts.length !== 3 ||
       !/^\d{1,2}$/.test(dateParts[0]) ||
@@ -227,7 +298,6 @@ export default function AcademicCalendarPage() {
     const monthNumber = Number(dateParts[1]);
     const yearNumber = Number(dateParts[2]);
     const parsedDate = new Date(yearNumber, monthNumber - 1, dayNumber);
-
     if (
       Number.isNaN(parsedDate.getTime()) ||
       parsedDate.getFullYear() !== yearNumber ||
@@ -238,37 +308,67 @@ export default function AcademicCalendarPage() {
       return;
     }
 
-    const displayDate = `${String(dayNumber).padStart(2, '0')} ${parsedDate.toLocaleString(
-      'en-US',
-      { month: 'short' }
-    )} ${yearNumber}`;
-    const dayName = parsedDate.toLocaleDateString('en-US', { weekday: 'long' });
+    try {
+      setSaving(true);
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
 
-    const newEvent: CalendarEvent = {
-      id: `custom-${Date.now()}`,
-      title: newEventTitle.trim(),
-      date: displayDate,
-      day: dayName,
-      category: newEventCategory,
-      description: newEventDescription.trim() || 'Calendar event.',
-      branch: newEventBranch,
-      status: 'Upcoming',
-    };
+      const payload: Record<string, string | null> = {
+        title: newEventTitle.trim(),
+        description: newEventDescription.trim(),
+        date: `${yearNumber}-${String(monthNumber).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}T00:00:00.000Z`,
+        category: newEventCategory,
+      };
 
-    setEvents((current) => [newEvent, ...current]);
-    setShowAddForm(false);
+      // For updates, explicitly send null when the event should apply to all branches.
+      // For creates, omitting branchId lets the backend create a global event.
+      if (editingEventId) {
+        payload.branchId = newEventBranchId === 'all' ? null : newEventBranchId;
+      } else if (newEventBranchId !== 'all') {
+        payload.branchId = newEventBranchId;
+      }
 
-    setNewEventTitle('');
-    setNewEventDate('');
-    setNewEventCategory('Academic');
-    setNewEventBranch('All Branches');
-    setNewEventDescription('');
+      const response = await fetch(
+        editingEventId
+          ? `${API_BASE_URL}/academic-calendar/${editingEventId}`
+          : `${API_BASE_URL}/academic-calendar`,
+        {
+          method: editingEventId ? 'PUT' : 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || (editingEventId ? 'Unable to update calendar event.' : 'Unable to create calendar event.'),
+        );
+      }
 
-    Alert.alert('Event Added', 'Calendar event has been added successfully.');
+      const wasEditing = Boolean(editingEventId);
+      setShowAddForm(false);
+      resetEventForm();
+      await loadCalendarData();
+      Alert.alert(
+        wasEditing ? 'Event Updated' : 'Event Added',
+        wasEditing ? 'Calendar event has been updated successfully.' : 'Calendar event has been saved successfully.',
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to Save Event',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCloseAddForm = () => {
     setShowAddForm(false);
+    resetEventForm();
   };
 
   const handleView = (event: CalendarEvent) => {
@@ -285,10 +385,62 @@ export default function AcademicCalendarPage() {
   };
 
   const handleEdit = (event: CalendarEvent) => {
-    Alert.alert(
-      'Edit Event',
-      `Edit options for "${event.title}" will be available here.`
+    const eventDate = new Date(event.rawDate);
+    if (Number.isNaN(eventDate.getTime())) {
+      Alert.alert('Invalid Event Date', 'This event has an invalid date and cannot be edited.');
+      return;
+    }
+
+    setEditingEventId(event.id);
+    setNewEventTitle(event.title);
+    setNewEventDate(
+      `${String(eventDate.getDate()).padStart(2, '0')}/${String(eventDate.getMonth() + 1).padStart(2, '0')}/${eventDate.getFullYear()}`,
     );
+    setNewEventCategory(event.category);
+    setNewEventBranchId(event.branchId || 'all');
+    setNewEventDescription(event.description || '');
+    setShowAddForm(true);
+  };
+
+  const handleDelete = (event: CalendarEvent) => {
+    Alert.alert(
+      'Delete Calendar Event',
+      `Are you sure you want to delete "${event.title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void confirmDeleteEvent(event);
+          },
+        },
+      ],
+    );
+  };
+
+  const confirmDeleteEvent = async (event: CalendarEvent) => {
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
+
+      const response = await fetch(`${API_BASE_URL}/academic-calendar/${event.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to delete calendar event.');
+      }
+
+      await loadCalendarData();
+      Alert.alert('Event Deleted', 'Calendar event has been deleted successfully.');
+    } catch (error) {
+      Alert.alert(
+        'Unable to Delete Event',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
   };
 
   return (
@@ -386,8 +538,8 @@ export default function AcademicCalendarPage() {
               <CalendarStatCard
                 icon="calendar-month-outline"
                 title="Total Events"
-                value="24"
-                change="6.2%"
+                value={String(events.length)}
+                change=""
                 type="purple"
               />
             </View>
@@ -401,8 +553,8 @@ export default function AcademicCalendarPage() {
               <CalendarStatCard
                 icon="school-outline"
                 title="Academic Events"
-                value="8"
-                change="7.5%"
+                value={String(events.filter((event) => event.category === 'Academic').length)}
+                change=""
                 type="blue"
               />
             </View>
@@ -416,8 +568,8 @@ export default function AcademicCalendarPage() {
               <CalendarStatCard
                 icon="file-document-edit-outline"
                 title="Examinations"
-                value="6"
-                change="5.4%"
+                value={String(events.filter((event) => event.category === 'Examination').length)}
+                change=""
                 type="orange"
               />
             </View>
@@ -431,8 +583,8 @@ export default function AcademicCalendarPage() {
               <CalendarStatCard
                 icon="party-popper"
                 title="Holidays"
-                value="10"
-                change="8.1%"
+                value={String(events.filter((event) => event.category === 'Holiday').length)}
+                change=""
                 type="green"
               />
             </View>
@@ -451,18 +603,18 @@ export default function AcademicCalendarPage() {
 
               <View>
                 <Text style={styles.calendarInfoTitle}>
-                  Academic Year 2026 - 27
+                  {academicYear ? `Academic Year ${academicYear.name}` : 'Academic Calendar'}
                 </Text>
 
                 <Text style={styles.calendarInfoSubtitle}>
-                  Current academic calendar
+                  {academicYear ? `Status: ${academicYear.status || 'available'}` : 'No academic year configured'}
                 </Text>
               </View>
             </View>
 
             <View style={styles.yearBadge}>
-              <Text style={styles.yearBadgeText}>
-                2026 - 27
+              <Text style={styles.yearBadgeText} numberOfLines={1}>
+                {academicYear?.name || 'No year'}
               </Text>
             </View>
           </View>
@@ -531,6 +683,21 @@ export default function AcademicCalendarPage() {
             </ScrollView>
           </View>
 
+          {loading ? (
+            <View style={styles.emptyCard}>
+              <ActivityIndicator size="large" color="#7040D5" />
+              <Text style={styles.emptySubtitle}>Loading calendar events...</Text>
+            </View>
+          ) : loadError ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>Unable to load calendar</Text>
+              <Text style={styles.emptySubtitle}>{loadError}</Text>
+              <TouchableOpacity onPress={loadCalendarData} style={styles.formSaveButton} activeOpacity={0.85}>
+                <Text style={styles.formSaveText}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
           {/* EVENT LIST HEADER */}
           <View style={styles.listHeader}>
             <View>
@@ -558,7 +725,7 @@ export default function AcademicCalendarPage() {
           </View>
 
           {/* EVENTS */}
-          {filteredEvents.length === 0 ? (
+          {!loading && !loadError && filteredEvents.length === 0 ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIcon}>
                 <MaterialCommunityIcons
@@ -576,7 +743,7 @@ export default function AcademicCalendarPage() {
                 Try changing your search or filter.
               </Text>
             </View>
-          ) : (
+          ) : !loading && !loadError ? (
             <View
               style={[
                 styles.eventGrid,
@@ -590,10 +757,11 @@ export default function AcademicCalendarPage() {
                   isDesktop={isDesktop}
                   onView={() => handleView(event)}
                   onEdit={() => handleEdit(event)}
+                  onDelete={() => handleDelete(event)}
                 />
               ))}
             </View>
-          )}
+          ) : null}
         </View>
       </ScrollView>
 
@@ -609,14 +777,14 @@ export default function AcademicCalendarPage() {
               <View style={styles.addFormTitleArea}>
                 <View style={styles.addFormIcon}>
                   <MaterialCommunityIcons
-                    name="calendar-plus-outline"
+                    name={editingEventId ? 'pencil-outline' : 'calendar-plus-outline'}
                     size={20}
                     color="#7040D5"
                   />
                 </View>
                 <View style={styles.addFormTextArea}>
                   <Text style={styles.addFormTitle} numberOfLines={1}>
-                    Add Calendar Event
+                    {editingEventId ? 'Edit Calendar Event' : 'Add Calendar Event'}
                   </Text>
                   <Text style={styles.addFormSubtitle} numberOfLines={1}>
                     Enter event details
@@ -700,35 +868,27 @@ export default function AcademicCalendarPage() {
               </View>
 
               <Text style={styles.formLabel}>Branch</Text>
-              <View style={styles.formChoiceRow}>
-                {['All Branches', 'Main Branch', 'Pune Branch'].map(
-                  (branch) => {
-                    const selected = newEventBranch === branch;
-
-                    return (
-                      <TouchableOpacity
-                        key={branch}
-                        style={[
-                          styles.formChoice,
-                          selected && styles.formChoiceActive,
-                        ]}
-                        onPress={() => setNewEventBranch(branch)}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            styles.formChoiceText,
-                            selected && styles.formChoiceTextActive,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {branch}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  }
-                )}
-              </View>
+              <TouchableOpacity
+                style={styles.dropdownTrigger}
+                onPress={() => setShowBranchPicker(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.dropdownLeadingIcon}>
+                  <MaterialCommunityIcons name="office-building-outline" size={18} color="#7040D5" />
+                </View>
+                <View style={styles.dropdownTextArea}>
+                  <Text style={styles.dropdownValue} numberOfLines={1}>
+                    {newEventBranchId === 'all'
+                      ? 'All Branches'
+                      : branches.find((branch) => branch._id === newEventBranchId)?.name || 'Select branch'}
+                  </Text>
+                  <Text style={styles.dropdownHint}>Choose where this event applies</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-down" size={22} color="#7B8799" />
+              </TouchableOpacity>
+              {branches.length === 0 && (
+                <Text style={styles.helperText}>No active branches were returned by the branches API.</Text>
+              )}
 
               <Text style={styles.formLabel}>Description</Text>
               <TextInput
@@ -754,6 +914,7 @@ export default function AcademicCalendarPage() {
               <TouchableOpacity
                 style={styles.formSaveButton}
                 onPress={handleSaveNewEvent}
+                disabled={saving}
                 activeOpacity={0.85}
               >
                 <MaterialCommunityIcons
@@ -761,9 +922,72 @@ export default function AcademicCalendarPage() {
                   size={17}
                   color="#FFFFFF"
                 />
-                <Text style={styles.formSaveText}>Save Event</Text>
+                <Text style={styles.formSaveText}>{saving ? (editingEventId ? 'Updating...' : 'Saving...') : (editingEventId ? 'Update Event' : 'Save Event')}</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showBranchPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBranchPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.branchPickerCard}>
+            <View style={styles.branchPickerHeader}>
+              <View>
+                <Text style={styles.branchPickerTitle}>Select Branch</Text>
+                <Text style={styles.branchPickerSubtitle}>Choose the event's branch scope</Text>
+              </View>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setShowBranchPicker(false)} activeOpacity={0.8}>
+                <MaterialCommunityIcons name="close" size={19} color="#707B8F" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.branchPickerList} showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.branchOption, newEventBranchId === 'all' && styles.branchOptionSelected]}
+                onPress={() => { setNewEventBranchId('all'); setShowBranchPicker(false); }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.branchOptionIcon, newEventBranchId === 'all' && styles.branchOptionIconSelected]}>
+                  <MaterialCommunityIcons name="earth" size={19} color={newEventBranchId === 'all' ? '#7040D5' : '#7B8799'} />
+                </View>
+                <View style={styles.branchOptionTextArea}>
+                  <Text style={[styles.branchOptionTitle, newEventBranchId === 'all' && styles.branchOptionTitleSelected]}>All Branches</Text>
+                  <Text style={styles.branchOptionSubtitle}>Make this a global calendar event</Text>
+                </View>
+                {newEventBranchId === 'all' && <MaterialCommunityIcons name="check-circle" size={21} color="#7040D5" />}
+              </TouchableOpacity>
+              {branches.map((branch) => {
+                const selected = newEventBranchId === branch._id;
+                return (
+                  <TouchableOpacity
+                    key={branch._id}
+                    style={[styles.branchOption, selected && styles.branchOptionSelected]}
+                    onPress={() => { setNewEventBranchId(branch._id); setShowBranchPicker(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.branchOptionIcon, selected && styles.branchOptionIconSelected]}>
+                      <MaterialCommunityIcons name="office-building-outline" size={19} color={selected ? '#7040D5' : '#7B8799'} />
+                    </View>
+                    <View style={styles.branchOptionTextArea}>
+                      <Text style={[styles.branchOptionTitle, selected && styles.branchOptionTitleSelected]}>{branch.name}</Text>
+                      {branch.code ? <Text style={styles.branchOptionSubtitle}>Branch code: {branch.code}</Text> : null}
+                    </View>
+                    {selected && <MaterialCommunityIcons name="check-circle" size={21} color="#7040D5" />}
+                  </TouchableOpacity>
+                );
+              })}
+              {branches.length === 0 && (
+                <View style={styles.branchPickerEmpty}>
+                  <MaterialCommunityIcons name="office-building-outline" size={28} color="#98A1B2" />
+                  <Text style={styles.branchPickerSubtitle}>No active branches available.</Text>
+                </View>
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -832,31 +1056,17 @@ function CalendarStatCard({
           />
         </View>
 
-        <View
-          style={[
-            styles.changeBadge,
-            {
-              backgroundColor: color.background,
-            },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="trending-up"
-            size={12}
-            color={color.icon}
-          />
-
-          <Text
+        {Boolean(change) && (
+          <View
             style={[
-              styles.changeText,
-              {
-                color: color.icon,
-              },
+              styles.changeBadge,
+              { backgroundColor: color.background },
             ]}
           >
-            {change}
-          </Text>
-        </View>
+            <MaterialCommunityIcons name="trending-up" size={12} color={color.icon} />
+            <Text style={[styles.changeText, { color: color.icon }]}>{change}</Text>
+          </View>
+        )}
       </View>
 
       <View>
@@ -881,6 +1091,7 @@ type CalendarEventCardProps = {
   isDesktop: boolean;
   onView: () => void;
   onEdit: () => void;
+  onDelete: () => void;
 };
 
 function CalendarEventCard({
@@ -888,6 +1099,7 @@ function CalendarEventCard({
   isDesktop,
   onView,
   onEdit,
+  onDelete,
 }: CalendarEventCardProps) {
   const config = categoryConfig[event.category];
 
@@ -1060,6 +1272,19 @@ function CalendarEventCard({
               Edit
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={onDelete}
+            activeOpacity={0.8}
+            accessibilityLabel={`Delete ${event.title}`}
+          >
+            <MaterialCommunityIcons
+              name="trash-can-outline"
+              size={16}
+              color="#D92D45"
+            />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -1177,7 +1402,7 @@ const styles = StyleSheet.create({
   },
 
   statCardWrapper: {
-    width: '48%',
+    width: '47%',
   },
 
   statCardWrapperDesktop: {
@@ -1233,14 +1458,14 @@ const styles = StyleSheet.create({
 
   statTitle: {
     fontFamily: 'PoppinsMedium',
-    fontSize: 10.5,
+    fontSize: 11,
     color: '#748096',
     marginBottom: 2,
   },
 
   statValue: {
     fontFamily: 'PoppinsBold',
-    fontSize: 23,
+    fontSize: 25,
     color: '#172033',
   },
 
@@ -1474,7 +1699,7 @@ const styles = StyleSheet.create({
 
   eventTitle: {
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 11.5,
+    fontSize: 12.5,
     color: '#172033',
     lineHeight: 17,
   },
@@ -1541,7 +1766,7 @@ const styles = StyleSheet.create({
 
   eventDescription: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 9.5,
+    fontSize: 10.5,
     color: '#7B8799',
     lineHeight: 15,
     marginTop: 12,
@@ -1665,6 +1890,15 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 
+  deleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FFF0F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(18, 22, 35, 0.45)',
@@ -1781,10 +2015,78 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 13,
     fontFamily: 'PoppinsRegular',
-    fontSize: 10,
+    fontSize: 12,
     color: '#303544',
   },
 
+  dropdownTrigger: {
+    width: '100%',
+    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#E0E5EF',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 13,
+  },
+  dropdownLeadingIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  dropdownTextArea: { flex: 1, minWidth: 0 },
+  dropdownValue: { fontFamily: 'PoppinsSemiBold', fontSize: 12, color: '#172033' },
+  dropdownHint: { fontFamily: 'PoppinsRegular', fontSize: 9.5, color: '#8993A4', marginTop: 2 },
+  helperText: { fontFamily: 'PoppinsRegular', fontSize: 10, color: '#8993A4', marginTop: -7, marginBottom: 12 },
+  branchPickerCard: {
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '78%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+    elevation: 10,
+  },
+  branchPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F5',
+  },
+  branchPickerTitle: { fontFamily: 'PoppinsSemiBold', fontSize: 16, color: '#172033' },
+  branchPickerSubtitle: { fontFamily: 'PoppinsRegular', fontSize: 10, color: '#8993A4', marginTop: 3 },
+  branchPickerList: { paddingHorizontal: 12, paddingVertical: 8 },
+  branchOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 68,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    marginBottom: 6,
+  },
+  branchOptionSelected: { backgroundColor: '#F7F2FF', borderColor: '#D9C8F8' },
+  branchOptionIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#F5F6FA', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  branchOptionIconSelected: { backgroundColor: '#EDE3FF' },
+  branchOptionTextArea: { flex: 1, minWidth: 0 },
+  branchOptionTitle: { fontFamily: 'PoppinsMedium', fontSize: 12, color: '#3B4658' },
+  branchOptionTitleSelected: { fontFamily: 'PoppinsSemiBold', color: '#7040D5' },
+  branchOptionSubtitle: { fontFamily: 'PoppinsRegular', fontSize: 9.5, color: '#8993A4', marginTop: 2 },
+  branchPickerEmpty: { alignItems: 'center', paddingVertical: 28, gap: 8 },
   formChoiceRow: {
     width: '100%',
     flexDirection: 'row',

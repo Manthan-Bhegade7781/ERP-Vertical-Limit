@@ -18,114 +18,364 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 
-type BatchStatus =
-  | "Active"
-  | "Completed"
-  | "Stopped";
+/* =========================================================
+   TYPES
+========================================================= */
+
+type BatchStatus = "Upcoming" | "Active" | "Completed";
+
+type Standard = "8th" | "9th" | "10th" | "11th" | "12th";
 
 type Batch = {
   id: string;
   name: string;
   code: string;
-  course: string;
+  standard: Standard;
+  academicYear: string;
   branch: string;
-  Faculty: string;
   startDate: string;
   endDate: string;
   students: number;
   capacity: number;
-  schedule: string;
-  status: BatchStatus;
-  stopReason?: string;
-  stoppedDate?: string;
+  schedule: {
+    startTime: string;
+    endTime: string;
+    days: string[];
+  };
+  description: string;
+  removed?: boolean;
 };
+
+type BatchSubject = {
+  id: string;
+  batchId: string;
+  subjectId: string;
+  subject: string;
+  subjectCode: string;
+  teacherId: string;
+  teacher: string;
+  teacherEmail: string;
+  status: "active" | "inactive";
+};
+
+type Subject = {
+  id: string;
+  name: string;
+  code: string;
+  standard: Standard;
+  type: "Core" | "Foundation" | "Entrance";
+};
+
+type Teacher = {
+  id: string;
+  name: string;
+  email: string;
+  branch: string;
+};
+
+/* =========================================================
+   SAMPLE DATA
+========================================================= */
 
 const initialBatches: Batch[] = [
   {
     id: "1",
-    name: "12th JEE - Morning",
-    code: "VLCC-BAT-001",
-    course: "JEE Main & Advanced Preparation",
-    branch: "Pune Branch",
-    Faculty: "Anita Desai",
+    name: "10th Standard - Morning",
+    code: "VC-10TH-MOR",
+    standard: "10th",
+    academicYear: "2026-27",
+    branch: "Talegaon",
     startDate: "01 Jun 2026",
     endDate: "31 Mar 2027",
-    students: 72,
-    capacity: 80,
-    schedule: "Mon - Sat, 7:00 AM",
-    status: "Active",
+    students: 32,
+    capacity: 40,
+    schedule: {
+      startTime: "08:00 AM",
+      endTime: "10:00 AM",
+      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    },
+    description: "10th standard morning batch",
   },
+
   {
     id: "2",
-    name: "12th NEET - Morning",
-    code: "VLCC-BAT-002",
-    course: "NEET Preparation",
-    branch: "Mumbai Branch",
-    Faculty: "Pooja Sharma",
+    name: "10th Standard - Evening",
+    code: "VC-10TH-EVE",
+    standard: "10th",
+    academicYear: "2026-27",
+    branch: "Talegaon",
     startDate: "01 Jun 2026",
     endDate: "31 Mar 2027",
-    students: 68,
-    capacity: 80,
-    schedule: "Mon - Sat, 7:30 AM",
-    status: "Active",
+    students: 28,
+    capacity: 40,
+    schedule: {
+      startTime: "05:00 PM",
+      endTime: "07:00 PM",
+      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    },
+    description: "10th standard evening batch",
   },
+
   {
     id: "3",
-    name: "11th MHT-CET - Evening",
-    code: "VLCC-BAT-003",
-    course: "MHT-CET PCM Preparation",
-    branch: "Pune Branch",
-    Faculty: "Ravi Patil",
-    startDate: "15 Jun 2026",
-    endDate: "31 Mar 2027",
-    students: 64,
-    capacity: 75,
-    schedule: "Mon - Fri, 5:00 PM",
-    status: "Active",
+    name: "JEE 2026 Morning",
+    code: "VC-JEE-MOR",
+    standard: "12th",
+    academicYear: "2026-27",
+    branch: "Talegaon",
+    startDate: "01 Jun 2026",
+    endDate: "30 Apr 2027",
+    students: 41,
+    capacity: 50,
+    schedule: {
+      startTime: "07:00 AM",
+      endTime: "10:00 AM",
+      days: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ],
+    },
+    description: "JEE preparation morning batch",
   },
+
   {
     id: "4",
-    name: "10th Foundation - Afternoon",
-    code: "VLCC-BAT-004",
-    course: "Foundation - Classes 8 to 10",
-    branch: "Nashik Branch",
-    Faculty: "Karan Shah",
+    name: "9th Standard - Evening",
+    code: "VC-9TH-EVE",
+    standard: "9th",
+    academicYear: "2026-27",
+    branch: "Talegaon",
     startDate: "15 Jun 2026",
-    endDate: "15 Mar 2027",
-    students: 58,
-    capacity: 70,
-    schedule: "Mon - Sat, 3:00 PM",
-    status: "Active",
+    endDate: "31 Mar 2027",
+    students: 24,
+    capacity: 35,
+    schedule: {
+      startTime: "05:30 PM",
+      endTime: "07:00 PM",
+      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    },
+    description: "9th standard evening batch",
   },
+
   {
     id: "5",
-    name: "9th Foundation - Evening",
-    code: "VLCC-BAT-005",
-    course: "Foundation - Classes 8 to 10",
-    branch: "Nagpur Branch",
-    Faculty: "Neha Kapoor",
+    name: "8th Foundation - Evening",
+    code: "VC-8TH-EVE",
+    standard: "8th",
+    academicYear: "2026-27",
+    branch: "Talegaon",
     startDate: "01 Jul 2026",
     endDate: "31 Mar 2027",
-    students: 52,
-    capacity: 60,
-    schedule: "Mon - Fri, 6:00 PM",
-    status: "Active",
+    students: 21,
+    capacity: 30,
+    schedule: {
+      startTime: "05:00 PM",
+      endTime: "06:30 PM",
+      days: ["Monday", "Wednesday", "Friday"],
+    },
+    description: "8th standard foundation batch",
   },
+
   {
     id: "6",
-    name: "8th Foundation - Evening",
-    code: "VLCC-BAT-006",
-    course: "Foundation - Classes 8 to 10",
-    branch: "Main Branch",
-    Faculty: "Meena Joshi",
-    startDate: "01 Jul 2026",
+    name: "12th Science - Evening",
+    code: "VC-12SCI-EVE",
+    standard: "12th",
+    academicYear: "2026-27",
+    branch: "Talegaon",
+    startDate: "01 Jun 2026",
     endDate: "31 Mar 2027",
-    students: 48,
-    capacity: 60,
-    schedule: "Mon - Fri, 5:30 PM",
-    status: "Active",
+    students: 34,
+    capacity: 40,
+    schedule: {
+      startTime: "05:00 PM",
+      endTime: "08:00 PM",
+      days: ["Monday", "Tuesday", "Thursday", "Friday", "Saturday"],
+    },
+    description: "12th Science regular batch",
   },
 ];
+
+const sampleSubjects: Subject[] = [
+  {
+    id: "subject-1",
+    name: "Mathematics",
+    code: "MATH10",
+    standard: "10th",
+    type: "Core",
+  },
+  {
+    id: "subject-2",
+    name: "Science",
+    code: "SCI10",
+    standard: "10th",
+    type: "Core",
+  },
+  {
+    id: "subject-3",
+    name: "English",
+    code: "ENG10",
+    standard: "10th",
+    type: "Core",
+  },
+  {
+    id: "subject-4",
+    name: "Physics",
+    code: "PHY12",
+    standard: "12th",
+    type: "Core",
+  },
+  {
+    id: "subject-5",
+    name: "Chemistry",
+    code: "CHEM12",
+    standard: "12th",
+    type: "Core",
+  },
+  {
+    id: "subject-6",
+    name: "Mathematics",
+    code: "MATH12",
+    standard: "12th",
+    type: "Core",
+  },
+
+  {
+    id: "subject-7",
+    name: "Biology",
+    code: "BIO12",
+    standard: "12th",
+    type: "Core",
+  },
+];
+
+const sampleTeachers: Teacher[] = [
+  {
+    id: "teacher-1",
+    name: "Amit Sir",
+    email: "amit@verticalclasses.com",
+    branch: "Talegaon",
+  },
+  {
+    id: "teacher-2",
+    name: "Rahul Sir",
+    email: "rahul@verticalclasses.com",
+    branch: "Talegaon",
+  },
+  {
+    id: "teacher-3",
+    name: "Priya Ma'am",
+    email: "priya@verticalclasses.com",
+    branch: "Talegaon",
+  },
+  {
+    id: "teacher-4",
+    name: "Sneha Ma'am",
+    email: "sneha@verticalclasses.com",
+    branch: "Talegaon",
+  },
+];
+
+const initialBatchSubjects: BatchSubject[] = [
+  {
+    id: "assignment-1",
+    batchId: "1",
+    subjectId: "subject-1",
+    subject: "Mathematics",
+    subjectCode: "MATH10",
+    teacherId: "teacher-1",
+    teacher: "Amit Sir",
+    teacherEmail: "amit@verticalclasses.com",
+    status: "active",
+  },
+  {
+    id: "assignment-2",
+    batchId: "1",
+    subjectId: "subject-2",
+    subject: "Science",
+    subjectCode: "SCI10",
+    teacherId: "teacher-2",
+    teacher: "Rahul Sir",
+    teacherEmail: "rahul@verticalclasses.com",
+    status: "active",
+  },
+  {
+    id: "assignment-3",
+    batchId: "1",
+    subjectId: "subject-3",
+    subject: "English",
+    subjectCode: "ENG10",
+    teacherId: "teacher-3",
+    teacher: "Priya Ma'am",
+    teacherEmail: "priya@verticalclasses.com",
+    status: "active",
+  },
+
+  {
+    id: "assignment-4",
+    batchId: "2",
+    subjectId: "subject-1",
+    subject: "Mathematics",
+    subjectCode: "MATH10",
+    teacherId: "teacher-1",
+    teacher: "Amit Sir",
+    teacherEmail: "amit@verticalclasses.com",
+    status: "active",
+  },
+  {
+    id: "assignment-5",
+    batchId: "2",
+    subjectId: "subject-2",
+    subject: "Science",
+    subjectCode: "SCI10",
+    teacherId: "teacher-2",
+    teacher: "Rahul Sir",
+    teacherEmail: "rahul@verticalclasses.com",
+    status: "active",
+  },
+
+  {
+    id: "assignment-6",
+    batchId: "3",
+    subjectId: "subject-4",
+    subject: "Physics",
+    subjectCode: "PHY12",
+    teacherId: "teacher-1",
+    teacher: "Amit Sir",
+    teacherEmail: "amit@verticalclasses.com",
+    status: "active",
+  },
+  {
+    id: "assignment-7",
+    batchId: "3",
+    subjectId: "subject-5",
+    subject: "Chemistry",
+    subjectCode: "CHEM12",
+    teacherId: "teacher-2",
+    teacher: "Rahul Sir",
+    teacherEmail: "rahul@verticalclasses.com",
+    status: "active",
+  },
+  {
+    id: "assignment-8",
+    batchId: "3",
+    subjectId: "subject-6",
+    subject: "Mathematics",
+    subjectCode: "MATH12",
+    teacherId: "teacher-4",
+    teacher: "Sneha Ma'am",
+    teacherEmail: "sneha@verticalclasses.com",
+    status: "active",
+  },
+];
+
+/* =========================================================
+   STATUS CONFIG
+========================================================= */
 
 const statusConfig: Record<
   BatchStatus,
@@ -148,19 +398,43 @@ const statusConfig: Record<
     icon: "check-circle-outline",
     chartColor: "#2675E8",
   },
-  Stopped: {
-    background: "#FFE9F0",
-    text: "#E95386",
-    icon: "pause-circle-outline",
-    chartColor: "#E95386",
-  },
+  Upcoming: {
+    background: "#FFF8E1",
+    text: "#FF9800",
+    icon: "clock-outline",
+    chartColor: "#FF9800",
+  }
 };
 
 const chartStatuses: BatchStatus[] = [
+  "Upcoming",
   "Active",
   "Completed",
-  "Stopped",
 ];
+
+const getBatchStatus = (batch: Batch): BatchStatus => {
+  const startDate = new Date(batch.startDate);
+  const endDate = new Date(batch.endDate);
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+
+  if (today < startDate) {
+    return "Upcoming";
+  }
+
+  if (today > endDate) {
+    return "Completed";
+  }
+
+  return "Active";
+};
+
+/* =========================================================
+   DONUT
+========================================================= */
 
 function BatchStatusDonut({
   counts,
@@ -179,7 +453,6 @@ function BatchStatusDonut({
   return (
     <View style={styles.donutWrapper}>
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Background ring */}
         <Circle
           cx={size / 2}
           cy={size / 2}
@@ -192,15 +465,22 @@ function BatchStatusDonut({
         {chartStatuses.map((status) => {
           const value = counts[status];
 
-          if (value === 0) {
+          if (value === 0 || total === 0) {
             return null;
           }
 
-          const segmentLength = (value / total) * circumference;
+          const segmentLength =
+            (value / total) * circumference;
 
-          const gap = Math.min(2.5, segmentLength * 0.08);
+          const gap = Math.min(
+            2.5,
+            segmentLength * 0.08,
+          );
 
-          const visibleLength = Math.max(segmentLength - gap, 0);
+          const visibleLength = Math.max(
+            segmentLength - gap,
+            0,
+          );
 
           const dashOffset = -accumulated;
 
@@ -233,31 +513,75 @@ function BatchStatusDonut({
   );
 }
 
+/* =========================================================
+   MAIN PAGE
+========================================================= */
+
 export default function BatchesPage() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
   const isSmallScreen = width < 390;
 
-  const [batches, setBatches] = useState<Batch[]>(initialBatches);
+  const [batches, setBatches] =
+    useState<Batch[]>(initialBatches);
+
+  const [batchSubjects, setBatchSubjects] =
+    useState<BatchSubject[]>(initialBatchSubjects);
 
   const [search, setSearch] = useState("");
 
-  const [filter, setFilter] = useState<"All" | BatchStatus>("All");
+  const [filter, setFilter] =
+    useState<"All" | BatchStatus>("All");
 
-  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [selectedBatch, setSelectedBatch] =
+    useState<Batch | null>(null);
 
-  const [actionVisible, setActionVisible] = useState(false);
+  const [actionVisible, setActionVisible] =
+    useState(false);
 
-  const [viewVisible, setViewVisible] = useState(false);
+  const [viewVisible, setViewVisible] =
+    useState(false);
 
-  const [editVisible, setEditVisible] = useState(false);
+  const [editVisible, setEditVisible] =
+    useState(false);
+
+  const [assignVisible, setAssignVisible] =
+    useState(false);
+
+  const [selectedSubjectId, setSelectedSubjectId] =
+    useState("");
+
+  const [selectedTeacherId, setSelectedTeacherId] =
+    useState("");
+
+  const [changeTeacherVisible, setChangeTeacherVisible] =
+  useState(false);
+
+  const [changeTeacherId, setChangeTeacherId] =
+    useState("");
+
+  const [selectedAssignment, setSelectedAssignment] =
+  useState<BatchSubject | null>(null);
+
+  const [assignmentActionVisible, setAssignmentActionVisible] =
+    useState(false);
 
   const [editName, setEditName] = useState("");
-  const [editCourse, setEditCourse] = useState("");
-  const [editBranch, setEditBranch] = useState("");
-  const [editTrainer, setEditTrainer] = useState("");
-  const [editSchedule, setEditSchedule] = useState("");
+  const [editStartDate, setEditStartDate] =
+    useState("");
+  const [editEndDate, setEditEndDate] =
+    useState("");
+  const [editCapacity, setEditCapacity] =
+    useState("");
+  const [editStartTime, setEditStartTime] =
+    useState("");
+  const [editEndTime, setEditEndTime] =
+    useState("");
+
+  /* =========================================================
+     FILTERING
+  ========================================================= */
 
   const filteredBatches = useMemo(() => {
     const value = search.trim().toLowerCase();
@@ -267,34 +591,90 @@ export default function BatchesPage() {
         !value ||
         batch.name.toLowerCase().includes(value) ||
         batch.code.toLowerCase().includes(value) ||
-        batch.course.toLowerCase().includes(value) ||
-        batch.branch.toLowerCase().includes(value) ||
-        batch.Faculty.toLowerCase().includes(value);
+        batch.standard.toLowerCase().includes(value) ||
+        batch.academicYear.toLowerCase().includes(value) ||
+        batch.branch.toLowerCase().includes(value);
 
-      const matchesFilter = filter === "All" || batch.status === filter;
+      if (batch.removed) {
+        return false;
+      }
+
+      const matchesFilter =
+        filter === "All" ||
+        getBatchStatus(batch) === filter;
 
       return matchesSearch && matchesFilter;
     });
   }, [batches, search, filter]);
 
-  const activeCount = batches.filter(
-    (batch) => batch.status === "Active",
+  /* =========================================================
+     SUMMARY
+  ========================================================= */
+
+  const visibleBatches = batches.filter(
+    (batch) => !batch.removed,
+  );
+
+  const upcomingCount = visibleBatches.filter(
+    (batch) => getBatchStatus(batch) === "Upcoming",
   ).length;
 
-  const completedCount = batches.filter(
-    (batch) => batch.status === "Completed",
+  const activeCount = visibleBatches.filter(
+    (batch) => getBatchStatus(batch) === "Active",
   ).length;
 
-  const stoppedCount = batches.filter(
-    (batch) => batch.status === "Stopped",
+  const completedCount = visibleBatches.filter(
+    (batch) => getBatchStatus(batch) === "Completed",
   ).length;
 
-  const totalStudents = batches.reduce((sum, batch) => sum + batch.students, 0);
+  const totalStudents = visibleBatches.reduce(
+    (sum, batch) => sum + batch.students,
+    0,
+  );
 
   const statusCounts: Record<BatchStatus, number> = {
+    Upcoming: upcomingCount,
     Active: activeCount,
     Completed: completedCount,
-    Stopped: stoppedCount,
+  };
+
+  /* =========================================================
+     ACTIONS
+  ========================================================= */
+
+  const removeBatch = () => {
+    if (!selectedBatch) {
+      return;
+    }
+
+    const batchToRemove = selectedBatch;
+
+    setActionVisible(false);
+
+    Alert.alert(
+      "Remove Batch",
+      `Are you sure you want to remove "${batchToRemove.name}"? The batch will be removed from active management, while its historical records are preserved.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            setBatches((current) =>
+              current.map((batch) =>
+                batch.id === batchToRemove.id
+                  ? { ...batch, removed: true }
+                  : batch,
+              ),
+            );
+            setSelectedBatch(null);
+          },
+        },
+      ],
+    );
   };
 
   const openActions = (batch: Batch) => {
@@ -308,25 +688,55 @@ export default function BatchesPage() {
   };
 
   const openEdit = () => {
-    if (!selectedBatch) return;
+    if (!selectedBatch) {
+      return;
+    }
 
     setEditName(selectedBatch.name);
-    setEditCourse(selectedBatch.course);
-    setEditBranch(selectedBatch.branch);
-    setEditTrainer(selectedBatch.Faculty);
-    setEditSchedule(selectedBatch.schedule);
+    setEditStartDate(selectedBatch.startDate);
+    setEditEndDate(selectedBatch.endDate);
+    setEditCapacity(String(selectedBatch.capacity));
+    setEditStartTime(
+      selectedBatch.schedule.startTime,
+    );
+    setEditEndTime(
+      selectedBatch.schedule.endTime,
+    );
 
     setActionVisible(false);
     setEditVisible(true);
   };
 
   const saveEdit = () => {
-    if (!selectedBatch) return;
+    if (!selectedBatch) {
+      return;
+    }
 
-    if (!editName.trim() || !editCourse.trim() || !editTrainer.trim()) {
+    if (!editName.trim()) {
       Alert.alert(
-        "Required Fields",
-        "Please enter batch name, course and Faculty.",
+        "Required Field",
+        "Please enter batch name.",
+      );
+      return;
+    }
+
+    if (!editCapacity.trim()) {
+      Alert.alert(
+        "Required Field",
+        "Please enter batch capacity.",
+      );
+      return;
+    }
+
+    const capacityNumber = Number(editCapacity);
+
+    if (
+      Number.isNaN(capacityNumber) ||
+      capacityNumber < 1
+    ) {
+      Alert.alert(
+        "Invalid Capacity",
+        "Capacity must be a positive number.",
       );
       return;
     }
@@ -337,10 +747,14 @@ export default function BatchesPage() {
           ? {
               ...batch,
               name: editName.trim(),
-              course: editCourse.trim(),
-              branch: editBranch.trim(),
-              Faculty: editTrainer.trim(),
-              schedule: editSchedule.trim(),
+              startDate: editStartDate.trim(),
+              endDate: editEndDate.trim(),
+              capacity: capacityNumber,
+              schedule: {
+                ...batch.schedule,
+                startTime: editStartTime.trim(),
+                endTime: editEndTime.trim(),
+              },
             }
           : batch,
       ),
@@ -348,35 +762,179 @@ export default function BatchesPage() {
 
     setSelectedBatch(null);
     setEditVisible(false);
-  };
-
-  const deleteBatch = () => {
-    if (!selectedBatch) return;
-
-    setActionVisible(false);
 
     Alert.alert(
-      "Delete Batch",
-      `Are you sure you want to delete "${selectedBatch.name}"?`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            setBatches((current) =>
-              current.filter((batch) => batch.id !== selectedBatch.id),
-            );
-
-            setSelectedBatch(null);
-          },
-        },
-      ],
+      "Success",
+      "Batch updated successfully.",
     );
   };
+
+  /* =========================================================
+     SUBJECT ASSIGNMENT - SAMPLE ONLY
+  ========================================================= */
+
+  const openAssignSubject = () => {
+    setActionVisible(false);
+    setSelectedSubjectId("");
+    setSelectedTeacherId("");
+    setAssignVisible(true);
+  };
+
+  const assignSubject = () => {
+    if (!selectedBatch) {
+      return;
+    }
+
+    if (!selectedSubjectId) {
+      Alert.alert(
+        "Select Subject",
+        "Please select a subject.",
+      );
+      return;
+    }
+
+    if (!selectedTeacherId) {
+      Alert.alert(
+        "Select Teacher",
+        "Please select a teacher.",
+      );
+      return;
+    }
+
+    const subject = sampleSubjects.find(
+      (item) => item.id === selectedSubjectId,
+    );
+
+    const teacher = sampleTeachers.find(
+      (item) => item.id === selectedTeacherId,
+    );
+
+    if (!subject || !teacher) {
+      return;
+    }
+
+    const existingAssignment = batchSubjects.find(
+      (item) =>
+        item.batchId === selectedBatch.id &&
+        item.subjectId === subject.id,
+    );
+
+    if (existingAssignment?.status === "active") {
+      Alert.alert(
+        "Already Assigned",
+        "This subject is already assigned to this batch.",
+      );
+      return;
+    }
+
+    if (existingAssignment?.status === "inactive") {
+      setBatchSubjects((current) =>
+        current.map((item) =>
+          item.id === existingAssignment.id
+            ? {
+                ...item,
+                teacherId: teacher.id,
+                teacher: teacher.name,
+                teacherEmail: teacher.email,
+                status: "active",
+              }
+            : item,
+        ),
+      );
+
+      setAssignVisible(false);
+
+      Alert.alert(
+        "Success",
+        `${subject.name} assigned to ${teacher.name}.`,
+      );
+
+      return;
+    }
+
+    const newAssignment: BatchSubject = {
+      id: `sample-${Date.now()}`,
+      batchId: selectedBatch.id,
+      subjectId: subject.id,
+      subject: subject.name,
+      subjectCode: subject.code,
+      teacherId: teacher.id,
+      teacher: teacher.name,
+      teacherEmail: teacher.email,
+      status: "active",
+    };
+
+    setBatchSubjects((current) => [
+      ...current,
+      newAssignment,
+    ]);
+
+    setAssignVisible(false);
+
+    Alert.alert(
+      "Success",
+      `${subject.name} assigned to ${teacher.name}.`,
+    );
+  };
+
+  const getBatchSubjects = (
+    batchId: string,
+  ) => {
+    return batchSubjects.filter(
+      (item) => item.batchId === batchId,
+    );
+  };
+
+  const openAssignmentActions = (
+    assignment: BatchSubject,
+  ) => {
+    setSelectedAssignment(assignment);
+    setAssignmentActionVisible(true);
+  };
+
+  const closeAssignmentActions = () => {
+    setAssignmentActionVisible(false);
+    setSelectedAssignment(null);
+  };
+
+  const openChangeTeacher = () => {
+    if (!selectedAssignment) {
+      return;
+    }
+
+    setChangeTeacherId(selectedAssignment.teacherId);
+    setAssignmentActionVisible(false);
+    setChangeTeacherVisible(true);
+  };
+
+  const unassignAssignment = () => {
+    if (!selectedAssignment) {
+      return;
+    }
+
+    setBatchSubjects((current) =>
+      current.map((item) =>
+        item.id === selectedAssignment.id
+          ? {
+              ...item,
+              status: "inactive",
+            }
+          : item,
+      ),
+    );
+
+    setAssignmentActionVisible(false);
+    setSelectedAssignment(null);
+
+    Alert.alert(
+      "Success",
+      `${selectedAssignment.subject} has been unassigned from this batch.`,
+    );
+  };
+
+  /* =========================================================
+     SUMMARY CARD
+  ========================================================= */
 
   const renderSummaryCard = (
     icon: keyof typeof MaterialCommunityIcons.glyphMap,
@@ -389,7 +947,9 @@ export default function BatchesPage() {
       style={[
         styles.summaryCard,
         {
-          width: isSmallScreen ? "48.5%" : "31.8%",
+          width: isSmallScreen
+            ? "48.5%"
+            : "31.8%",
         },
       ]}
     >
@@ -401,20 +961,261 @@ export default function BatchesPage() {
           },
         ]}
       >
-        <MaterialCommunityIcons name={icon} size={20} color={iconColor} />
+        <MaterialCommunityIcons
+          name={icon}
+          size={20}
+          color={iconColor}
+        />
       </View>
-
-      <Text style={styles.summaryTitle} numberOfLines={1}>
+      <View style={styles.summaryInfo}>
+      <Text
+        style={styles.summaryTitle}
+        numberOfLines={1}
+      >
         {title}
       </Text>
 
-      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryValue}>
+        {value}
+      </Text>
+      </View>
     </View>
   );
+
+  /* =========================================================
+     BATCH CARD
+  ========================================================= */
+
+  const renderBatchCard = (
+    batch: Batch,
+  ) => {
+    const batchStatus = getBatchStatus(batch);
+    const status = statusConfig[batchStatus];
+
+    const percentage =
+      batch.capacity > 0
+        ? Math.round(
+            (batch.students /
+              batch.capacity) *
+              100,
+          )
+        : 0;
+
+    return (
+      <View
+        key={batch.id}
+        style={styles.batchCard}
+      >
+        <View style={styles.batchCardHeader}>
+          <View style={styles.batchTitleArea}>
+            <View style={styles.batchIcon}>
+              <MaterialCommunityIcons
+                name="account-group-outline"
+                size={23}
+                color="#7040D5"
+              />
+            </View>
+
+            <View style={styles.batchTitleText}>
+              <Text
+                style={styles.batchName}
+                numberOfLines={2}
+              >
+                {batch.name}
+              </Text>
+
+              <Text style={styles.batchCode}>
+                {batch.code}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.moreButton}
+            onPress={() =>
+              openActions(batch)
+            }
+          >
+            <MaterialCommunityIcons
+              name="dots-vertical"
+              size={22}
+              color="#60646F"
+            />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.infoGrid}>
+          <View style={styles.infoItem}>
+            <MaterialCommunityIcons
+              name="school-outline"
+              size={17}
+              color="#7040D5"
+            />
+
+            <View>
+              <Text style={styles.infoLabel}>
+                Standard
+              </Text>
+
+              <Text style={styles.infoValue}>
+                {batch.standard}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.infoItem}>
+            <MaterialCommunityIcons
+              name="calendar-range-outline"
+              size={17}
+              color="#7040D5"
+            />
+
+            <View>
+              <Text style={styles.infoLabel}>
+                Academic Year
+              </Text>
+
+              <Text style={styles.infoValue}>
+                {batch.academicYear}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.infoItem}>
+            <MaterialCommunityIcons
+              name="map-marker-outline"
+              size={17}
+              color="#7040D5"
+            />
+
+            <View>
+              <Text style={styles.infoLabel}>
+                Branch
+              </Text>
+
+              <Text style={styles.infoValue}>
+                {batch.branch}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.infoItem}>
+            <MaterialCommunityIcons
+              name="account-multiple-outline"
+              size={17}
+              color="#7040D5"
+            />
+
+            <View>
+              <Text style={styles.infoLabel}>
+                Students
+              </Text>
+
+              <Text style={styles.infoValue}>
+                {batch.students} /{" "}
+                {batch.capacity}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.scheduleRow}>
+          <View style={styles.scheduleLeft}>
+            <MaterialCommunityIcons
+              name="clock-outline"
+              size={18}
+              color="#7040D5"
+            />
+
+            <View>
+              <Text style={styles.infoLabel}>
+                Schedule
+              </Text>
+
+              <Text
+                style={styles.scheduleText}
+              >
+                {batch.schedule.startTime} -{" "}
+                {batch.schedule.endTime}
+              </Text>
+
+              <Text style={styles.daysText}>
+                {batch.schedule.days
+                  .map((day) =>
+                    day.slice(0, 3),
+                  )
+                  .join(" • ")}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor:
+                  status.background,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={status.icon}
+              size={14}
+              color={status.text}
+            />
+
+            <Text
+              style={[
+                styles.statusText,
+                {
+                  color: status.text,
+                },
+              ]}
+            >
+              {batchStatus}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.capacityContainer}>
+          <View style={styles.capacityHeader}>
+            <Text style={styles.capacityLabel}>
+              Student Capacity
+            </Text>
+
+            <Text style={styles.capacityPercentage}>
+              {percentage}%
+            </Text>
+          </View>
+
+          <View style={styles.progressBackground}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${Math.min(
+                    percentage,
+                    100,
+                  )}%`,
+                },
+              ]}
+            />
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
     <View style={styles.safeArea}>
       {/* HEADER */}
+
       <View
         style={[
           styles.header,
@@ -429,26 +1230,41 @@ export default function BatchesPage() {
           onPress={() => router.back()}
           activeOpacity={0.8}
         >
-          <MaterialCommunityIcons name="arrow-left" size={22} color="#FFFFFF" />
+          <MaterialCommunityIcons
+            name="arrow-left"
+            size={22}
+            color="#FFFFFF"
+          />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Batches</Text>
+        <Text style={styles.headerTitle}>
+          Batches
+        </Text>
 
         <TouchableOpacity
           style={styles.headerAddButton}
           activeOpacity={0.8}
           onPress={() => {
             router.push({
-              pathname: "/(tabs)/explore",
+              pathname:
+                "/(super_admin)/explore",
               params: {
-                feature: "Create Batch",
+                feature: "Add Batch",
               },
             });
           }}
         >
-          <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+          <MaterialCommunityIcons
+            name="plus"
+            size={18}
+            color="#FFFFFF"
+          />
 
-          <Text style={styles.headerAddButtonText}>Add Batch</Text>
+          <Text
+            style={styles.headerAddButtonText}
+          >
+            Add Batch
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -457,23 +1273,26 @@ export default function BatchesPage() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* PAGE TITLE */}
-        <View style={styles.pageTitleRow}>
-          <View style={styles.pageTitleContainer}>
-            <Text style={styles.pageTitle}>Batch Management</Text>
+        {/* TITLE */}
 
-            <Text style={styles.pageSubtitle}>
-              Manage courses, trainers and student batches
-            </Text>
-          </View>
+        <View style={styles.pageTitleContainer}>
+          <Text style={styles.pageTitle}>
+            Batch Management
+          </Text>
+
+          <Text style={styles.pageSubtitle}>
+            Manage student batches, schedules,
+            capacity and subject assignments
+          </Text>
         </View>
 
-        {/* SUMMARY CARDS */}
+        {/* SUMMARY */}
+
         <View style={styles.summaryGrid}>
           {renderSummaryCard(
             "google-circles-communities",
             "Total Batches",
-            String(batches.length),
+            String(visibleBatches.length),
             "#F1EAFF",
             "#7040D5",
           )}
@@ -487,701 +1306,1617 @@ export default function BatchesPage() {
           )}
 
           {renderSummaryCard(
-            "check-circle-outline",
-            "Completed",
-            String(completedCount),
+            "account-multiple-outline",
+            "Students",
+            String(totalStudents),
             "#EAF2FF",
             "#2675E8",
           )}
+        </View>
 
-          {renderSummaryCard(
-            "pause-circle-outline",
-            "Stopped",
-            String(stoppedCount),
-            "#FFE9F0",
-            "#E95386",
-          )}
+        {/* STATUS OVERVIEW */}
 
-          {/* TOTAL STUDENTS */}
-          <View
-            style={[
-              styles.summaryCard,
-              {
-                width: isSmallScreen ? "48.5%" : "31.8%",
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.summaryIcon,
-                {
-                  backgroundColor: "#EAF2FF",
-                },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name="account-group-outline"
-                size={20}
-                color="#2675E8"
-              />
-            </View>
-
-            <Text style={styles.summaryTitle} numberOfLines={1}>
-              Total Students
+        <View style={styles.statusOverview}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              Batch Status
             </Text>
 
-            <Text style={styles.summaryValue}>{totalStudents}</Text>
-          </View>
+            <Text style={styles.sectionSubtitle}>
+              Overview of all batches
+            </Text>
 
-          {/* REAL DONUT STATUS CARD */}
-          <View
-            style={[
-              styles.statusOverviewCard,
-              {
-                width: isSmallScreen ? "48.5%" : "31.8%",
-              },
-            ]}
-          >
-            <Text style={styles.statusOverviewTitle}>Batch Status</Text>
-
-            <View style={styles.statusOverviewContent}>
-              <BatchStatusDonut counts={statusCounts} total={batches.length} />
-
-              <View style={styles.statusLegend}>
-                <View style={styles.legendItem}>
+            <View style={styles.legendContainer}>
+              {chartStatuses.map(
+                (status) => (
                   <View
-                    style={[
-                      styles.legendDot,
-                      {
-                        backgroundColor: "#35B878",
-                      },
-                    ]}
-                  />
-
-                  <Text style={styles.legendText} numberOfLines={1}>
-                    Active {activeCount}
-                  </Text>
-                </View>
-
-                <View style={styles.legendItem}>
-                  <View
-                    style={[
-                      styles.legendDot,
-                      {
-                        backgroundColor: "#2675E8",
-                      },
-                    ]}
-                  />
-
-                  <Text style={styles.legendText} numberOfLines={1}>
-                    Completed {completedCount}
-                  </Text>
-                </View>
-
-                <View style={styles.legendItem}>
-                  <View
-                    style={[
-                      styles.legendDot,
-                      {
-                        backgroundColor: "#E95386",
-                      },
-                    ]}
-                  />
-
-                  <Text style={styles.legendText} numberOfLines={1}>
-                    Stopped {stoppedCount}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* SEARCH */}
-        <View style={styles.toolbar}>
-          <View style={styles.searchBox}>
-            <MaterialCommunityIcons name="magnify" size={20} color="#8A93A5" />
-
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search batches..."
-              placeholderTextColor="#9AA2B1"
-              style={styles.searchInput}
-            />
-
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch("")}>
-                <MaterialCommunityIcons
-                  name="close-circle"
-                  size={18}
-                  color="#9AA2B1"
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* FILTERS */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-          >
-            {(
-              [
-                "All",
-                "Active",
-                "Completed",
-                "Stopped",
-              ] as const
-            ).map((item) => {
-              const selected = filter === item;
-
-              return (
-                <TouchableOpacity
-                  key={item}
-                  style={[
-                    styles.filterButton,
-                    selected && styles.filterButtonActive,
-                  ]}
-                  onPress={() => setFilter(item)}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.filterText,
-                      selected && styles.filterTextActive,
-                    ]}
+                    key={status}
+                    style={styles.legendItem}
                   >
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        <View style={styles.resultRow}>
-          <Text style={styles.resultText}>
-            {filteredBatches.length} batches found
-          </Text>
-        </View>
-
-        {/* BATCH LIST */}
-        {filteredBatches.map((batch) => {
-          const status = statusConfig[batch.status];
-
-          const percentage = Math.min(
-            Math.round((batch.students / batch.capacity) * 100),
-            100,
-          );
-
-          return (
-            <View
-              key={batch.id}
-              style={[
-                styles.batchCard,
-                batch.status === "Stopped" && styles.stoppedBatchCard,
-              ]}
-            >
-              <View style={styles.batchTopRow}>
-                <View
-                  style={[
-                    styles.batchIcon,
-                    {
-                      backgroundColor: status.background,
-                    },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={status.icon}
-                    size={23}
-                    color={status.text}
-                  />
-                </View>
-
-                <View style={styles.batchMainInfo}>
-                  <Text style={styles.batchName} numberOfLines={2}>
-                    {batch.name}
-                  </Text>
-
-                  <Text style={styles.batchCode}>{batch.code}</Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor: status.background,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      {
-                        color: status.text,
-                      },
-                    ]}
-                  >
-                    {batch.status}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.moreButton}
-                  onPress={() => openActions(batch)}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name="dots-vertical"
-                    size={21}
-                    color="#667085"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* STOPPED MID-COURSE */}
-              {batch.status === "Stopped" && (
-                <View style={styles.stoppedNotice}>
-                  <MaterialCommunityIcons
-                    name="alert-circle-outline"
-                    size={18}
-                    color="#E95386"
-                  />
-
-                  <View style={styles.stoppedNoticeText}>
-                    <Text style={styles.stoppedTitle}>
-                      Batch Stopped Mid-Course
-                    </Text>
-
-                    <Text style={styles.stoppedReason}>{batch.stopReason}</Text>
-
-                    {batch.stoppedDate && (
-                      <Text style={styles.stoppedDate}>
-                        Stopped on {batch.stoppedDate}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              )}
-
-              <View style={styles.infoGrid}>
-                <View style={styles.infoItem}>
-                  <MaterialCommunityIcons
-                    name="book-open-outline"
-                    size={16}
-                    color="#7040D5"
-                  />
-
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Course</Text>
-
-                    <Text style={styles.infoValue} numberOfLines={1}>
-                      {batch.course}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoItem}>
-                  <MaterialCommunityIcons
-                    name="office-building-outline"
-                    size={16}
-                    color="#2675E8"
-                  />
-
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Branch</Text>
-
-                    <Text style={styles.infoValue} numberOfLines={1}>
-                      {batch.branch}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoItem}>
-                  <MaterialCommunityIcons
-                    name="account-tie-outline"
-                    size={16}
-                    color="#35B878"
-                  />
-
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Faculty</Text>
-
-                    <Text style={styles.infoValue} numberOfLines={1}>
-                      {batch.Faculty}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoItem}>
-                  <MaterialCommunityIcons
-                    name="calendar-range"
-                    size={16}
-                    color="#F7941D"
-                  />
-
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Duration</Text>
-
-                    <Text style={styles.infoValue} numberOfLines={2}>
-                      {batch.startDate} - {batch.endDate}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.batchBottom}>
-                <View style={styles.scheduleContainer}>
-                  <MaterialCommunityIcons
-                    name="clock-outline"
-                    size={16}
-                    color="#748096"
-                  />
-
-                  <Text style={styles.scheduleText} numberOfLines={1}>
-                    {batch.schedule}
-                  </Text>
-                </View>
-
-                <View style={styles.capacityContainer}>
-                  <View style={styles.capacityHeader}>
-                    <Text style={styles.capacityLabel}>Students</Text>
-
-                    <Text style={styles.capacityValue}>
-                      {batch.students}/{batch.capacity}
-                    </Text>
-                  </View>
-
-                  <View style={styles.progressTrack}>
                     <View
                       style={[
-                        styles.progressFill,
+                        styles.legendDot,
                         {
-                          width: `${percentage}%`,
                           backgroundColor:
-                            batch.status === "Stopped" ? "#E95386" : "#7040D5",
+                            statusConfig[
+                              status
+                            ].chartColor,
                         },
                       ]}
                     />
-                  </View>
-                </View>
-              </View>
-            </View>
-          );
-        })}
 
-        {filteredBatches.length === 0 && (
-          <View style={styles.emptyState}>
+                    <Text
+                      style={styles.legendText}
+                    >
+                      {status}{" "}
+                      {statusCounts[status]}
+                    </Text>
+                  </View>
+                ),
+              )}
+            </View>
+          </View>
+
+          <BatchStatusDonut
+            counts={statusCounts}
+            total={visibleBatches.length}
+          />
+        </View>
+
+        {/* SEARCH */}
+
+        <View style={styles.searchContainer}>
+          <MaterialCommunityIcons
+            name="magnify"
+            size={21}
+            color="#9296A3"
+          />
+
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search batches..."
+            placeholderTextColor="#A0A3AE"
+            value={search}
+            onChangeText={setSearch}
+          />
+
+          {search.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearch("")}
+            >
+              <MaterialCommunityIcons
+                name="close-circle"
+                size={19}
+                color="#A0A3AE"
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* FILTERS */}
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={
+            styles.filterContainer
+          }
+        >
+          {(
+            [
+              "All",
+              "Upcoming",
+              "Active",
+              "Completed",
+            ] as const
+          ).map((item) => {
+            const selected =
+              filter === item;
+
+            return (
+              <TouchableOpacity
+                key={item}
+                style={[
+                  styles.filterButton,
+                  selected &&
+                    styles.filterButtonActive,
+                ]}
+                onPress={() =>
+                  setFilter(item)
+                }
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    selected &&
+                      styles.filterTextActive,
+                  ]}
+                >
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* RESULT */}
+
+        <View style={styles.resultHeader}>
+          <Text style={styles.resultTitle}>
+            Batches
+          </Text>
+
+          <Text style={styles.resultCount}>
+            {filteredBatches.length} found
+          </Text>
+        </View>
+
+        {/* BATCHES */}
+
+        {filteredBatches.length === 0 ? (
+          <View style={styles.emptyContainer}>
             <MaterialCommunityIcons
-              name="google-circles-communities"
-              size={42}
-              color="#B6BDCB"
+              name="database-search-outline"
+              size={48}
+              color="#B0B3BD"
             />
 
-            <Text style={styles.emptyTitle}>No batches found</Text>
+            <Text style={styles.emptyTitle}>
+              No batches found
+            </Text>
 
-            <Text style={styles.emptySubtitle}>
-              Try changing your search or filter.
+            <Text style={styles.emptyText}>
+              Try changing your search or
+              filter.
             </Text>
           </View>
+        ) : (
+          filteredBatches.map(
+            renderBatchCard,
+          )
         )}
-
-        <View style={{ height: 30 }} />
       </ScrollView>
 
-      {/* ACTION MODAL */}
+      {/* =====================================================
+          ACTION MODAL
+      ===================================================== */}
+
       <Modal
         visible={actionVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setActionVisible(false)}
+        onRequestClose={() =>
+          setActionVisible(false)
+        }
       >
         <Pressable
           style={styles.modalOverlay}
-          onPress={() => setActionVisible(false)}
+          onPress={() =>
+            setActionVisible(false)
+          }
         >
           <Pressable
             style={styles.actionModal}
-            onPress={(event) => event.stopPropagation()}
+            onPress={() => {}}
           >
             <View style={styles.modalHandle} />
 
-            <Text style={styles.modalTitle}>Batch Actions</Text>
-
-            <Text style={styles.modalSubtitle} numberOfLines={1}>
-              {selectedBatch?.name}
+            <Text style={styles.modalTitle}>
+              Batch Actions
             </Text>
 
-            <TouchableOpacity style={styles.actionItem} onPress={openView}>
-              <View style={styles.actionIconPurple}>
+            {selectedBatch && (
+              <Text style={styles.modalSubtitle}>
+                {selectedBatch.name}
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={openView}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  {
+                    backgroundColor:
+                      "#F1EAFF",
+                  },
+                ]}
+              >
                 <MaterialCommunityIcons
                   name="eye-outline"
-                  size={20}
+                  size={21}
                   color="#7040D5"
                 />
               </View>
 
-              <Text style={styles.actionText}>View Batch</Text>
+              <View
+                style={styles.actionTextArea}
+              >
+                <Text
+                  style={styles.actionTitle}
+                >
+                  View Batch
+                </Text>
+
+                <Text
+                  style={
+                    styles.actionDescription
+                  }
+                >
+                  View details and subjects
+                </Text>
+              </View>
 
               <MaterialCommunityIcons
                 name="chevron-right"
-                size={20}
-                color="#A0A7B5"
+                size={21}
+                color="#A0A3AE"
               />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionItem} onPress={openEdit}>
-              <View style={styles.actionIconBlue}>
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={openEdit}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  {
+                    backgroundColor:
+                      "#EAF2FF",
+                  },
+                ]}
+              >
                 <MaterialCommunityIcons
                   name="pencil-outline"
-                  size={20}
+                  size={21}
                   color="#2675E8"
                 />
               </View>
 
-              <Text style={styles.actionText}>Edit Batch</Text>
+              <View
+                style={styles.actionTextArea}
+              >
+                <Text
+                  style={styles.actionTitle}
+                >
+                  Edit Batch
+                </Text>
+
+                <Text
+                  style={
+                    styles.actionDescription
+                  }
+                >
+                  Update batch information
+                </Text>
+              </View>
 
               <MaterialCommunityIcons
                 name="chevron-right"
-                size={20}
-                color="#A0A7B5"
+                size={21}
+                color="#A0A3AE"
               />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionItem} onPress={deleteBatch}>
-              <View style={styles.actionIconRed}>
-                <MaterialCommunityIcons
-                  name="delete-outline"
-                  size={20}
-                  color="#E95386"
-                />
-              </View>
-
-              <Text
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={openAssignSubject}
+            >
+              <View
                 style={[
-                  styles.actionText,
+                  styles.actionIcon,
                   {
-                    color: "#D64570",
+                    backgroundColor: "#F1EAFF",
                   },
                 ]}
               >
-                Delete Batch
-              </Text>
+                <MaterialCommunityIcons
+                  name="book-plus-outline"
+                  size={21}
+                  color="#7040D5"
+                />
+              </View>
+
+              <View
+                style={styles.actionTextArea}
+              >
+                <Text
+                  style={styles.actionTitle}
+                >
+                  Assign Subject & Teacher
+                </Text>
+
+                <Text
+                  style={
+                    styles.actionDescription
+                  }
+                >
+                  Assign a subject and teacher to this batch
+                </Text>
+              </View>
 
               <MaterialCommunityIcons
                 name="chevron-right"
-                size={20}
-                color="#A0A7B5"
+                size={21}
+                color="#A0A3AE"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={removeBatch}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  {
+                    backgroundColor: "#FFF0F0",
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="archive-remove-outline"
+                  size={21}
+                  color="#D64545"
+                />
+              </View>
+
+              <View style={styles.actionTextArea}>
+                <Text
+                  style={[
+                    styles.actionTitle,
+                    { color: "#D64545" },
+                  ]}
+                >
+                  Remove Batch
+                </Text>
+
+                <Text
+                  style={styles.actionDescription}
+                >
+                  Remove this batch from active management
+                </Text>
+              </View>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={21}
+                color="#A0A3AE"
               />
             </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* VIEW MODAL */}
+      {/* =====================================================
+          VIEW BATCH MODAL
+      ===================================================== */}
+
       <Modal
         visible={viewVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setViewVisible(false)}
+        onRequestClose={() =>
+          setViewVisible(false)
+        }
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.detailModal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Batch Details</Text>
-
-              <TouchableOpacity onPress={() => setViewVisible(false)}>
-                <MaterialCommunityIcons
-                  name="close"
-                  size={22}
-                  color="#667085"
-                />
-              </TouchableOpacity>
-            </View>
-
-            {selectedBatch && (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View
-                  style={[
-                    styles.detailHero,
-                    selectedBatch.status === "Stopped" &&
-                      styles.detailStoppedHero,
-                  ]}
+        <View style={styles.sheetOverlay}>
+          <View style={styles.viewModal}>
+            <View style={styles.viewHeader}>
+              <View style={styles.sheetHandle} />
+              <View>
+                <Text
+                  style={styles.viewModalTitle}
                 >
-                  <View
-                    style={[
-                      styles.detailHeroIcon,
-                      {
-                        backgroundColor:
-                          statusConfig[selectedBatch.status].background,
-                      },
-                    ]}
+                  Batch Details
+                </Text>
+
+                {selectedBatch && (
+                  <Text
+                    style={
+                      styles.viewModalSubtitle
+                    }
                   >
-                    <MaterialCommunityIcons
-                      name={statusConfig[selectedBatch.status].icon}
-                      size={30}
-                      color={statusConfig[selectedBatch.status].text}
-                    />
-                  </View>
-
-                  <Text style={styles.detailName}>{selectedBatch.name}</Text>
-
-                  <Text style={styles.detailCode}>{selectedBatch.code}</Text>
-
-                  <View
-                    style={[
-                      styles.detailStatus,
-                      {
-                        backgroundColor:
-                          statusConfig[selectedBatch.status].background,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.detailStatusText,
-                        {
-                          color: statusConfig[selectedBatch.status].text,
-                        },
-                      ]}
-                    >
-                      {selectedBatch.status}
-                    </Text>
-                  </View>
-                </View>
-
-                {selectedBatch.status === "Stopped" && (
-                  <View style={styles.detailStoppedBox}>
-                    <Text style={styles.detailStoppedTitle}>
-                      Why was this batch stopped?
-                    </Text>
-
-                    <Text style={styles.detailStoppedReason}>
-                      {selectedBatch.stopReason}
-                    </Text>
-
-                    {selectedBatch.stoppedDate && (
-                      <Text style={styles.detailStoppedDate}>
-                        Stopped on {selectedBatch.stoppedDate}
-                      </Text>
-                    )}
-                  </View>
+                    {selectedBatch.code}
+                  </Text>
                 )}
+              </View>
 
-                {[
-                  ["Course", selectedBatch.course],
-                  ["Branch", selectedBatch.branch],
-                  ["Faculty", selectedBatch.Faculty],
-                  ["Start Date", selectedBatch.startDate],
-                  ["End Date", selectedBatch.endDate],
-                  ["Schedule", selectedBatch.schedule],
-                  [
-                    "Students",
-                    `${selectedBatch.students}/${selectedBatch.capacity}`,
-                  ],
-                  ["Status", selectedBatch.status],
-                ].map(([label, value]) => (
-                  <View key={label} style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{label}</Text>
-
-                    <Text style={styles.detailValue}>{value}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* EDIT MODAL */}
-      <Modal
-        visible={editVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setEditVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.editModal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Batch</Text>
-
-              <TouchableOpacity onPress={() => setEditVisible(false)}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() =>
+                  setViewVisible(false)
+                }
+              >
                 <MaterialCommunityIcons
                   name="close"
                   size={22}
-                  color="#667085"
+                  color="#5E626D"
                 />
               </TouchableOpacity>
             </View>
 
             <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                styles.viewContent
+              }
             >
-              <Text style={styles.inputLabel}>Batch Name</Text>
+              {selectedBatch && (
+                <>
+                  {/* BASIC INFO */}
 
-              <TextInput
+                  <View
+                    style={
+                      styles.batchDetailHero
+                    }
+                  >
+                    <View
+                      style={
+                        styles.detailHeroIcon
+                      }
+                    >
+                      <MaterialCommunityIcons
+                        name="account-group-outline"
+                        size={28}
+                        color="#7040D5"
+                      />
+                    </View>
+
+                    <View
+                      style={
+                        styles.detailHeroText
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.detailHeroTitle
+                        }
+                      >
+                        {selectedBatch.name}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.detailHeroCode
+                        }
+                      >
+                        {selectedBatch.code}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        {
+                          backgroundColor:
+                            statusConfig[
+                              getBatchStatus(selectedBatch)
+                            ].background,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          {
+                            color:
+                              statusConfig[
+                                getBatchStatus(selectedBatch)
+                              ].text,
+                          },
+                        ]}
+                      >
+                        {getBatchStatus(selectedBatch)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* DETAILS */}
+
+                  <Text
+                    style={styles.detailSectionTitle}
+                  >
+                    Batch Information
+                  </Text>
+
+                  <View
+                    style={styles.detailGrid}
+                  >
+                    <DetailBox
+                      icon="school-outline"
+                      label="Standard"
+                      value={
+                        selectedBatch.standard
+                      }
+                    />
+
+                    <DetailBox
+                      icon="calendar-range-outline"
+                      label="Academic Year"
+                      value={
+                        selectedBatch.academicYear
+                      }
+                    />
+
+                    <DetailBox
+                      icon="map-marker-outline"
+                      label="Branch"
+                      value={
+                        selectedBatch.branch
+                      }
+                    />
+
+                    <DetailBox
+                      icon="account-multiple-outline"
+                      label="Students"
+                      value={`${selectedBatch.students} / ${selectedBatch.capacity}`}
+                    />
+
+                    <DetailBox
+                      icon="calendar-start"
+                      label="Start Date"
+                      value={
+                        selectedBatch.startDate
+                      }
+                    />
+
+                    <DetailBox
+                      icon="calendar-end"
+                      label="End Date"
+                      value={
+                        selectedBatch.endDate
+                      }
+                    />
+                  </View>
+
+                  {/* SCHEDULE */}
+
+                  <Text
+                    style={styles.detailSectionTitle}
+                  >
+                    Schedule
+                  </Text>
+
+                  <View
+                    style={
+                      styles.scheduleDetailCard
+                    }
+                  >
+                    <View
+                      style={
+                        styles.scheduleIconBox
+                      }
+                    >
+                      <MaterialCommunityIcons
+                        name="clock-outline"
+                        size={23}
+                        color="#7040D5"
+                      />
+                    </View>
+
+                    <View>
+                      <Text
+                        style={
+                          styles.scheduleDetailTime
+                        }
+                      >
+                        {
+                          selectedBatch
+                            .schedule
+                            .startTime
+                        }{" "}
+                        -{" "}
+                        {
+                          selectedBatch
+                            .schedule
+                            .endTime
+                        }
+                      </Text>
+
+                      <View style={styles.scheduleDaysContainer}>
+                        {selectedBatch.schedule.days.map((day) => (
+                          <View key={day} style={styles.scheduleDayBadge}>
+                            <Text style={styles.scheduleDayText}>
+                              {day.slice(0, 3)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* DESCRIPTION */}
+
+                  <Text
+                    style={styles.detailSectionTitle}
+                  >
+                    Description
+                  </Text>
+
+                  <View
+                    style={
+                      styles.descriptionCard
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.descriptionText
+                      }
+                    >
+                      {
+                        selectedBatch.description
+                      }
+                    </Text>
+                  </View>
+
+                  {/* SUBJECTS */}
+
+                  <View
+                    style={
+                      styles.subjectSectionHeader
+                    }
+                  >
+                    <View>
+                      <Text
+                        style={
+                          styles.detailSectionTitle
+                        }
+                      >
+                        Subjects & Teachers
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.subjectSectionSubtitle
+                        }
+                      >
+                        Subjects assigned to this
+                        batch
+                      </Text>
+                    </View>
+
+
+                  </View>
+
+                  {getBatchSubjects(
+                    selectedBatch.id,
+                  ).length === 0 ? (
+                    <View
+                      style={
+                        styles.noSubjectsCard
+                      }
+                    >
+                      <MaterialCommunityIcons
+                        name="book-plus-outline"
+                        size={38}
+                        color="#B1B4BE"
+                      />
+
+                      <Text
+                        style={
+                          styles.noSubjectsTitle
+                        }
+                      >
+                        No subjects assigned
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.noSubjectsText
+                        }
+                      >
+                        Assign subjects and
+                        teachers to this batch.
+                      </Text>
+                    </View>
+                  ) : (
+                    getBatchSubjects(
+                      selectedBatch.id,
+                    ).map((item) => (
+                      <View
+                        key={item.id}
+                        style={
+                          styles.subjectAssignmentCard
+                        }
+                      >
+                        <View
+                          style={
+                            styles.subjectIconBox
+                          }
+                        >
+                          <MaterialCommunityIcons
+                            name="book-open-variant"
+                            size={21}
+                            color="#7040D5"
+                          />
+                        </View>
+
+                        <View
+                          style={
+                            styles.subjectAssignmentMain
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.subjectName
+                            }
+                          >
+                            {item.subject}
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.subjectCode
+                            }
+                          >
+                            {item.subjectCode}
+                          </Text>
+
+                          <View
+                            style={
+                              styles.teacherRow
+                            }
+                          >
+                            <MaterialCommunityIcons
+                              name="account-outline"
+                              size={15}
+                              color="#777B87"
+                            />
+
+                            <Text
+                              style={
+                                styles.teacherName
+                              }
+                            >
+                              {item.status === "inactive" ? "No teacher assigned" : item.teacher}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.assignmentRightArea}>
+                          <View
+                            style={[
+                              styles.smallStatus,
+                              {
+                                backgroundColor:
+                                  item.status === "active"
+                                    ? "#E7F8EF"
+                                    : "#F1F2F4",
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.smallStatusText,
+                                {
+                                  color:
+                                    item.status === "active"
+                                      ? "#20A463"
+                                      : "#777B87",
+                                },
+                              ]}
+                            >
+                              {item.status}
+                            </Text>
+                          </View>
+                          
+                          {item.status === "active" && (
+                          <TouchableOpacity
+                            style={styles.assignmentMoreButton}
+                            onPress={() =>
+                              openAssignmentActions(item)
+                            }
+                          >
+                            <MaterialCommunityIcons
+                              name="dots-vertical"
+                              size={20}
+                              color="#777B87"
+                            />
+                          </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* =====================================================
+          ASSIGNMENT ACTION MODAL
+      ===================================================== */}
+
+      <Modal
+        visible={assignmentActionVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAssignmentActions}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={closeAssignmentActions}
+        >
+          <Pressable
+            style={styles.actionModal}
+            onPress={() => {}}
+          >
+            <View style={styles.modalHandle} />
+
+            <View style={styles.assignmentActionHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>
+                  Assignment Actions
+                </Text>
+
+                {selectedAssignment && (
+                  <>
+                    <Text style={styles.modalSubtitle}>
+                      {selectedAssignment.subject}
+                    </Text>
+
+                    <Text style={styles.assignmentActionTeacher}>
+                      {selectedAssignment.teacher}
+                    </Text>
+                  </>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={closeAssignmentActions}
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={21}
+                  color="#5E626D"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* CHANGE TEACHER */}
+
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={openChangeTeacher}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  {
+                    backgroundColor: "#EAF2FF",
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="account-switch-outline"
+                  size={21}
+                  color="#2675E8"
+                />
+              </View>
+
+              <View style={styles.actionTextArea}>
+                <Text style={styles.actionTitle}>
+                  Change Teacher
+                </Text>
+
+                <Text style={styles.actionDescription}>
+                  Assign a different teacher to this subject
+                </Text>
+              </View>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={21}
+                color="#A0A3AE"
+              />
+            </TouchableOpacity>
+
+            {/* UNASSIGN */}
+
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => {
+                if (!selectedAssignment) {
+                  return;
+                }
+
+                setAssignmentActionVisible(false);
+
+                Alert.alert(
+                  "Unassign Subject",
+                  `Are you sure you want to unassign ${selectedAssignment.subject} from ${selectedBatch?.name}?`,
+                  [
+                    {
+                      text: "Cancel",
+                      style: "cancel",
+                    },
+                    {
+                      text: "Unassign",
+                      style: "destructive",
+                      onPress: unassignAssignment,
+                    },
+                  ],
+                );
+              }}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  {
+                    backgroundColor: "#FFE9F0",
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="link-off"
+                  size={21}
+                  color="#E95386"
+                />
+              </View>
+
+              <View style={styles.actionTextArea}>
+                <Text
+                  style={[
+                    styles.actionTitle,
+                    {
+                      color: "#E95386",
+                    },
+                  ]}
+                >
+                  Unassign Subject
+                </Text>
+
+                <Text style={styles.actionDescription}>
+                  Remove this subject from the batch
+                </Text>
+              </View>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={21}
+                color="#A0A3AE"
+              />
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* =====================================================
+              CHANGE TEACHER MODAL
+          ===================================================== */}
+
+          <Modal
+            visible={changeTeacherVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setChangeTeacherVisible(false)}
+          >
+            <View style={styles.sheetOverlay}>
+              <View style={styles.assignModal}>
+                <View style={styles.viewHeader}>
+                  <View>
+                    <Text style={styles.viewModalTitle}>
+                      Change Teacher
+                    </Text>
+
+                    <Text style={styles.viewModalSubtitle}>
+                      {selectedAssignment?.subject}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setChangeTeacherVisible(false)}
+                  >
+                    <MaterialCommunityIcons
+                      name="close"
+                      size={22}
+                      color="#5E626D"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.assignContent}
+                >
+                  <View style={styles.changeTeacherInfoCard}>
+                    <MaterialCommunityIcons
+                      name="book-open-variant"
+                      size={21}
+                      color="#7040D5"
+                    />
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.changeTeacherSubject}>
+                        {selectedAssignment?.subject}
+                      </Text>
+
+                      <Text style={styles.changeTeacherCurrent}>
+                        Current Teacher: {selectedAssignment?.teacher}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.inputLabel}>
+                    Select New Teacher
+                  </Text>
+
+                  <View style={styles.optionsContainer}>
+                    {sampleTeachers
+                      .filter(
+                        (teacher) =>
+                          !selectedBatch ||
+                          teacher.branch === selectedBatch.branch,
+                      )
+                      .map((teacher) => {
+                        const selected =
+                          changeTeacherId === teacher.id;
+
+                        return (
+                          <TouchableOpacity
+                            key={teacher.id}
+                            style={[
+                              styles.optionCard,
+                              selected &&
+                                styles.optionCardSelected,
+                            ]}
+                            onPress={() =>
+                              setChangeTeacherId(teacher.id)
+                            }
+                          >
+                            <View
+                              style={[
+                                styles.teacherOptionIcon,
+                                selected &&
+                                  styles.optionIconSelected,
+                              ]}
+                            >
+                              <MaterialCommunityIcons
+                                name="account-outline"
+                                size={21}
+                                color={
+                                  selected
+                                    ? "#FFFFFF"
+                                    : "#7040D5"
+                                }
+                              />
+                            </View>
+
+                            <View style={styles.optionTextArea}>
+                              <Text style={styles.optionTitle}>
+                                {teacher.name}
+                              </Text>
+
+                              <Text style={styles.optionSubtitle}>
+                                {teacher.email}
+                              </Text>
+                            </View>
+
+                            {selected && (
+                              <MaterialCommunityIcons
+                                name="check-circle"
+                                size={22}
+                                color="#7040D5"
+                              />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.assignConfirmButton}
+                    onPress={() => {
+                      if (!selectedAssignment) {
+                        return;
+                      }
+
+                      if (!changeTeacherId) {
+                        Alert.alert(
+                          "Select Teacher",
+                          "Please select a teacher.",
+                        );
+                        return;
+                      }
+
+                      const teacher = sampleTeachers.find(
+                        (item) =>
+                          item.id === changeTeacherId,
+                      );
+
+                      if (!teacher) {
+                        return;
+                      }
+
+                      setBatchSubjects((current) =>
+                        current.map((item) =>
+                          item.id === selectedAssignment.id
+                            ? {
+                                ...item,
+                                teacherId: teacher.id,
+                                teacher: teacher.name,
+                                teacherEmail: teacher.email,
+                              }
+                            : item,
+                        ),
+                      );
+
+                      setChangeTeacherVisible(false);
+                      setSelectedAssignment(null);
+
+                      Alert.alert(
+                        "Success",
+                        `${selectedAssignment.subject} is now assigned to ${teacher.name}.`,
+                      );
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="account-switch-outline"
+                      size={19}
+                      color="#FFFFFF"
+                    />
+
+                    <Text style={styles.assignConfirmText}>
+                      Change Teacher
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+
+      {/* =====================================================
+          EDIT MODAL
+      ===================================================== */}
+
+      <Modal
+        visible={editVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setEditVisible(false)
+        }
+      >
+        <View style={styles.sheetOverlay}>
+          <View style={styles.editModal}>
+            <View style={styles.viewHeader}>
+              <View style={styles.sheetHandle} />
+              <View>
+                <Text
+                  style={styles.viewModalTitle}
+                >
+                  Edit Batch
+                </Text>
+
+                <Text
+                  style={styles.viewModalSubtitle}
+                >
+                  Update sample batch details
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() =>
+                  setEditVisible(false)
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={22}
+                  color="#5E626D"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                styles.editContent
+              }
+            >
+              <FormInput
+                label="Batch Name"
                 value={editName}
                 onChangeText={setEditName}
-                style={styles.input}
                 placeholder="Enter batch name"
-                placeholderTextColor="#9AA2B1"
               />
 
-              <Text style={styles.inputLabel}>Course</Text>
-
-              <TextInput
-                value={editCourse}
-                onChangeText={setEditCourse}
-                style={styles.input}
-                placeholder="Enter course"
-                placeholderTextColor="#9AA2B1"
+              <FormInput
+                label="Start Date"
+                value={editStartDate}
+                onChangeText={setEditStartDate}
+                placeholder="DD MMM YYYY"
               />
 
-              <Text style={styles.inputLabel}>Branch</Text>
-
-              <TextInput
-                value={editBranch}
-                onChangeText={setEditBranch}
-                style={styles.input}
-                placeholder="Enter branch"
-                placeholderTextColor="#9AA2B1"
+              <FormInput
+                label="End Date"
+                value={editEndDate}
+                onChangeText={setEditEndDate}
+                placeholder="DD MMM YYYY"
               />
 
-              <Text style={styles.inputLabel}>Faculty</Text>
-
-              <TextInput
-                value={editTrainer}
-                onChangeText={setEditTrainer}
-                style={styles.input}
-                placeholder="Enter Faculty"
-                placeholderTextColor="#9AA2B1"
+              <FormInput
+                label="Capacity"
+                value={editCapacity}
+                onChangeText={setEditCapacity}
+                placeholder="Enter capacity"
+                keyboardType="numeric"
               />
 
-              <Text style={styles.inputLabel}>Schedule</Text>
-
-              <TextInput
-                value={editSchedule}
-                onChangeText={setEditSchedule}
-                style={styles.input}
-                placeholder="Enter schedule"
-                placeholderTextColor="#9AA2B1"
-              />
-
-              <View style={styles.editButtons}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setEditVisible(false)}
+              <View
+                style={styles.twoColumnRow}
+              >
+                <View
+                  style={styles.halfInput}
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
+                  <FormInput
+                    label="Start Time"
+                    value={editStartTime}
+                    onChangeText={
+                      setEditStartTime
+                    }
+                    placeholder="08:00 AM"
+                  />
+                </View>
 
-                <TouchableOpacity style={styles.saveButton} onPress={saveEdit}>
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
-                </TouchableOpacity>
+                <View
+                  style={styles.halfInput}
+                >
+                  <FormInput
+                    label="End Time"
+                    value={editEndTime}
+                    onChangeText={
+                      setEditEndTime
+                    }
+                    placeholder="10:00 AM"
+                  />
+                </View>
               </View>
+
+              {selectedBatch && (
+                <View
+                  style={
+                    styles.readOnlyInfoCard
+                  }
+                >
+                  <InfoRow
+                    label="Standard"
+                    value={
+                      selectedBatch.standard
+                    }
+                  />
+
+                  <InfoRow
+                    label="Academic Year"
+                    value={
+                      selectedBatch.academicYear
+                    }
+                  />
+
+                  <InfoRow
+                    label="Branch"
+                    value={
+                      selectedBatch.branch
+                    }
+                  />
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={saveEdit}
+              >
+                <MaterialCommunityIcons
+                  name="content-save-outline"
+                  size={19}
+                  color="#FFFFFF"
+                />
+
+                <Text
+                  style={styles.saveButtonText}
+                >
+                  Save Changes
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* =====================================================
+          ASSIGN SUBJECT MODAL
+      ===================================================== */}
+
+      <Modal
+        visible={assignVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setAssignVisible(false)
+        }
+      >
+        <View style={styles.sheetOverlay}>
+          <View
+            style={[
+              styles.assignModal
+            ]}
+          >
+            <View style={styles.viewHeader}>
+              <View style={styles.sheetHandle} />
+              <View>
+                <Text
+                  style={styles.viewModalTitle}
+                >
+                  Assign Subject
+                </Text>
+
+                <Text
+                  style={styles.viewModalSubtitle}
+                >
+                  {selectedBatch?.name}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() =>
+                  setAssignVisible(false)
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={22}
+                  color="#5E626D"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                styles.assignContent
+              }
+            >
+              <Text
+                style={styles.inputLabel}
+              >
+                Select Subject
+              </Text>
+
+              <View
+                style={
+                  styles.optionsContainer
+                }
+              >
+                {sampleSubjects
+                  .filter(
+                    (subject) =>
+                      !selectedBatch ||
+                      subject.standard ===
+                        selectedBatch.standard,
+                  )
+                  .map((subject) => {
+                    const selected =
+                      selectedSubjectId ===
+                      subject.id;
+
+                    return (
+                      <TouchableOpacity
+                        key={subject.id}
+                        style={[
+                          styles.optionCard,
+                          selected &&
+                            styles.optionCardSelected,
+                        ]}
+                        onPress={() =>
+                          setSelectedSubjectId(
+                            subject.id,
+                          )
+                        }
+                      >
+                        <View
+                          style={[
+                            styles.optionIcon,
+                            selected &&
+                              styles.optionIconSelected,
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="book-open-variant"
+                            size={20}
+                            color={
+                              selected
+                                ? "#FFFFFF"
+                                : "#7040D5"
+                            }
+                          />
+                        </View>
+
+                        <View
+                          style={
+                            styles.optionTextArea
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.optionTitle
+                            }
+                          >
+                            {subject.name}
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.optionSubtitle
+                            }
+                          >
+                            {subject.code} •{" "}
+                            {subject.type}
+                          </Text>
+                        </View>
+
+                        {selected && (
+                          <MaterialCommunityIcons
+                            name="check-circle"
+                            size={22}
+                            color="#7040D5"
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+              </View>
+
+              <Text
+                style={[
+                  styles.inputLabel,
+                  {
+                    marginTop: 22,
+                  },
+                ]}
+              >
+                Select Teacher
+              </Text>
+
+              <View
+                style={
+                  styles.optionsContainer
+                }
+              >
+                {sampleTeachers
+                  .filter(
+                    (teacher) =>
+                      !selectedBatch ||
+                      teacher.branch ===
+                        selectedBatch.branch,
+                  )
+                  .map((teacher) => {
+                    const selected =
+                      selectedTeacherId ===
+                      teacher.id;
+
+                    return (
+                      <TouchableOpacity
+                        key={teacher.id}
+                        style={[
+                          styles.optionCard,
+                          selected &&
+                            styles.optionCardSelected,
+                        ]}
+                        onPress={() =>
+                          setSelectedTeacherId(
+                            teacher.id,
+                          )
+                        }
+                      >
+                        <View
+                          style={[
+                            styles.teacherOptionIcon,
+                            selected &&
+                              styles.optionIconSelected,
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="account-outline"
+                            size={21}
+                            color={
+                              selected
+                                ? "#FFFFFF"
+                                : "#7040D5"
+                            }
+                          />
+                        </View>
+
+                        <View
+                          style={
+                            styles.optionTextArea
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.optionTitle
+                            }
+                          >
+                            {teacher.name}
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.optionSubtitle
+                            }
+                          >
+                            {teacher.email}
+                          </Text>
+                        </View>
+
+                        {selected && (
+                          <MaterialCommunityIcons
+                            name="check-circle"
+                            size={22}
+                            color="#7040D5"
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+              </View>
+
+              <View
+                style={
+                  styles.sampleNotice
+                }
+              >
+                <MaterialCommunityIcons
+                  name="information-outline"
+                  size={19}
+                  color="#7040D5"
+                />
+
+                <Text
+                  style={
+                    styles.sampleNoticeText
+                  }
+                >
+                  This is sample data for the
+                  frontend. API integration will
+                  be connected after the backend
+                  modules are completed.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.assignConfirmButton}
+                onPress={assignSubject}
+              >
+                <MaterialCommunityIcons
+                  name="link-variant"
+                  size={19}
+                  color="#FFFFFF"
+                />
+
+                <Text
+                  style={
+                    styles.assignConfirmText
+                  }
+                >
+                  Assign Subject & Teacher
+                </Text>
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
@@ -1190,40 +2925,99 @@ export default function BatchesPage() {
   );
 }
 
+/* =========================================================
+   SMALL COMPONENTS
+========================================================= */
+
+function DetailBox({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.detailBox}>
+      <MaterialCommunityIcons
+        name={icon}
+        size={19}
+        color="#7040D5"
+      />
+
+      <View style={styles.detailBoxText}>
+        <Text style={styles.detailBoxLabel}>
+          {label}
+        </Text>
+
+        <Text style={styles.detailBoxValue}>
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function FormInput({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  keyboardType?: "default" | "numeric";
+}) {
+  return (
+    <View style={styles.inputContainer}>
+      <Text style={styles.inputLabel}>
+        {label}
+      </Text>
+
+      <TextInput
+        style={styles.input}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#A0A3AE"
+        keyboardType={keyboardType}
+      />
+    </View>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoRowLabel}>
+        {label}
+      </Text>
+
+      <Text style={styles.infoRowValue}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+/* =========================================================
+   STYLES
+========================================================= */
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F7F8FC",
-  },
-
-  header: {
-    backgroundColor: "#7040D5",
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
-  },
-
-  headerTitle: {
-    flex: 1,
-    textAlign: "left",
-    color: "#FFFFFF",
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 18,
-    marginLeft: 12,
-  },
-
-  headerSpacer: {
-    width: 40,
+    backgroundColor: "#F7F7FA",
   },
 
   container: {
@@ -1232,148 +3026,179 @@ const styles = StyleSheet.create({
 
   content: {
     padding: 16,
+    paddingBottom: 40,
   },
 
-  pageTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
+  /* HEADER */
 
-  pageTitleContainer: {
-    flex: 1,
-    paddingRight: 10,
-  },
-
-  pageTitle: {
-    fontFamily: "PoppinsBold",
-    fontSize: 20,
-    color: "#172033",
-  },
-
-  pageSubtitle: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 10,
-    color: "#748096",
-    marginTop: 2,
-  },
-
-  addButton: {
-    minHeight: 40,
-    paddingHorizontal: 13,
-    borderRadius: 11,
+  header: {
     backgroundColor: "#7040D5",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 10,
   },
 
-  addButtonText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+
+  headerTitle: {
+    flex: 1,
     color: "#FFFFFF",
-    marginLeft: 4,
+    fontSize: 20,
+    fontWeight: "700",
   },
 
   headerAddButton: {
-    minHeight: 36,
-    paddingHorizontal: 11,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
-    backgroundColor: "transparent",
+    height: 40,
+    paddingHorizontal: 13,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.18)",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
+    gap: 5,
   },
 
   headerAddButtonText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 9.5,
     color: "#FFFFFF",
-    marginLeft: 4,
+    fontSize: 13,
+    fontWeight: "700",
   },
+
+  /* PAGE TITLE */
+
+  pageTitleContainer: {
+    marginBottom: 18,
+  },
+
+  pageTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 21,
+    lineHeight: 28,
+    color: '#172033',
+  },
+
+  pageSubtitle: {
+    marginTop: 5,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#777B87",
+  },
+
+  /* SUMMARY */
 
   summaryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    rowGap: 10,
+    gap: 10,
     marginBottom: 16,
   },
 
   summaryCard: {
-    height: 108,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#EEF0F5",
+    flex: 1,
+    minWidth: 145,
+    minHeight: 78,
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    padding: 11,
-    shadowColor: "#000000",
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
   },
 
   summaryIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 7,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  summaryInfo: {
+    flex: 1,
+    minWidth: 0,
   },
 
   summaryTitle: {
-    fontFamily: "PoppinsMedium",
+    fontFamily: 'PoppinsMedium',
     fontSize: 9,
-    color: "#748096",
+    color: '#748096',
   },
 
   summaryValue: {
-    fontFamily: "PoppinsBold",
-    fontSize: 18,
-    color: "#172033",
+    fontFamily: 'PoppinsBold',
+    fontSize: 17,
+    lineHeight: 23,
+    color: '#172033',
     marginTop: 1,
   },
 
-  /* REAL DONUT CARD */
+  /* STATUS */
 
-  statusOverviewCard: {
-    height: 108,
+  statusOverview: {
     backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#EEF0F5",
-    borderRadius: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    shadowColor: "#000000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-
-  statusOverviewTitle: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 9,
-    color: "#172033",
-    marginBottom: 1,
-  },
-
-  statusOverviewContent: {
-    flex: 1,
+    borderColor: "#ECECF1",
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+
+  sectionTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#20222A",
+  },
+
+  sectionSubtitle: {
+    fontSize: 12,
+    color: "#888C97",
+    marginTop: 3,
+  },
+
+  legendContainer: {
+    marginTop: 14,
+    gap: 8,
+  },
+
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 7,
+  },
+
+  legendText: {
+    fontSize: 12,
+    color: "#626671",
   },
 
   donutWrapper: {
@@ -1385,88 +3210,58 @@ const styles = StyleSheet.create({
 
   donutCenter: {
     position: "absolute",
-    width: 45,
-    height: 45,
-    borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
   },
 
   donutTotal: {
-    fontFamily: "PoppinsBold",
-    fontSize: 16,
-    lineHeight: 18,
-    color: "#172033",
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#20222A",
   },
 
   donutLabel: {
-    fontFamily: "PoppinsMedium",
-    fontSize: 6,
-    color: "#8A93A5",
+    fontSize: 8,
+    color: "#888C97",
+    marginTop: -2,
   },
 
-  statusLegend: {
-    flex: 1,
-    marginLeft: 4,
-  },
+  /* SEARCH */
 
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 1,
-  },
-
-  legendDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 4,
-  },
-
-  legendText: {
-    flex: 1,
-    fontFamily: "PoppinsMedium",
-    fontSize: 6.7,
-    color: "#687286",
-  },
-
-  toolbar: {
-    marginBottom: 10,
-  },
-
-  searchBox: {
-    height: 46,
-    borderRadius: 12,
+  searchContainer: {
+    height: 48,
     backgroundColor: "#FFFFFF",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E9ECF2",
+    borderColor: "#E6E7EC",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
+    marginBottom: 11,
   },
 
   searchInput: {
     flex: 1,
+    height: "100%",
     marginLeft: 8,
-    fontFamily: "PoppinsRegular",
-    fontSize: 11,
-    color: "#172033",
+    fontSize: 14,
+    color: "#20222A",
   },
 
-  filterRow: {
-    paddingTop: 10,
-    paddingBottom: 2,
-    gap: 7,
+  /* FILTER */
+
+  filterContainer: {
+    gap: 8,
+    paddingBottom: 17,
   },
 
   filterButton: {
-    height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 9,
+    paddingHorizontal: 15,
+    height: 35,
+    borderRadius: 18,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E6E9F0",
+    borderColor: "#E3E4E9",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1477,511 +3272,865 @@ const styles = StyleSheet.create({
   },
 
   filterText: {
-    fontFamily: "PoppinsMedium",
-    fontSize: 9.5,
-    color: "#687286",
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#686C77",
   },
 
   filterTextActive: {
     color: "#FFFFFF",
   },
 
-  resultRow: {
-    marginBottom: 9,
+  /* RESULTS */
+
+  resultHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
 
-  resultText: {
-    fontFamily: "PoppinsMedium",
-    fontSize: 9.5,
-    color: "#8A93A5",
+  resultTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#20222A",
   },
+
+  resultCount: {
+    fontSize: 12,
+    color: "#858894",
+  },
+
+  /* BATCH CARD */
 
   batchCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 15,
+    borderRadius: 17,
     borderWidth: 1,
-    borderColor: "#EEF0F5",
-    padding: 14,
-    marginBottom: 11,
-    shadowColor: "#000000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.04,
-    shadowRadius: 7,
-    elevation: 2,
+    borderColor: "#ECECF1",
+    padding: 15,
+    marginBottom: 13,
   },
 
-  stoppedBatchCard: {
-    borderColor: "#F5D7E1",
+  batchCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
 
-  batchTopRow: {
+  batchTitleArea: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
   },
 
   batchIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 45,
+    height: 45,
+    borderRadius: 13,
+    backgroundColor: "#F1EAFF",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 11,
   },
 
-  batchMainInfo: {
+  batchTitleText: {
     flex: 1,
-    marginLeft: 10,
-    paddingRight: 5,
   },
 
   batchName: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 12,
-    color: "#172033",
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#20222A",
+    lineHeight: 20,
   },
 
   batchCode: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 8.5,
-    color: "#8A93A5",
-    marginTop: 2,
-  },
-
-  statusBadge: {
-    paddingHorizontal: 8,
-    minHeight: 24,
-    borderRadius: 7,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  statusText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 8,
+    fontSize: 11,
+    color: "#8B8F9B",
+    marginTop: 3,
+    fontWeight: "600",
   },
 
   moreButton: {
-    width: 28,
-    height: 32,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 3,
-  },
-
-  stoppedNotice: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#FFF5F8",
-    borderRadius: 11,
-    padding: 10,
-    marginTop: 12,
-  },
-
-  stoppedNoticeText: {
-    flex: 1,
-    marginLeft: 8,
-  },
-
-  stoppedTitle: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 9.5,
-    color: "#D64570",
-  },
-
-  stoppedReason: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 8.5,
-    lineHeight: 13,
-    color: "#7E5260",
-    marginTop: 2,
-  },
-
-  stoppedDate: {
-    fontFamily: "PoppinsMedium",
-    fontSize: 8,
-    color: "#D64570",
-    marginTop: 4,
+    backgroundColor: "#F7F7F9",
   },
 
   infoGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F2F6",
+    marginTop: 16,
+    gap: 13,
   },
 
   infoItem: {
-    width: "50%",
+    width: "46%",
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingRight: 8,
-    marginBottom: 11,
-  },
-
-  infoTextContainer: {
-    flex: 1,
+    gap: 8,
   },
 
   infoLabel: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 7.5,
-    color: "#9AA2B1",
-    marginLeft: 7,
+    fontSize: 10,
+    color: "#999CA6",
+    marginBottom: 2,
   },
 
   infoValue: {
-    fontFamily: "PoppinsMedium",
-    fontSize: 9,
-    color: "#344054",
-    marginLeft: 7,
-    marginTop: 1,
+    fontSize: 12,
+    color: "#373A43",
+    fontWeight: "700",
   },
 
-  batchBottom: {
-    borderTopWidth: 1,
-    borderTopColor: "#F0F2F6",
-    paddingTop: 11,
+  divider: {
+    height: 1,
+    backgroundColor: "#F0F0F3",
+    marginVertical: 15,
+  },
+
+  scheduleRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
     justifyContent: "space-between",
+    alignItems: "center",
   },
 
-  scheduleContainer: {
-    flex: 1,
+  scheduleLeft: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingRight: 10,
+    alignItems: "flex-start",
+    gap: 9,
+    flex: 1,
   },
 
   scheduleText: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 8.5,
-    color: "#748096",
-    marginLeft: 6,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#373A43",
+  },
+
+  daysText: {
+    fontSize: 10,
+    color: "#8A8E99",
+    marginTop: 3,
+  },
+
+  statusBadge: {
+    minHeight: 27,
+    paddingHorizontal: 9,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
+  statusText: {
+    fontSize: 10,
+    fontWeight: "800",
   },
 
   capacityContainer: {
-    width: 105,
+    marginTop: 15,
   },
 
   capacityHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 5,
+    marginBottom: 7,
   },
 
   capacityLabel: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 7.5,
-    color: "#8A93A5",
+    fontSize: 10,
+    color: "#858995",
   },
 
-  capacityValue: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 7.5,
-    color: "#344054",
+  capacityPercentage: {
+    fontSize: 10,
+    color: "#7040D5",
+    fontWeight: "800",
   },
 
-  progressTrack: {
-    height: 5,
+  progressBackground: {
+    height: 6,
     borderRadius: 5,
-    backgroundColor: "#ECEEF3",
+    backgroundColor: "#EEEEF2",
     overflow: "hidden",
   },
 
   progressFill: {
     height: "100%",
     borderRadius: 5,
+    backgroundColor: "#7040D5",
   },
 
-  emptyState: {
+  /* EMPTY */
+
+  emptyContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 15,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#EEF0F5",
+    borderColor: "#ECECF1",
+    padding: 40,
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 55,
-    marginTop: 5,
   },
 
   emptyTitle: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 13,
-    color: "#344054",
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#33353D",
     marginTop: 10,
   },
 
-  emptySubtitle: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 9,
-    color: "#8A93A5",
-    marginTop: 3,
+  emptyText: {
+    fontSize: 12,
+    color: "#8A8D97",
+    marginTop: 5,
   },
+
+  assignmentActionHeader: {
+    flexDirection: "row",
+  alignItems: "flex-start",
+  marginBottom: 10,
+},
+
+assignmentActionTeacher: {
+  fontSize: 11,
+  color: "#7040D5",
+  fontWeight: "700",
+  marginTop: 2,
+},
+
+  /* MODALS */
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(9, 16, 32, 0.48)",
+    backgroundColor: "rgba(0,0,0,0.38)",
     justifyContent: "flex-end",
   },
 
   actionModal: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 18,
-    paddingTop: 9,
-    paddingBottom: 25,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 35,
   },
 
   modalHandle: {
-    alignSelf: "center",
     width: 38,
     height: 4,
-    borderRadius: 5,
-    backgroundColor: "#D9DDE5",
-    marginBottom: 15,
+    borderRadius: 3,
+    backgroundColor: "#D8D9DE",
+    alignSelf: "center",
+    marginBottom: 18,
   },
 
   modalTitle: {
-    fontFamily: "PoppinsBold",
-    fontSize: 17,
-    color: "#172033",
+    fontSize: 19,
+    fontWeight: "800",
+    color: "#20222A",
   },
 
   modalSubtitle: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 9,
-    color: "#8A93A5",
-    marginTop: 2,
-    marginBottom: 12,
+    fontSize: 12,
+    color: "#858995",
+    marginTop: 4,
+    marginBottom: 15,
   },
 
   actionItem: {
-    minHeight: 57,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 13,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F2F6",
+    borderBottomColor: "#F1F1F4",
+  },
+
+  actionIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  actionTextArea: {
+    flex: 1,
+    marginLeft: 12,
+  },
+
+  actionTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#30323A",
+  },
+
+  actionDescription: {
+    fontSize: 11,
+    color: "#9295A0",
+    marginTop: 3,
+  },
+
+  changeTeacherInfoCard: {
+  backgroundColor: "#F1EAFF",
+  borderRadius: 13,
+  padding: 13,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+  marginBottom: 20,
+},
+
+changeTeacherSubject: {
+  fontSize: 13,
+  fontWeight: "800",
+  color: "#30323A",
+},
+
+changeTeacherCurrent: {
+  fontSize: 10,
+  color: "#777B87",
+  marginTop: 4,
+},
+
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.38)",
+    justifyContent: "flex-end",
+  },
+
+  viewModal: {
+    width: "100%",
+    maxHeight: "92%",
+    backgroundColor: "#F7F7FA",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+  },
+
+  editModal: {
+    width: "100%",
+    maxHeight: "88%",
+    backgroundColor: "#F7F7FA",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+  },
+
+  assignModal: {
+    width: "100%",
+    maxHeight: "88%",
+    backgroundColor: "#F7F7FA",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+  },
+
+  sheetHandle: {
+    position: "absolute",
+    top: 7,
+    left: "50%",
+    marginLeft: -19,
+    width: 38,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: "#D2D3D9",
+  },
+
+  viewHeader: {
+    paddingTop: 14,
+    paddingHorizontal: 17,
+    paddingBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#ECECF1",
+  },
+
+  viewModalTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#20222A",
+  },
+
+  viewModalSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: "#888C97",
+    marginTop: 3,
+  },
+
+  closeButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#F2F2F5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  viewContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+
+  /* VIEW DETAILS */
+
+  batchDetailHero: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 17,
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ECECF1",
+  },
+
+  detailHeroIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 15,
+    backgroundColor: "#F1EAFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 2,
+  },
+
+  detailHeroText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+
+  detailHeroTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#20222A",
+  },
+
+  detailHeroCode: {
+    fontSize: 11,
+    color: "#888C97",
+    marginTop: 4,
+  },
+
+  detailSectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#252730",
+    marginTop: 20,
+    marginBottom: 9,
+  },
+
+  detailGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9,
+  },
+
+  detailBox: {
+    width: "48%",
+    minHeight: 72,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: "#ECECF1",
+    padding: 11,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+
+  detailBoxText: {
+    flex: 1,
+  },
+
+  detailBoxLabel: {
+    fontSize: 10,
+    color: "#9396A1",
+  },
+
+  detailBoxValue: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#363942",
+    marginTop: 3,
+  },
+
+  scheduleDetailCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#ECECF1",
+    padding: 13,
     flexDirection: "row",
     alignItems: "center",
   },
 
-  actionIconPurple: {
-    width: 38,
-    height: 38,
+  scheduleIconBox: {
+    width: 43,
+    height: 43,
+    borderRadius: 12,
+    backgroundColor: "#F1EAFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 11,
+  },
+
+  scheduleDetailTime: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#30323A",
+  },
+
+  scheduleDaysContainer: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 6,
+  marginTop: 7,
+},
+
+scheduleDayBadge: {
+  backgroundColor: "#F1EAFF",
+  borderRadius: 8,
+  paddingHorizontal: 8,
+  paddingVertical: 5,
+},
+
+scheduleDayText: {
+  fontSize: 10,
+  fontWeight: "700",
+  color: "#7040D5",
+},
+
+  descriptionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#ECECF1",
+    padding: 14,
+  },
+
+  descriptionText: {
+    fontSize: 12,
+    lineHeight: 19,
+    color: "#676B76",
+  },
+
+  /* SUBJECTS */
+
+  subjectSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginTop: 4,
+  },
+
+  subjectSectionSubtitle: {
+    fontSize: 11,
+    color: "#9295A0",
+    marginTop: -5,
+    marginBottom: 10,
+  },
+
+  assignButton: {
+    height: 36,
+    paddingHorizontal: 11,
     borderRadius: 10,
+    backgroundColor: "#7040D5",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 10,
+  },
+
+  assignButtonText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+
+  noSubjectsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#ECECF1",
+    padding: 28,
+    alignItems: "center",
+    marginTop: 12,
+  },
+
+  noSubjectsTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#393B44",
+    marginTop: 8,
+  },
+
+  noSubjectsText: {
+    fontSize: 11,
+    color: "#8C909A",
+    marginTop: 4,
+    textAlign: "center",
+  },
+
+  subjectAssignmentCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#ECECF1",
+    padding: 12,
+    marginBottom: 9,
+    flexDirection: "row",
+    alignItems: "center"
+  },
+
+  subjectIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: "#F1EAFF",
     alignItems: "center",
     justifyContent: "center",
   },
 
-  actionIconBlue: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+  subjectAssignmentMain: {
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  subjectName: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#30323A",
+  },
+
+  subjectCode: {
+    fontSize: 10,
+    color: "#9295A0",
+    marginTop: 2,
+  },
+
+  teacherRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 5,
+    gap: 3,
+  },
+
+  teacherName: {
+    fontSize: 11,
+    color: "#6C707B",
+    fontWeight: "600",
+  },
+
+  smallStatus: {
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 9,
+  },
+
+  smallStatusText: {
+    fontSize: 9,
+    fontWeight: "800",
+  },
+
+  assignmentRightArea: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginLeft: 8,
+    gap: 6,
+  },
+
+  assignmentMoreButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: "#F7F7F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* EDIT */
+
+  editContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+
+  inputContainer: {
+    marginBottom: 15,
+  },
+
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4A4D57",
+    marginBottom: 7,
+  },
+
+  input: {
+    height: 47,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#E1E2E7",
+    paddingHorizontal: 13,
+    fontSize: 13,
+    color: "#30323A",
+  },
+
+  twoColumnRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  halfInput: {
+    flex: 1,
+  },
+
+  readOnlyInfoCard: {
+    backgroundColor: "#F1EAFF",
+    borderRadius: 13,
+    padding: 13,
+    marginTop: 4,
+    marginBottom: 20,
+  },
+
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+
+  infoRowLabel: {
+    fontSize: 11,
+    color: "#777B87",
+  },
+
+  infoRowValue: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#4B2A96",
+  },
+
+  saveButton: {
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#7040D5",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  /* ASSIGN */
+
+  assignContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+
+  optionsContainer: {
+    gap: 9,
+  },
+
+  optionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E6E7EC",
+    padding: 11,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  optionCardSelected: {
+    borderColor: "#7040D5",
+    backgroundColor: "#F8F5FF",
+  },
+
+  optionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#F1EAFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  teacherOptionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: "#EAF2FF",
     alignItems: "center",
     justifyContent: "center",
   },
 
-  actionIconRed: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: "#FFE9F0",
-    alignItems: "center",
-    justifyContent: "center",
+  optionIconSelected: {
+    backgroundColor: "#7040D5",
   },
 
-  actionText: {
+  optionTextArea: {
     flex: 1,
-    fontFamily: "PoppinsMedium",
-    fontSize: 11,
-    color: "#344054",
-    marginLeft: 11,
+    marginLeft: 10,
   },
 
-  detailModal: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    maxHeight: "90%",
-    padding: 18,
+  optionTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#30323A",
   },
 
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-
-  detailHero: {
-    alignItems: "center",
-    backgroundColor: "#F8F5FF",
-    borderRadius: 15,
-    paddingVertical: 18,
-    marginBottom: 12,
-  },
-
-  detailStoppedHero: {
-    backgroundColor: "#FFF5F8",
-  },
-
-  detailHeroIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 9,
-  },
-
-  detailName: {
-    fontFamily: "PoppinsBold",
-    fontSize: 15,
-    color: "#172033",
-    textAlign: "center",
-  },
-
-  detailCode: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 9,
-    color: "#8A93A5",
+  optionSubtitle: {
+    fontSize: 10,
+    color: "#888C97",
     marginTop: 3,
   },
 
-  detailStatus: {
-    paddingHorizontal: 11,
-    minHeight: 26,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 9,
-  },
-
-  detailStatusText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 8.5,
-  },
-
-  detailStoppedBox: {
-    backgroundColor: "#FFF5F8",
+  sampleNotice: {
+    marginTop: 20,
+    backgroundColor: "#F1EAFF",
     borderRadius: 12,
     padding: 12,
-    marginBottom: 10,
-  },
-
-  detailStoppedTitle: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
-    color: "#D64570",
-  },
-
-  detailStoppedReason: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 9,
-    lineHeight: 14,
-    color: "#7E5260",
-    marginTop: 4,
-  },
-
-  detailStoppedDate: {
-    fontFamily: "PoppinsMedium",
-    fontSize: 8.5,
-    color: "#D64570",
-    marginTop: 6,
-  },
-
-  detailRow: {
-    minHeight: 47,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F2F6",
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
   },
 
-  detailLabel: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 9,
-    color: "#8A93A5",
-  },
-
-  detailValue: {
-    maxWidth: "62%",
-    fontFamily: "PoppinsMedium",
-    fontSize: 9.5,
-    color: "#344054",
-    textAlign: "right",
-  },
-
-  editModal: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    maxHeight: "92%",
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 20,
-  },
-
-  inputLabel: {
-    fontFamily: "PoppinsMedium",
-    fontSize: 9,
-    color: "#344054",
-    marginBottom: 5,
-    marginTop: 7,
-  },
-
-  input: {
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E3E6ED",
-    paddingHorizontal: 12,
-    fontFamily: "PoppinsRegular",
-    fontSize: 10,
-    color: "#172033",
-  },
-
-  editButtons: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 20,
-  },
-
-  cancelButton: {
+  sampleNoticeText: {
     flex: 1,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#DDE1E8",
-    alignItems: "center",
-    justifyContent: "center",
+    fontSize: 11,
+    lineHeight: 17,
+    color: "#5C467F",
   },
 
-  cancelButtonText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
-    color: "#667085",
-  },
-
-  saveButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
+  assignConfirmButton: {
+    height: 49,
     backgroundColor: "#7040D5",
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 18,
   },
 
-  saveButtonText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
+  assignConfirmText: {
     color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
   },
 });

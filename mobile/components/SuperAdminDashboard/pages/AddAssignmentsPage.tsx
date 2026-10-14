@@ -110,14 +110,6 @@ const SelectField = ({
   );
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-
 export default function AddAssignmentsPage() {
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [assignmentCode, setAssignmentCode] = useState("");
@@ -130,7 +122,6 @@ export default function AddAssignmentsPage() {
   const [assignedDate, setAssignedDate] = useState("");
   const [submissionDate, setSubmissionDate] = useState("");
 
-  const [totalMarks, setTotalMarks] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
   const [pdfUri, setPdfUri] = useState("");
@@ -210,8 +201,7 @@ export default function AddAssignmentsPage() {
       !batch ||
       !assignmentType ||
       !assignedDate.trim() ||
-      !submissionDate.trim() ||
-      !totalMarks.trim()
+      !submissionDate.trim()
     ) {
       Alert.alert(
         "Required Fields",
@@ -220,26 +210,65 @@ export default function AddAssignmentsPage() {
       return;
     }
 
-    const marks = Number(totalMarks);
+    const parseDate = (value: string): Date | null => {
+      const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!match) return null;
 
-    if (!Number.isFinite(marks) || marks <= 0) {
+      const day = Number(match[1]);
+      const month = Number(match[2]);
+      const year = Number(match[3]);
+      const date = new Date(year, month - 1, day);
+
+      if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month - 1 ||
+        date.getDate() !== day
+      ) {
+        return null;
+      }
+      return date;
+    };
+
+    const assigned = parseDate(assignedDate);
+    const due = parseDate(submissionDate);
+
+    if (!assigned || !due) {
       Alert.alert(
-        "Invalid Marks",
-        "Please enter a valid total marks value."
+        "Invalid Date",
+        "Enter both dates in DD/MM/YYYY format."
       );
       return;
     }
 
-    Alert.alert(
-      "Assignment Added",
-      `${assignmentTitle} has been added successfully.`,
-      [
-        {
-          text: "OK",
-          onPress: () => router.back(),
-        },
-      ]
-    );
+    if (due < assigned) {
+      Alert.alert(
+        "Invalid Due Date",
+        "The due date cannot be earlier than the assigned date."
+      );
+      return;
+    }
+
+    // The list remains mock-data-only. Pass the new assignment to the
+    // existing Assignments page through the current dashboard route.
+    router.replace({
+      pathname: "/(super_admin)/explore",
+      params: {
+        feature: "Assignments",
+        newAssignment: "true",
+        assignmentTitle: assignmentTitle.trim(),
+        assignmentCode: assignmentCode.trim().toUpperCase(),
+        assignmentStandard: standard,
+        assignmentSubject: subject,
+        assignmentBatch: batch,
+        assignmentType,
+        assignmentAssignedDate: assignedDate.trim(),
+        assignmentSubmissionDate: submissionDate.trim(),
+        assignmentDescription: description.trim(),
+        assignmentInstructions: instructions.trim(),
+        assignmentPdfUri: pdfUri,
+        assignmentPdfName: pdfName,
+      },
+    } as never);
   };
 
   const handlePickNotesPdf = async () => {
@@ -288,15 +317,6 @@ export default function AddAssignmentsPage() {
           <Text style={styles.headerTitle}>Add Assignment</Text>
         </View>
 
-        <Pressable style={styles.editButton}>
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={16}
-            color="#7040D5"
-          />
-
-          <Text style={styles.editButtonText}>Edit</Text>
-        </Pressable>
       </View>
 
       <ScrollView
@@ -448,7 +468,7 @@ export default function AddAssignmentsPage() {
               </Text>
 
               <Text style={styles.sectionSubtitle}>
-                Set assignment and submission dates
+                Set when the assignment is given and when it is due
               </Text>
             </View>
           </View>
@@ -482,7 +502,7 @@ export default function AddAssignmentsPage() {
             <View style={styles.column}>
               <View style={styles.fieldWrapper}>
                 <Text style={styles.label}>
-                  Submission Date
+                  Due Date
                   <Text style={styles.required}> *</Text>
                 </Text>
 
@@ -503,59 +523,6 @@ export default function AddAssignmentsPage() {
                 </View>
               </View>
             </View>
-          </View>
-        </View>
-
-        {/* EVALUATION */}
-
-        <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionIconGreen}>
-              <MaterialCommunityIcons
-                name="chart-box-outline"
-                size={19}
-                color="#2EAA78"
-              />
-            </View>
-
-            <View>
-              <Text style={styles.sectionTitle}>
-                Evaluation
-              </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                Define assignment scoring
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.fieldWrapper}>
-            <Text style={styles.label}>
-              Total Marks
-              <Text style={styles.required}> *</Text>
-            </Text>
-
-            <TextInput
-              value={totalMarks}
-              onChangeText={setTotalMarks}
-              placeholder="e.g. 50"
-              placeholderTextColor="#A1A5B3"
-              keyboardType="numeric"
-              style={styles.input}
-            />
-          </View>
-
-          <View style={styles.marksInfo}>
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={17}
-              color="#7040D5"
-            />
-
-            <Text style={styles.marksInfoText}>
-              Students will receive marks based on the submitted
-              assignment and teacher evaluation.
-            </Text>
           </View>
         </View>
 
@@ -767,22 +734,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 
-  editButton: {
-    height: 34,
-    paddingHorizontal: 13,
-    borderRadius: 9,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
-
-  editButtonText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 11,
-    color: "#7040D5",
-  },
 
   container: {
     flex: 1,
@@ -1046,23 +997,6 @@ const styles = StyleSheet.create({
     color: "#7040D5",
   },
 
-  marksInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F6F2FD",
-    borderRadius: 9,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    marginTop: 1,
-  },
-
-  marksInfoText: {
-    flex: 1,
-    fontFamily: "PoppinsRegular",
-    fontSize: 9,
-    color: "#686B79",
-    marginLeft: 7,
-  },
 
   infoBox: {
     flexDirection: "row",
@@ -1073,6 +1007,12 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 15,
   },
+
+  sectionHeaderContent: {
+  flex: 1,
+  minWidth: 0,
+  justifyContent: "center",
+},
 
   infoIcon: {
     width: 29,
@@ -1112,7 +1052,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    padding: 10,
+    gap: 5,
     marginBottom: 10,
   },
 

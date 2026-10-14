@@ -14,7 +14,12 @@ import { router } from 'expo-router';
 import AuthInput from './AuthInput';
 import RoleSelector, { UserRole } from './RoleSelector';
 import { AuthScreen } from './AuthScreen';
+
 import { API_BASE_URL } from '@/config/api';
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 type Branch = {
   _id: string;
@@ -22,60 +27,284 @@ type Branch = {
   code: string;
 };
 
+type Batch = {
+  _id: string;
+  name: string;
+  code: string;
+  standard: string;
+  academicYear: string;
+  branchId: string | { _id: string; name?: string; code?: string };
+  startDate: string;
+  endDate: string;
+  isRemoved?: boolean;
+  status?: string;
+};
+
+/* =========================================================
+   REGISTER FORM
+========================================================= */
+
 export function RegisterForm() {
+  /* -------------------------------------------------------
+     COMMON FIELDS
+  ------------------------------------------------------- */
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
+
   const [branch, setBranch] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [branchesLoading, setBranchesLoading] = useState(false);
-  const [branchesError, setBranchesError] = useState('');
+  const [branchesLoading, setBranchesLoading] =
+    useState(false);
+  const [branchesError, setBranchesError] =
+    useState('');
+
   const [role, setRole] = useState<UserRole | ''>('');
+
+  /* -------------------------------------------------------
+     PASSWORD
+  ------------------------------------------------------- */
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] =
     useState('');
 
+  /* -------------------------------------------------------
+     TEACHER
+  ------------------------------------------------------- */
+
+  const [specialization, setSpecialization] =
+    useState('');
+
+  const [qualification, setQualification] =
+    useState('');
+
+  const [experience, setExperience] =
+    useState('');
+
+  const [teacherAddress, setTeacherAddress] =
+    useState('');
+
+  /* -------------------------------------------------------
+     STUDENT
+  ------------------------------------------------------- */
+
+  const [selectedBatch, setSelectedBatch] =
+    useState<Batch | null>(null);
+
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(false);
+  const [batchesError, setBatchesError] = useState('');
+  const [batchRetryKey, setBatchRetryKey] = useState(0);
+
+  const [guardianName, setGuardianName] =
+    useState('');
+
+  const [guardianMobile, setGuardianMobile] =
+    useState('');
+
+  const [studentAddress, setStudentAddress] =
+    useState('');
+
+  /* -------------------------------------------------------
+     MODALS
+  ------------------------------------------------------- */
+
   const [branchModalVisible, setBranchModalVisible] =
     useState(false);
+
+  const [batchModalVisible, setBatchModalVisible] =
+    useState(false);
+
+  /* =======================================================
+     SELECTED BRANCH
+  ======================================================= */
+
   const selectedBranch = branches.find(
-  (item) => item._id === branch
-);
+    (item) => item._id === branch
+  );
+
+  /* =======================================================
+     FETCH BRANCHES
+  ======================================================= */
 
   useEffect(() => {
-  const fetchBranches = async () => {
-    try {
-      setBranchesLoading(true);
-      setBranchesError('');
+    const fetchBranches = async () => {
+      try {
+        setBranchesLoading(true);
+        setBranchesError('');
 
-      const response = await fetch(
-        `${API_BASE_URL}/branches`
-      );
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.message || 'Failed to fetch branches'
+        const response = await fetch(
+          `${API_BASE_URL}/branches`
         );
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message ||
+              'Failed to fetch branches'
+          );
+        }
+
+        setBranches(
+          result.data?.branches || []
+        );
+      } catch (error) {
+        console.error(
+          'Fetch branches error:',
+          error
+        );
+
+        setBranchesError(
+          'Unable to load branches. Please try again.'
+        );
+      } finally {
+        setBranchesLoading(false);
       }
+    };
 
-      setBranches(result.data.branches);
-    } catch (error) {
-      console.error('Fetch branches error:', error);
+    fetchBranches();
+  }, []);
 
-      setBranchesError(
-        'Unable to load branches. Please try again.'
-      );
-    } finally {
-      setBranchesLoading(false);
+  /* =======================================================
+     FETCH BATCHES FOR SELECTED BRANCH
+  ======================================================= */
+
+  useEffect(() => {
+    if (role !== 'Student' || !branch) {
+      setBatches([]);
+      setSelectedBatch(null);
+      setBatchesError('');
+      setBatchesLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const fetchBatches = async () => {
+      try {
+        setBatchesLoading(true);
+        setBatchesError('');
+        setBatches([]);
+        setSelectedBatch(null);
+
+        // The API may return all batches or support branchId filtering.
+        // We filter again on the client so only the selected branch is shown.
+        const response = await fetch(
+          `${API_BASE_URL}/batches/registration?branchId=${encodeURIComponent(branch)}`,
+          { signal: controller.signal }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message || 'Failed to fetch batches'
+          );
+        }
+
+        const returnedBatches: Batch[] = Array.isArray(result.data)
+          ? result.data
+          : result.data?.batches ?? result.batches ?? [];
+
+        if (!Array.isArray(returnedBatches)) {
+          throw new Error('Invalid batches response from server');
+        }
+
+        const branchBatches = returnedBatches.filter((item) => {
+          const itemBranchId =
+            typeof item.branchId === 'object'
+              ? item.branchId?._id
+              : item.branchId;
+
+          return itemBranchId === branch && item.isRemoved !== true;
+        });
+
+        setBatches(branchBatches);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
+        }
+
+        console.error('Fetch batches error:', error);
+        setBatchesError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load batches. Please try again.'
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setBatchesLoading(false);
+        }
+      }
+    };
+
+    fetchBatches();
+
+    return () => {
+      controller.abort();
+    };
+  }, [role, branch, batchRetryKey]);
+
+  /* =======================================================
+     MOBILE
+  ======================================================= */
+
+  const handleMobileChange = (
+    value: string
+  ) => {
+    const numbersOnly = value
+      .replace(/\D/g, '')
+      .slice(0, 10);
+
+    setMobile(numbersOnly);
+  };
+
+  const handleGuardianMobileChange = (
+    value: string
+  ) => {
+    const numbersOnly = value
+      .replace(/\D/g, '')
+      .slice(0, 10);
+
+    setGuardianMobile(numbersOnly);
+  };
+
+  /* =======================================================
+     ROLE CHANGE
+  ======================================================= */
+
+  const handleRoleChange = (
+    selectedRole: UserRole
+  ) => {
+    setRole(selectedRole);
+
+    if (selectedRole === 'Teacher') {
+      setSelectedBatch(null);
+      setGuardianName('');
+      setGuardianMobile('');
+      setStudentAddress('');
+    }
+
+    if (selectedRole === 'Student') {
+      setSpecialization('');
+      setQualification('');
+      setExperience('');
+      setTeacherAddress('');
     }
   };
 
-  fetchBranches();
-}, []);
+  /* =======================================================
+     REGISTER
+  ======================================================= */
 
   const handleRegister = async () => {
-    // Required fields
+    /* -----------------------------------------------------
+       REQUIRED COMMON FIELDS
+    ----------------------------------------------------- */
+
     if (
       !name.trim() ||
       !email.trim() ||
@@ -92,8 +321,12 @@ export function RegisterForm() {
       return;
     }
 
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    /* -----------------------------------------------------
+       EMAIL
+    ----------------------------------------------------- */
+
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(email.trim())) {
       Alert.alert(
@@ -103,7 +336,30 @@ export function RegisterForm() {
       return;
     }
 
-    // Password match
+    /* -----------------------------------------------------
+       MOBILE
+    ----------------------------------------------------- */
+
+    if (mobile.length !== 10) {
+      Alert.alert(
+        'Invalid Mobile',
+        'Please enter a valid 10-digit mobile number.'
+      );
+      return;
+    }
+
+    /* -----------------------------------------------------
+       PASSWORD
+    ----------------------------------------------------- */
+
+    if (password.length < 6) {
+      Alert.alert(
+        'Invalid Password',
+        'Password must contain at least 6 characters.'
+      );
+      return;
+    }
+
     if (password !== confirmPassword) {
       Alert.alert(
         'Password mismatch',
@@ -112,48 +368,173 @@ export function RegisterForm() {
       return;
     }
 
+    /* -----------------------------------------------------
+       TEACHER VALIDATION
+    ----------------------------------------------------- */
+
+    if (role === 'Teacher') {
+      if (!qualification.trim()) {
+        Alert.alert(
+          'Missing details',
+          'Please enter your qualification.'
+        );
+        return;
+      }
+
+      if (!experience.trim()) {
+        Alert.alert(
+          'Missing details',
+          'Please enter your teaching experience.'
+        );
+        return;
+      }
+    }
+
+    /* -----------------------------------------------------
+       STUDENT VALIDATION
+    ----------------------------------------------------- */
+
+    if (role === 'Student') {
+      if (!selectedBatch?._id) {
+        Alert.alert(
+          'Missing details',
+          'Please select a valid batch.'
+        );
+        return;
+      }
+
+      if (
+        guardianMobile.trim() &&
+        guardianMobile.length !== 10
+      ) {
+        Alert.alert(
+          'Invalid Guardian Mobile',
+          'Please enter a valid 10-digit guardian mobile number.'
+        );
+        return;
+      }
+    }
+
+    /* -----------------------------------------------------
+       PAYLOAD
+    ----------------------------------------------------- */
+
+    const payload: Record<
+      string,
+      unknown
+    > = {
+      fullName: name.trim(),
+
+      email: email
+        .trim()
+        .toLowerCase(),
+
+      password,
+
+      mobileNumber: mobile.trim(),
+
+      role: role.toLowerCase(),
+
+      branchId: branch,
+    };
+
+    /* -----------------------------------------------------
+       TEACHER DATA
+    ----------------------------------------------------- */
+
+    if (role === 'Teacher') {
+      payload.specialization =
+        specialization.trim();
+
+      payload.qualification =
+        qualification.trim();
+
+      payload.experience =
+        experience.trim();
+
+      payload.address =
+        teacherAddress.trim();
+    }
+
+    /* -----------------------------------------------------
+       STUDENT DATA
+    ----------------------------------------------------- */
+
+    if (role === 'Student') {
+    if (!selectedBatch?._id) {
+      Alert.alert('Validation Error', 'Please select a batch.');
+      return;
+    }
+
+    payload.batchId = selectedBatch._id;
+
+    payload.guardianName = guardianName.trim();
+    payload.guardianMobile = guardianMobile.trim();
+    payload.address = studentAddress.trim();
+  }
+    /* -----------------------------------------------------
+       API REQUEST
+    ----------------------------------------------------- */
+
     try {
+      console.log(
+        'REGISTER PAYLOAD:',
+        payload
+      );
+
       const response = await fetch(
         `${API_BASE_URL}/auth/register`,
         {
           method: 'POST',
+
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type':
+              'application/json',
           },
-          body: JSON.stringify({
-            fullName: name.trim(),
-            email: email.trim(),
-            password,
-            mobileNumber: mobile.trim(),
-            role: role.toLowerCase(),
-            branchId: branch,
-          }),
+
+          body: JSON.stringify(
+            payload
+          ),
         }
       );
 
-      const result = await response.json();
+      const result =
+        await response.json();
 
-      if (!response.ok || !result.success) {
+      if (
+        !response.ok ||
+        !result.success
+      ) {
         Alert.alert(
           'Registration failed',
-          result.message || 'Unable to create your account.'
+          result.message ||
+            'Unable to create your account.'
         );
+
         return;
       }
 
       Alert.alert(
         'Registration submitted',
+
         result.message ||
           'Your account has been submitted for Super Admin approval.',
+
         [
           {
             text: 'OK',
-            onPress: () => router.replace('/'),
+
+            onPress: () => {
+              router.replace('/');
+            },
           },
         ]
       );
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error(
+        'Registration error:',
+        error
+      );
 
       Alert.alert(
         'Connection error',
@@ -162,10 +543,15 @@ export function RegisterForm() {
     }
   };
 
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
     <AuthScreen footer={false}>
-
-      {/* Heading */}
+      {/* =================================================
+          HEADING
+      ================================================= */}
 
       <View style={styles.heading}>
         <Text style={styles.title}>
@@ -173,11 +559,14 @@ export function RegisterForm() {
         </Text>
 
         <Text style={styles.subtitle}>
-          Register to get started with Vertical Classes
+          Register to get started with
+          Vertical Classes
         </Text>
       </View>
 
-      {/* Full Name */}
+      {/* =================================================
+          FULL NAME
+      ================================================= */}
 
       <AuthInput
         label="Full Name"
@@ -188,7 +577,9 @@ export function RegisterForm() {
         autoCapitalize="words"
       />
 
-      {/* Email */}
+      {/* =================================================
+          EMAIL
+      ================================================= */}
 
       <AuthInput
         label="Email"
@@ -200,19 +591,23 @@ export function RegisterForm() {
         keyboardType="email-address"
       />
 
-      {/* Mobile Number */}
+      {/* =================================================
+          MOBILE
+      ================================================= */}
 
       <AuthInput
         label="Mobile Number"
         icon="call-outline"
         value={mobile}
-        onChangeText={setMobile}
+        onChangeText={handleMobileChange}
         placeholder="Enter your 10-digit mobile number"
         keyboardType="phone-pad"
         autoCapitalize="none"
       />
 
-      {/* Branch */}
+      {/* =================================================
+          BRANCH
+      ================================================= */}
 
       <View style={styles.fieldContainer}>
         <Text style={styles.label}>
@@ -223,7 +618,7 @@ export function RegisterForm() {
           style={[
             styles.branchSelector,
             selectedBranch &&
-            styles.branchSelectorSelected
+              styles.branchSelectorSelected,
           ]}
           activeOpacity={0.8}
           onPress={() =>
@@ -244,7 +639,8 @@ export function RegisterForm() {
                 styles.branchPlaceholder,
             ]}
           >
-            {selectedBranch?.name || 'Select your branch'}
+            {selectedBranch?.name ||
+              'Select your branch'}
           </Text>
 
           <MaterialCommunityIcons
@@ -255,7 +651,9 @@ export function RegisterForm() {
         </TouchableOpacity>
       </View>
 
-      {/* Branch Modal */}
+      {/* =================================================
+          BRANCH MODAL
+      ================================================= */}
 
       <Modal
         visible={branchModalVisible}
@@ -277,15 +675,21 @@ export function RegisterForm() {
               event.stopPropagation()
             }
           >
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+            <View
+              style={styles.modalHeader}
+            >
+              <Text
+                style={styles.modalTitle}
+              >
                 Select Branch
               </Text>
 
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() =>
-                  setBranchModalVisible(false)
+                  setBranchModalVisible(
+                    false
+                  )
                 }
               >
                 <MaterialCommunityIcons
@@ -297,62 +701,86 @@ export function RegisterForm() {
             </View>
 
             {branchesLoading && (
-              <Text style={styles.branchStatus}>
+              <Text
+                style={
+                  styles.branchStatus
+                }
+              >
                 Loading branches...
               </Text>
             )}
 
             {branchesError && (
-              <Text style={styles.branchError}>
+              <Text
+                style={
+                  styles.branchError
+                }
+              >
                 {branchesError}
               </Text>
             )}
 
-            {branches.map((item) => (
-              <TouchableOpacity
-                key={item._id}
-                style={[
-                  styles.branchOption,
-                  branch === item._id &&
-                    styles.selectedBranchOption,
-                ]}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setBranch(item._id);
-                  setBranchModalVisible(false);
-                }}
-              >
-                <Text
+            {!branchesLoading &&
+              !branchesError &&
+              branches.map((item) => (
+                <TouchableOpacity
+                  key={item._id}
                   style={[
-                    styles.branchOptionText,
+                    styles.branchOption,
                     branch === item._id &&
-                      styles.selectedBranchOptionText,
+                      styles.selectedBranchOption,
                   ]}
-                >
-                  {item.name}
-                </Text>
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (branch !== item._id) {
+                      setSelectedBatch(null);
+                      setBatches([]);
+                    }
 
-                {branch === item._id && (
-                  <MaterialCommunityIcons
-                    name="check"
-                    size={21}
-                    color="#5A2EC4"
-                  />
-                )}
-              </TouchableOpacity>
-            ))}
+                    setBranch(item._id);
+                    setBranchModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.branchOptionText,
+                      branch === item._id &&
+                        styles.selectedBranchOptionText,
+                    ]}
+                  >
+                    {item.name}
+                  </Text>
+
+                  {branch === item._id && (
+                    <MaterialCommunityIcons
+                      name="check"
+                      size={21}
+                      color="#5A2EC4"
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* Role */}
-      <Text style={styles.label}>Login As</Text>
+      {/* =================================================
+          ROLE
+      ================================================= */}
+
+      <Text style={styles.label}>
+        Login As
+      </Text>
+
       <RoleSelector
         value={role}
-        onChange={setRole}
+        onChange={handleRoleChange}
       />
 
-      {/* Password */}
+      {/* =================================================
+          PASSWORD
+          SAME AS OLD REGISTER FORM
+      ================================================= */}
 
       <AuthInput
         label="Password"
@@ -363,7 +791,10 @@ export function RegisterForm() {
         secureTextEntry
       />
 
-      {/* Confirm Password */}
+      {/* =================================================
+          CONFIRM PASSWORD
+          SAME AS OLD REGISTER FORM
+      ================================================= */}
 
       <AuthInput
         label="Confirm Password"
@@ -374,38 +805,431 @@ export function RegisterForm() {
         secureTextEntry
       />
 
-      {/* Create Account */}
+      {/* =================================================
+          TEACHER FIELDS
+      ================================================= */}
+
+      {role === 'Teacher' && (
+        <>
+          <View
+            style={styles.roleSection}
+          >
+            <Text
+              style={
+                styles.roleSectionTitle
+              }
+            >
+              Teacher Information
+            </Text>
+
+            <Text
+              style={
+                styles.roleSectionSubtitle
+              }
+            >
+              Enter your professional
+              details
+            </Text>
+          </View>
+
+          <AuthInput
+            label="Specialization"
+            icon="book-outline"
+            value={specialization}
+            onChangeText={
+              setSpecialization
+            }
+            placeholder="e.g. Mathematics, Physics"
+            autoCapitalize="words"
+          />
+
+          <AuthInput
+            label="Qualification"
+            icon="school-outline"
+            value={qualification}
+            onChangeText={
+              setQualification
+            }
+            placeholder="e.g. M.Sc., M.Tech., B.Ed."
+            autoCapitalize="words"
+          />
+
+          <AuthInput
+            label="Teaching Experience"
+            icon="briefcase-outline"
+            value={experience}
+            onChangeText={setExperience}
+            placeholder="e.g. 3 years"
+            autoCapitalize="sentences"
+          />
+
+          <AuthInput
+            label="Address"
+            icon="location-outline"
+            value={teacherAddress}
+            onChangeText={
+              setTeacherAddress
+            }
+            placeholder="Enter your address"
+            autoCapitalize="sentences"
+          />
+
+          <View
+            style={styles.infoBox}
+          >
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={18}
+              color="#5A2EC4"
+            />
+
+            <Text
+              style={styles.infoText}
+            >
+              Employee ID will be generated
+              automatically by the system.
+            </Text>
+          </View>
+        </>
+      )}
+
+      {/* =================================================
+          STUDENT FIELDS
+      ================================================= */}
+
+      {role === 'Student' && (
+        <>
+          <View
+            style={styles.roleSection}
+          >
+            <Text
+              style={
+                styles.roleSectionTitle
+              }
+            >
+              Student Information
+            </Text>
+
+            <Text
+              style={
+                styles.roleSectionSubtitle
+              }
+            >
+              Select your academic batch
+            </Text>
+          </View>
+
+          {/* Batch */}
+
+          <View
+            style={styles.fieldContainer}
+          >
+            <Text style={styles.label}>
+              Batch
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.branchSelector,
+                selectedBatch &&
+                  styles.branchSelectorSelected,
+              ]}
+              activeOpacity={0.8}
+              onPress={() => {
+                if (!branch) {
+                  Alert.alert(
+                    'Select Branch',
+                    'Please select your branch before selecting a batch.'
+                  );
+                  return;
+                }
+
+                if (batchesLoading) return;
+                setBatchModalVisible(true);
+              }}
+            >
+              <MaterialCommunityIcons
+                name="book-open-page-variant"
+                size={22}
+                color="#A5A9B8"
+                style={styles.branchIcon}
+              />
+
+              <Text
+                style={[
+                  styles.branchText,
+                  !selectedBatch &&
+                    styles.branchPlaceholder,
+                ]}
+              >
+                {selectedBatch?.name ||
+                  (batchesLoading
+                    ? 'Loading batches...'
+                    : !branch
+                      ? 'Select a branch first'
+                      : 'Select your batch')}
+              </Text>
+
+              <MaterialCommunityIcons
+                name="chevron-down"
+                size={24}
+                color="#77767D"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Batch Modal */}
+
+          <Modal
+            visible={
+              batchModalVisible
+            }
+            transparent
+            animationType="fade"
+            onRequestClose={() =>
+              setBatchModalVisible(
+                false
+              )
+            }
+          >
+            <Pressable
+              style={
+                styles.modalOverlay
+              }
+              onPress={() =>
+                setBatchModalVisible(
+                  false
+                )
+              }
+            >
+              <Pressable
+                style={
+                  styles.modalContainer
+                }
+                onPress={(event) =>
+                  event.stopPropagation()
+                }
+              >
+                <View
+                  style={
+                    styles.modalHeader
+                  }
+                >
+                  <Text
+                    style={
+                      styles.modalTitle
+                    }
+                  >
+                    Select Batch
+                  </Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() =>
+                      setBatchModalVisible(
+                        false
+                      )
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name="close"
+                      size={24}
+                      color="#55515F"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {batchesLoading && (
+                  <Text style={styles.branchStatus}>
+                    Loading batches...
+                  </Text>
+                )}
+
+                {!batchesLoading && batchesError !== '' && (
+                  <View>
+                    <Text style={styles.branchError}>
+                      {batchesError}
+                    </Text>
+
+                    <TouchableOpacity
+                      style={styles.branchOption}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setBatchRetryKey((value) => value + 1);
+                      }}
+                    >
+                      <Text style={styles.branchOptionText}>
+                        Try again
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {!batchesLoading &&
+                  !batchesError &&
+                  batches.length === 0 && (
+                    <Text style={styles.branchStatus}>
+                      No batches available for this branch.
+                    </Text>
+                  )}
+
+                {!batchesLoading &&
+                  !batchesError &&
+                  batches.map((item) => {
+                    const selected = selectedBatch?._id === item._id;
+
+                    return (
+                      <TouchableOpacity
+                        key={item._id}
+                        style={[
+                          styles.branchOption,
+                          selected && styles.selectedBranchOption,
+                        ]}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setSelectedBatch(item);
+                          setBatchModalVisible(false);
+                        }}
+                      >
+                        <View style={styles.batchTextContainer}>
+                          <Text
+                            style={[
+                              styles.branchOptionText,
+                              selected && styles.selectedBranchOptionText,
+                            ]}
+                          >
+                            {item.name}
+                          </Text>
+
+                          <Text style={styles.batchMeta}>
+                            {item.standard} {' • '} {item.academicYear} {' • '} {item.code}
+                          </Text>
+                        </View>
+
+                        {selected && (
+                          <MaterialCommunityIcons
+                            name="check"
+                            size={21}
+                            color="#5A2EC4"
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+              </Pressable>
+            </Pressable>
+          </Modal>
+
+          <Text
+            style={
+              styles.subSectionTitle
+            }
+          >
+            Parent / Guardian
+          </Text>
+
+          <AuthInput
+            label="Guardian Name"
+            icon="person-outline"
+            value={guardianName}
+            onChangeText={
+              setGuardianName
+            }
+            placeholder="Enter guardian name"
+            autoCapitalize="words"
+          />
+
+          <AuthInput
+            label="Guardian Mobile"
+            icon="call-outline"
+            value={guardianMobile}
+            onChangeText={
+              handleGuardianMobileChange
+            }
+            placeholder="Enter guardian mobile number"
+            keyboardType="phone-pad"
+            autoCapitalize="none"
+          />
+
+          <AuthInput
+            label="Address"
+            icon="location-outline"
+            value={studentAddress}
+            onChangeText={
+              setStudentAddress
+            }
+            placeholder="Enter your address"
+            autoCapitalize="sentences"
+          />
+
+          <View
+            style={styles.infoBox}
+          >
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={18}
+              color="#5A2EC4"
+            />
+
+            <Text
+              style={styles.infoText}
+            >
+              Standard is determined from
+              the selected batch.
+            </Text>
+          </View>
+        </>
+      )}
+
+      {/* =================================================
+          CREATE ACCOUNT
+      ================================================= */}
 
       <TouchableOpacity
         activeOpacity={0.85}
         style={styles.primaryButton}
         onPress={handleRegister}
       >
-        <Text style={styles.primaryText}>
+        <Text
+          style={styles.primaryText}
+        >
           Create Account
         </Text>
       </TouchableOpacity>
 
-      {/* Login */}
+      {/* =================================================
+          LOGIN
+      ================================================= */}
 
-      <View style={styles.loginRow}>
-        <Text style={styles.loginText}>
+      <View
+        style={styles.loginRow}
+      >
+        <Text
+          style={styles.loginText}
+        >
           Already have an account?
         </Text>
 
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => router.replace('/')}
+          onPress={() =>
+            router.replace('/')
+          }
         >
-          <Text style={styles.loginLink}>
+          <Text
+            style={styles.loginLink}
+          >
             {' '}Login
           </Text>
         </TouchableOpacity>
       </View>
-
     </AuthScreen>
   );
 }
+
+/* =========================================================
+   STYLES
+========================================================= */
 
 const styles = StyleSheet.create({
   heading: {
@@ -444,7 +1268,7 @@ const styles = StyleSheet.create({
 
   branchSelector: {
     width: '100%',
-    height: 70,
+    height: 55,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -473,9 +1297,12 @@ const styles = StyleSheet.create({
     color: '#A5A9B8',
   },
 
+  /* Modal */
+
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor:
+      'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
@@ -531,8 +1358,88 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
   },
 
+  branchStatus: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 14,
+    color: '#77767D',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+
+  branchError: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 14,
+    color: '#D64545',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+
+  /* Role sections */
+
+  roleSection: {
+    marginTop: 12,
+    marginBottom: 18,
+    paddingTop: 6,
+  },
+
+  roleSectionTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 16,
+    color: '#202126',
+  },
+
+  roleSectionSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    color: '#77767D',
+    marginTop: 3,
+  },
+
+  subSectionTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 15,
+    color: '#202126',
+    marginTop: 4,
+    marginBottom: 14,
+  },
+
+  /* Batch */
+
+  batchTextContainer: {
+    flex: 1,
+  },
+
+  batchMeta: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#88838F',
+    marginTop: 2,
+  },
+
+  /* Info */
+
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F5F0FF',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 5,
+  },
+
+  infoText: {
+    flex: 1,
+    marginLeft: 8,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    lineHeight: 17,
+    color: '#665E77',
+  },
+
+  /* Create Account */
+
   primaryButton: {
-    height: 68,
+    height: 55,
     marginTop: 24,
     borderRadius: 14,
     backgroundColor: '#5A2EC4',
@@ -544,9 +1451,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: 6,
     },
+
     shadowOpacity: 0.2,
     shadowRadius: 10,
-
     elevation: 5,
   },
 
@@ -556,12 +1463,14 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
 
+  /* Login */
+
   loginRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 22,
+    marginBottom: 14,
   },
 
   loginText: {
@@ -575,20 +1484,4 @@ const styles = StyleSheet.create({
     color: '#5A2EC4',
     fontSize: 13,
   },
-
-  branchStatus: {
-  fontFamily: 'PoppinsRegular',
-  fontSize: 14,
-  color: '#77767D',
-  textAlign: 'center',
-  paddingVertical: 20,
-},
-
-branchError: {
-  fontFamily: 'PoppinsRegular',
-  fontSize: 14,
-  color: '#D64545',
-  textAlign: 'center',
-  paddingVertical: 20,
-},
 });

@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
+  Linking,
   Modal,
   Pressable,
   SafeAreaView,
@@ -12,228 +13,128 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
 
-type FeeStatus =
-  | 'Paid'
-  | 'Pending'
-  | 'Partially Paid'
-  | 'Overdue';
+type FeeStatus = 'Paid' | 'Pending' | 'Partially Paid' | 'Overdue';
 
-type PaymentMethod =
-  | 'Cash'
-  | 'UPI'
-  | 'Card'
-  | 'Bank Transfer';
+type PaymentMethod = 'Cash' | 'UPI' | 'Card' | 'Bank Transfer';
 
 type Installment = {
-  id: number;
+  id: string | number;
   installmentNumber: number;
   amount: number;
   paymentDate: string;
   method: PaymentMethod;
   reference: string;
+  receiptNumber?: string;
   status: 'Paid';
 };
 
 type FeeRecord = {
-  id: number;
+  id: string;
   studentName: string;
   studentId: string;
   course: string;
   batch: string;
   branch: string;
+  feeType: string;
+  notes: string;
+  mobileNumber: string;
   totalFee: number;
   paidAmount: number;
   dueDate: string;
+  dueDateValue: string;
   status: FeeStatus;
   installmentsEnabled: boolean;
   totalInstallments: number;
   installments: Installment[];
 };
 
-const initialFees: FeeRecord[] = [
-  {
-    id: 1,
-    studentName: 'Aarav Sharma',
-    studentId: 'VLCC-STU-001',
-    course: 'Professional Makeup',
-    batch: 'PM-2026-Morning',
-    branch: 'Pune Branch',
-    totalFee: 45000,
-    paidAmount: 45000,
-    dueDate: '10 Sep 2026',
-    status: 'Paid',
-    installmentsEnabled: true,
-    totalInstallments: 3,
-    installments: [
-      {
-        id: 101,
-        installmentNumber: 1,
-        amount: 15000,
-        paymentDate: '10 Jul 2026',
-        method: 'UPI',
-        reference: 'UPI-PM-1001',
-        status: 'Paid',
-      },
-      {
-        id: 102,
-        installmentNumber: 2,
-        amount: 15000,
-        paymentDate: '10 Aug 2026',
-        method: 'Card',
-        reference: 'CARD-PM-1002',
-        status: 'Paid',
-      },
-      {
-        id: 103,
-        installmentNumber: 3,
-        amount: 15000,
-        paymentDate: '02 Sep 2026',
-        method: 'UPI',
-        reference: 'UPI-PM-1003',
-        status: 'Paid',
-      },
-    ],
-  },
-  {
-    id: 2,
-    studentName: 'Ananya Patil',
-    studentId: 'VLCC-STU-002',
-    course: 'Beauty Therapy',
-    batch: 'BT-2026-Evening',
-    branch: 'Mumbai Branch',
-    totalFee: 65000,
-    paidAmount: 32500,
-    dueDate: '08 Sep 2026',
-    status: 'Partially Paid',
-    installmentsEnabled: true,
-    totalInstallments: 4,
-    installments: [
-      {
-        id: 201,
-        installmentNumber: 1,
-        amount: 16250,
-        paymentDate: '08 Jul 2026',
-        method: 'UPI',
-        reference: 'UPI-BT-2001',
-        status: 'Paid',
-      },
-      {
-        id: 202,
-        installmentNumber: 2,
-        amount: 16250,
-        paymentDate: '08 Aug 2026',
-        method: 'Cash',
-        reference: 'CASH-BT-2002',
-        status: 'Paid',
-      },
-    ],
-  },
-  {
-    id: 3,
-    studentName: 'Riya Kulkarni',
-    studentId: 'VLCC-STU-003',
-    course: 'Hair Dressing',
-    batch: 'HD-2026-Morning',
-    branch: 'Pune Branch',
-    totalFee: 40000,
-    paidAmount: 10000,
-    dueDate: '06 Sep 2026',
-    status: 'Overdue',
-    installmentsEnabled: true,
-    totalInstallments: 4,
-    installments: [
-      {
-        id: 301,
-        installmentNumber: 1,
-        amount: 10000,
-        paymentDate: '06 Jul 2026',
-        method: 'Bank Transfer',
-        reference: 'BT-HD-3001',
-        status: 'Paid',
-      },
-    ],
-  },
-  {
-    id: 4,
-    studentName: 'Neha Joshi',
-    studentId: 'VLCC-STU-004',
-    course: 'Skin Care Specialist',
-    batch: 'SC-2026-Nashik',
-    branch: 'Nashik Branch',
-    totalFee: 55000,
-    paidAmount: 0,
-    dueDate: '12 Sep 2026',
-    status: 'Pending',
-    installmentsEnabled: true,
-    totalInstallments: 5,
-    installments: [],
-  },
-  {
-    id: 5,
-    studentName: 'Kavya Mehta',
-    studentId: 'VLCC-STU-005',
-    course: 'Nail Art Professional',
-    batch: 'NA-2026-Nagpur',
-    branch: 'Nagpur Branch',
-    totalFee: 25000,
-    paidAmount: 12500,
-    dueDate: '15 Sep 2026',
-    status: 'Partially Paid',
-    installmentsEnabled: true,
-    totalInstallments: 2,
-    installments: [
-      {
-        id: 501,
-        installmentNumber: 1,
-        amount: 12500,
-        paymentDate: '15 Aug 2026',
-        method: 'UPI',
-        reference: 'UPI-NA-5001',
-        status: 'Paid',
-      },
-    ],
-  },
-  {
-    id: 6,
-    studentName: 'Sneha Deshmukh',
-    studentId: 'VLCC-STU-006',
-    course: 'Advanced Beauty Therapy',
-    batch: 'ABT-2026-Mumbai',
-    branch: 'Mumbai Branch',
-    totalFee: 75000,
-    paidAmount: 25000,
-    dueDate: '20 Sep 2026',
-    status: 'Partially Paid',
-    installmentsEnabled: true,
-    totalInstallments: 5,
-    installments: [
-      {
-        id: 601,
-        installmentNumber: 1,
-        amount: 15000,
-        paymentDate: '20 Jul 2026',
-        method: 'Card',
-        reference: 'CARD-ABT-6001',
-        status: 'Paid',
-      },
-      {
-        id: 602,
-        installmentNumber: 2,
-        amount: 10000,
-        paymentDate: '20 Aug 2026',
-        method: 'UPI',
-        reference: 'UPI-ABT-6002',
-        status: 'Paid',
-      },
-    ],
-  },
-];
+type ApiFeeRecord = {
+  _id: string;
+  studentId?: {
+    _id?: string;
+    studentId?: string;
+    userId?: { fullName?: string; mobileNumber?: string; phoneNumber?: string; phone?: string } | string;
+  } | string;
+  batchId?: { name?: string; code?: string; standard?: string } | string;
+  branchId?: { name?: string; code?: string } | string;
+  feeType?: string;
+  notes?: string;
+  totalAmount?: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  dueDate?: string;
+  status?: FeeStatus;
+  payments?: ApiPayment[];
+};
+
+type ApiPayment = {
+  _id: string;
+  amount: number;
+  paymentDate: string;
+  method: PaymentMethod;
+  reference?: string;
+  receiptNumber?: string;
+  remarks?: string;
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+const mapPayment = (payment: ApiPayment, index: number): Installment => ({
+  id: payment._id,
+  installmentNumber: index + 1,
+  amount: Number(payment.amount || 0),
+  paymentDate: formatDate(payment.paymentDate),
+  method: payment.method,
+  reference: payment.reference || payment.receiptNumber || 'N/A',
+  receiptNumber: payment.receiptNumber,
+  status: 'Paid',
+});
+
+const mapFeeRecord = (item: ApiFeeRecord): FeeRecord => {
+  const student = item.studentId && typeof item.studentId === 'object' ? item.studentId : {};
+  const studentUser = student.userId && typeof student.userId === 'object' ? student.userId : {};
+  const batch = item.batchId && typeof item.batchId === 'object' ? item.batchId : {};
+  const branch = item.branchId && typeof item.branchId === 'object' ? item.branchId : {};
+  const payments = Array.isArray(item.payments) ? item.payments : [];
+
+  return {
+    id: item._id,
+    studentName: studentUser.fullName || 'Unknown Student',
+    studentId: student.studentId || student._id || 'N/A',
+    course: batch.standard || item.feeType || 'N/A',
+    batch: batch.name || batch.code || 'N/A',
+    branch: branch.name || branch.code || 'N/A',
+    feeType: item.feeType || 'Tuition',
+    notes: item.notes || '',
+    mobileNumber: (studentUser.mobileNumber || studentUser.phoneNumber || studentUser.phone || '').toString(),
+    totalFee: Number(item.totalAmount || 0),
+    paidAmount: Number(item.paidAmount || 0),
+    dueDate: formatDate(item.dueDate),
+    dueDateValue: item.dueDate ? item.dueDate.slice(0, 10) : '',
+    status: item.status || 'Pending',
+    // Installment plans are not stored by the current backend; actual payments are.
+    installmentsEnabled: false,
+    totalInstallments: payments.length,
+    installments: payments.map(mapPayment),
+  };
+};
 
 const formatCurrency = (amount: number) => {
   return `₹ ${amount.toLocaleString('en-IN')}`;
@@ -290,8 +191,9 @@ export default function FeesManagementPage() {
   const statCardWidth =
     (contentWidth - statGap * 2) / 3;
 
-  const [fees, setFees] =
-    useState<FeeRecord[]>(initialFees);
+  const [fees, setFees] = useState<FeeRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingPayment, setSavingPayment] = useState(false);
 
   const [search, setSearch] = useState('');
 
@@ -303,6 +205,13 @@ export default function FeesManagementPage() {
 
   const [actionModalVisible, setActionModalVisible] =
     useState(false);
+
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editFeeType, setEditFeeType] = useState('Tuition');
+  const [editTotalFee, setEditTotalFee] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editNotes, setEditNotes] = useState('');
 
   const [viewModalVisible, setViewModalVisible] =
     useState(false);
@@ -329,12 +238,83 @@ export default function FeesManagementPage() {
     useState<PaymentMethod>('UPI');
 
   const [paymentDate, setPaymentDate] =
-    useState('05 Sep 2026');
+    useState(new Date().toISOString().slice(0, 10));
 
   const [transactionReference, setTransactionReference] =
     useState('');
 
   const [remarks, setRemarks] = useState('');
+
+  const loadFees = async (showError = true): Promise<FeeRecord[]> => {
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
+
+      const response = await fetch(`${API_BASE_URL}/fees`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to load fee records.');
+      }
+
+      const records: FeeRecord[] = (result.data || []).map(mapFeeRecord);
+      setFees(records);
+      return records;
+    } catch (error) {
+      if (showError) {
+        Alert.alert(
+          'Fee Records',
+          error instanceof Error ? error.message : 'Unable to load fee records.'
+        );
+      }
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      // Refresh fee records whenever this screen becomes active again.
+      void loadFees(false);
+    }, [])
+  );
+
+  const loadPaymentsForFee = async (fee: FeeRecord): Promise<FeeRecord | null> => {
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
+      const response = await fetch(`${API_BASE_URL}/fees/${fee.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to load payment history.');
+      }
+
+      const apiFee: ApiFeeRecord = result.data.fee;
+      const payments: ApiPayment[] = result.data.payments || [];
+      const updated: FeeRecord = {
+        ...mapFeeRecord(apiFee),
+        installments: payments
+          .slice()
+          .reverse()
+          .map((payment, index) => mapPayment(payment, index)),
+        totalInstallments: payments.length,
+      };
+      setSelectedFee(updated);
+      setFees((current) => current.map((item) => item.id === updated.id ? updated : item));
+      return updated;
+    } catch (error) {
+      Alert.alert(
+        'Payment History',
+        error instanceof Error ? error.message : 'Unable to load payment history.'
+      );
+      return null;
+    }
+  };
 
   const filteredFees = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -394,162 +374,87 @@ export default function FeesManagementPage() {
     (fee) => fee.status === 'Partially Paid'
   ).length;
 
-  const studentsCount = fees.length;
+  const studentsCount = new Set(fees.map((fee) => fee.studentId)).size;
 
   const openActions = (fee: FeeRecord) => {
     setSelectedFee(fee);
     setActionModalVisible(true);
   };
 
-  const openCollectModal = (
-    fee: FeeRecord
-  ) => {
+  const openCollectModal = (fee: FeeRecord) => {
     setSelectedFee(fee);
     setActionModalVisible(false);
-
-    const nextInstallment =
-      fee.installments.length + 1;
-
-    setInstallmentEnabled(
-      fee.installmentsEnabled
-    );
-
-    setInstallmentNumber(
-      String(nextInstallment)
-    );
-
-    setTotalInstallments(
-      String(
-        fee.totalInstallments || 1
-      )
-    );
-
-    const remaining =
-      fee.totalFee - fee.paidAmount;
-
-    setPaymentAmount(
-      remaining > 0
-        ? String(remaining)
-        : ''
-    );
-
+    setInstallmentEnabled(false);
+    setInstallmentNumber(String(fee.installments.length + 1));
+    setTotalInstallments(String(Math.max(fee.installments.length + 1, 1)));
+    const remaining = fee.totalFee - fee.paidAmount;
+    setPaymentAmount(remaining > 0 ? String(remaining) : '');
     setPaymentMethod('UPI');
-    setPaymentDate('05 Sep 2026');
+    setPaymentDate(new Date().toISOString().slice(0, 10));
     setTransactionReference('');
     setRemarks('');
-
     setCollectModalVisible(true);
   };
 
-  const savePayment = () => {
-    if (!selectedFee) {
+  const savePayment = async () => {
+    if (!selectedFee || savingPayment) return;
+
+    const amount = Number(paymentAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid payment amount.');
       return;
     }
-
-    const amount =
-      Number(paymentAmount);
-
-    if (!amount || amount <= 0) {
-      Alert.alert(
-        'Invalid Amount',
-        'Please enter a valid payment amount.'
-      );
-      return;
-    }
-
-    const remaining =
-      selectedFee.totalFee -
-      selectedFee.paidAmount;
-
+    const remaining = selectedFee.totalFee - selectedFee.paidAmount;
     if (amount > remaining) {
-      Alert.alert(
-        'Invalid Amount',
-        `Maximum payable amount is ${formatCurrency(
-          remaining
-        )}.`
-      );
+      Alert.alert('Invalid Amount', `Maximum payable amount is ${formatCurrency(remaining)}.`);
+      return;
+    }
+    if (paymentDate && Number.isNaN(new Date(paymentDate).getTime())) {
+      Alert.alert('Invalid Date', 'Enter a valid payment date in YYYY-MM-DD format.');
       return;
     }
 
-    const selectedInstallment =
-      installmentEnabled
-        ? Number(installmentNumber)
-        : selectedFee.installments
-            .length + 1;
+    try {
+      setSavingPayment(true);
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
 
-    const selectedTotalInstallments =
-      installmentEnabled
-        ? Number(totalInstallments)
-        : 1;
+      const response = await fetch(`${API_BASE_URL}/fees/${selectedFee.id}/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount,
+          method: paymentMethod,
+          paymentDate: paymentDate || new Date().toISOString(),
+          reference: transactionReference.trim(),
+          remarks: remarks.trim(),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to record payment.');
+      }
 
-    if (
-      installmentEnabled &&
-      (!selectedInstallment ||
-        !selectedTotalInstallments ||
-        selectedInstallment >
-          selectedTotalInstallments)
-    ) {
+      setCollectModalVisible(false);
+      await loadFees(false);
+      const refreshed = await loadPaymentsForFee(selectedFee);
+      if (refreshed) setSelectedFee(refreshed);
       Alert.alert(
-        'Invalid Installment',
-        'Please enter a valid installment number and total installments.'
+        'Payment Recorded',
+        `Payment of ${formatCurrency(amount)} was recorded successfully.
+Receipt: ${result.data?.payment?.receiptNumber || 'Generated'}`
       );
-      return;
+    } catch (error) {
+      Alert.alert(
+        'Payment Failed',
+        error instanceof Error ? error.message : 'Unable to record payment.'
+      );
+    } finally {
+      setSavingPayment(false);
     }
-
-    const newInstallment: Installment = {
-      id: Date.now(),
-      installmentNumber:
-        selectedInstallment,
-      amount,
-      paymentDate,
-      method: paymentMethod,
-      reference:
-        transactionReference ||
-        `TXN-${Date.now()}`,
-      status: 'Paid',
-    };
-
-    const newPaidAmount =
-      selectedFee.paidAmount +
-      amount;
-
-    const newStatus: FeeStatus =
-      newPaidAmount >=
-      selectedFee.totalFee
-        ? 'Paid'
-        : 'Partially Paid';
-
-    const updatedFee: FeeRecord = {
-      ...selectedFee,
-      paidAmount: newPaidAmount,
-      status: newStatus,
-      installmentsEnabled:
-        installmentEnabled,
-      totalInstallments:
-        selectedTotalInstallments,
-      installments: [
-        ...selectedFee.installments,
-        newInstallment,
-      ],
-    };
-
-    setFees((current) =>
-      current.map((fee) =>
-        fee.id === selectedFee.id
-          ? updatedFee
-          : fee
-      )
-    );
-
-    setSelectedFee(updatedFee);
-    setCollectModalVisible(false);
-
-    Alert.alert(
-      'Payment Recorded',
-      installmentEnabled
-        ? `Installment ${selectedInstallment} recorded successfully.`
-        : 'Payment recorded successfully.'
-    );
   };
 
   const downloadReceiptPDF = async (
@@ -566,15 +471,13 @@ export default function FeesManagementPage() {
       payment?.amount ||
       fee.paidAmount;
 
-    const receiptNo = payment
+    const receiptNo = payment?.receiptNumber || (payment
       ? `VLCC-REC-${payment.id}`
-      : `VLCC-REC-${fee.id}`;
+      : `VLCC-REC-${fee.id}`);
 
-    const installmentText =
-      payment &&
-      fee.installmentsEnabled
-        ? `Installment ${payment.installmentNumber} of ${fee.totalInstallments}`
-        : 'Full Payment';
+    const installmentText = payment
+      ? (payment.amount >= fee.totalFee ? 'Full Payment' : 'Partial Payment')
+      : 'Payment Receipt';
 
     const html = `
       <html>
@@ -644,7 +547,7 @@ export default function FeesManagementPage() {
         <body>
           <div class="header">
             <div class="title">
-              VLCC ERP Portal
+              Vertical Classes ERP
             </div>
 
             <div class="subtitle">
@@ -730,7 +633,7 @@ export default function FeesManagementPage() {
               </span>
 
               <span class="value">
-                ${payment?.paymentDate || '05 Sep 2026'}
+                ${payment?.paymentDate || formatDate(new Date().toISOString())}
               </span>
             </div>
 
@@ -810,7 +713,7 @@ export default function FeesManagementPage() {
 
           <div class="footer">
             This is a system-generated fee receipt
-            from VLCC ERP Portal.
+            from Vertical Classes ERP.
           </div>
         </body>
       </html>
@@ -847,49 +750,124 @@ export default function FeesManagementPage() {
     }
   };
 
-  const sendFeeReminder = (
-    fee: FeeRecord
-  ) => {
-    const pending =
-      fee.totalFee -
-      fee.paidAmount;
-
-    Alert.alert(
-      'Fee Reminder',
-      `Reminder prepared for ${fee.studentName}.\n\nPending Amount: ${formatCurrency(
-        pending
-      )}`,
-      [
-        {
-          text: 'OK',
-        },
-      ]
-    );
+  const openEditFeeModal = (fee: FeeRecord) => {
+    setSelectedFee(fee);
+    setEditFeeType(fee.feeType || 'Tuition');
+    setEditTotalFee(String(fee.totalFee));
+    setEditDueDate(fee.dueDateValue || '');
+    setEditNotes(fee.notes || '');
+    setActionModalVisible(false);
+    setEditModalVisible(true);
   };
 
-  const deleteFeeRecord = (
-    fee: FeeRecord
-  ) => {
-    setActionModalVisible(false);
+  const saveEditedFee = async () => {
+    if (!selectedFee) {
+      Alert.alert('Error', 'Please select a fee record to edit.');
+      return;
+    }
 
-    Alert.alert(
-      'Delete Fee Record',
-      `Are you sure you want to delete the fee record for ${fee.studentName}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    const totalAmount = Number(editTotalFee);
+    if (!editTotalFee.trim() || !Number.isFinite(totalAmount) || totalAmount <= 0) {
+      Alert.alert('Invalid Amount', 'Enter a valid total fee greater than zero.');
+      return;
+    }
+    if (totalAmount < selectedFee.paidAmount) {
+      Alert.alert('Invalid Amount', 'The total fee cannot be less than the amount already paid.');
+      return;
+    }
+    if (!editDueDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(editDueDate)) {
+      Alert.alert('Invalid Date', 'Enter the due date in YYYY-MM-DD format.');
+      return;
+    }
+    const parsedDate = new Date(`${editDueDate}T00:00:00`);
+    if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== editDueDate) {
+      Alert.alert('Invalid Date', 'Please enter a valid calendar date.');
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
+
+      const response = await fetch(`${API_BASE_URL}/fees/${selectedFee.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          feeType: editFeeType,
+          totalAmount,
+          dueDate: editDueDate,
+          notes: editNotes.trim(),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to update the fee record.');
+      }
+
+      setEditModalVisible(false);
+      await loadFees(false);
+      Alert.alert('Success', 'Fee record updated successfully.');
+    } catch (error) {
+      Alert.alert('Update Failed', error instanceof Error ? error.message : 'Unable to update the fee record.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const sendFeeReminder = async (fee: FeeRecord) => {
+    setActionModalVisible(false);
+    let phone = (fee.mobileNumber || '').replace(/\D/g, '');
+    if (phone.length === 10) phone = `91${phone}`;
+    else if (phone.length === 11 && phone.startsWith('0')) phone = `91${phone.slice(1)}`;
+    if (!phone) {
+      Alert.alert('Phone Number Missing', 'No phone number is available for this student. Check that the student profile has a mobile number.');
+      return;
+    }
+
+    const remaining = Math.max(0, fee.totalFee - fee.paidAmount);
+    const message = `Hello ${fee.studentName}, this is a fee reminder from Vertical Limit. Total fee: ${formatCurrency(fee.totalFee)}. Paid: ${formatCurrency(fee.paidAmount)}. Remaining: ${formatCurrency(remaining)}. Due date: ${fee.dueDate}. Please contact the institute if you have already paid. Thank you.`;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('WhatsApp Unavailable', 'Unable to open WhatsApp on this device.');
+    }
+  };
+
+  const deleteFeeRecord = (fee: FeeRecord) => {
+    setActionModalVisible(false);
+    Alert.alert(
+      'Delete Fee Record?',
+      `Delete the fee record for ${fee.studentName}? This action cannot be undone. Records with payment history cannot be deleted.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setFees((current) =>
-              current.filter(
-                (item) =>
-                  item.id !== fee.id
-              )
-            );
+          onPress: async () => {
+            try {
+              const token = await getToken();
+              if (!token) throw new Error('Your session has expired. Please sign in again.');
+              const response = await fetch(`${API_BASE_URL}/fees/${fee.id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const result = await response.json();
+              if (!response.ok || !result.success) {
+                throw new Error(result.message || (response.status === 409
+                  ? 'This fee record has payment history and cannot be deleted.'
+                  : 'Unable to delete the fee record.'));
+              }
+              setFees((current) => current.filter((item) => item.id !== fee.id));
+              setSelectedFee(null);
+              Alert.alert('Deleted', 'Fee record deleted successfully.');
+            } catch (error) {
+              Alert.alert('Delete Failed', error instanceof Error ? error.message : 'Unable to delete the fee record.');
+            }
           },
         },
       ]
@@ -1310,7 +1288,7 @@ export default function FeesManagementPage() {
           style={styles.addButton}
           onPress={() => {
             router.push({
-              pathname: '/(tabs)/explore',
+              pathname: '/(super_admin)/explore',
               params: { feature: 'Collect Fee' },
             });
           }}
@@ -1523,7 +1501,11 @@ export default function FeesManagementPage() {
           </Text>
         </View>
 
-        {filteredFees.length ===
+        {loading ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyTitle}>Loading fee records...</Text>
+          </View>
+        ) : filteredFees.length ===
         0 ? (
           <View
             style={styles.emptyBox}
@@ -1556,6 +1538,97 @@ export default function FeesManagementPage() {
           )
         )}
       </ScrollView>
+
+      {/* =========================
+          EDIT FEE RECORD
+      ========================== */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !savingEdit && setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.largeModal}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Edit Fee Record</Text>
+                <Text style={styles.modalSubtitle}>{selectedFee?.studentName || ''}</Text>
+              </View>
+              <TouchableOpacity onPress={() => !savingEdit && setEditModalVisible(false)} disabled={savingEdit}>
+                <MaterialCommunityIcons name="close" size={23} color="#667085" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.inputLabel}>Fee Type</Text>
+              <View style={styles.editFeeTypeRow}>
+                {(['Tuition', 'Admission', 'Exam', 'Other'] as const).map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.editFeeTypeButton, editFeeType === type && styles.editFeeTypeButtonActive]}
+                    onPress={() => setEditFeeType(type)}
+                    disabled={savingEdit}
+                  >
+                    <Text style={[styles.editFeeTypeText, editFeeType === type && styles.editFeeTypeTextActive]}>{type}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>Total Fee Amount (₹)</Text>
+              <TextInput
+                style={styles.input}
+                value={editTotalFee}
+                onChangeText={setEditTotalFee}
+                placeholder="Enter total fee"
+                placeholderTextColor="#A2AABB"
+                keyboardType="decimal-pad"
+                editable={!savingEdit}
+              />
+
+              <Text style={styles.inputLabel}>Due Date (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                value={editDueDate}
+                onChangeText={setEditDueDate}
+                placeholder="2026-12-31"
+                placeholderTextColor="#A2AABB"
+                autoCapitalize="none"
+                editable={!savingEdit}
+              />
+
+              <Text style={styles.inputLabel}>Notes (Optional)</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={editNotes}
+                onChangeText={setEditNotes}
+                placeholder="Enter notes"
+                placeholderTextColor="#A2AABB"
+                multiline
+                textAlignVertical="top"
+                editable={!savingEdit}
+              />
+
+              <View style={styles.editButtonRow}>
+                <TouchableOpacity
+                  style={styles.editCancelButton}
+                  onPress={() => setEditModalVisible(false)}
+                  disabled={savingEdit}
+                >
+                  <Text style={styles.editCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.primaryButton, styles.editSaveButton, savingEdit && { opacity: 0.65 }]}
+                  onPress={saveEditedFee}
+                  disabled={savingEdit}
+                >
+                  <Text style={styles.primaryButtonText}>{savingEdit ? 'Saving...' : 'Save Changes'}</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* =========================
           ACTION MODAL
@@ -1631,16 +1704,25 @@ export default function FeesManagementPage() {
             </View>
 
             <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => selectedFee && openEditFeeModal(selectedFee)}
+            >
+              <View style={styles.actionIcon}>
+                <MaterialCommunityIcons name="pencil-outline" size={20} color="#7040D5" />
+              </View>
+              <Text style={styles.actionText}>Edit Fee Record</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={
                 styles.actionItem
               }
-              onPress={() => {
-                setActionModalVisible(
-                  false
-                );
-                setViewModalVisible(
-                  true
-                );
+              onPress={async () => {
+                setActionModalVisible(false);
+                if (selectedFee) {
+                  const updated = await loadPaymentsForFee(selectedFee);
+                  if (updated) setViewModalVisible(true);
+                }
               }}
             >
               <View
@@ -1700,13 +1782,12 @@ export default function FeesManagementPage() {
               style={
                 styles.actionItem
               }
-              onPress={() => {
-                setActionModalVisible(
-                  false
-                );
-                setPaymentHistoryVisible(
-                  true
-                );
+              onPress={async () => {
+                setActionModalVisible(false);
+                if (selectedFee) {
+                  const updated = await loadPaymentsForFee(selectedFee);
+                  if (updated) setPaymentHistoryVisible(true);
+                }
               }}
             >
               <View
@@ -2055,7 +2136,7 @@ export default function FeesManagementPage() {
                     styles.sectionTitle
                   }
                 >
-                  Installment Progress
+                  Payment Progress
                 </Text>
 
                 <View
@@ -2068,17 +2149,7 @@ export default function FeesManagementPage() {
                       styles.installmentProgressText
                     }
                   >
-                    {
-                      selectedFee
-                        .installments
-                        .length
-                    }{' '}
-                    of{' '}
-                    {
-                      selectedFee
-                        .totalInstallments
-                    }{' '}
-                    installments paid
+                    {formatCurrency(selectedFee.paidAmount)} collected out of {formatCurrency(selectedFee.totalFee)}
                   </Text>
 
                   <View
@@ -2091,12 +2162,9 @@ export default function FeesManagementPage() {
                         styles.progressFill,
                         {
                           width: `${Math.min(
-                            (selectedFee
-                              .installments
-                              .length /
-                              selectedFee
-                                .totalInstallments) *
-                              100,
+                            selectedFee.totalFee > 0
+                              ? (selectedFee.paidAmount / selectedFee.totalFee) * 100
+                              : 0,
                             100
                           )}%`,
                         },
@@ -2942,7 +3010,7 @@ export default function FeesManagementPage() {
                   onChangeText={
                     setPaymentDate
                   }
-                  placeholder="DD MMM YYYY"
+                  placeholder="YYYY-MM-DD"
                   placeholderTextColor="#A2AABB"
                   style={
                     styles.input
@@ -2997,9 +3065,8 @@ export default function FeesManagementPage() {
                   style={
                     styles.primaryButton
                   }
-                  onPress={
-                    savePayment
-                  }
+                  onPress={savePayment}
+                  disabled={savingPayment}
                 >
                   <MaterialCommunityIcons
                     name="check-circle-outline"
@@ -3012,7 +3079,7 @@ export default function FeesManagementPage() {
                       styles.primaryButtonText
                     }
                   >
-                    Record Payment
+                    {savingPayment ? 'Recording...' : 'Record Payment'}
                   </Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -3879,6 +3946,65 @@ const styles = StyleSheet.create({
 
   formHalf: {
     flex: 1,
+  },
+
+  editFeeTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
+
+  editFeeTypeButton: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 9,
+  },
+
+  editFeeTypeButtonActive: {
+    backgroundColor: '#7040D5',
+    borderColor: '#7040D5',
+  },
+
+  editFeeTypeText: {
+    color: '#374151',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10,
+  },
+
+  editFeeTypeTextActive: {
+    color: '#FFFFFF',
+  },
+
+  editButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    marginBottom: 10,
+  },
+
+  editCancelButton: {
+    flex: 1,
+    minHeight: 45,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  editCancelButtonText: {
+    color: '#374151',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11,
+  },
+
+  editSaveButton: {
+    flex: 1,
+    marginTop: 0,
+    marginBottom: 0,
   },
 
   inputLabel: {

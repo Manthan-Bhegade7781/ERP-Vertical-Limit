@@ -143,54 +143,26 @@ export default function AddExaminationPage() {
   const [instructions, setInstructions] = useState("");
 
   /* =======================================================
-     OPTIONS
+     MOCK OPTIONS
   ======================================================= */
-
 
   const standardOptions: SelectOption[] = useMemo(
     () => [
-      {
-        label: "8th",
-        value: "8th",
-      },
-      {
-        label: "9th",
-        value: "9th",
-      },
-      {
-        label: "10th",
-        value: "10th",
-      },
-      {
-        label: "11th",
-        value: "11th",
-      },
-      {
-        label: "12th",
-        value: "12th",
-      },
+      { label: "8th", value: "8th" },
+      { label: "9th", value: "9th" },
+      { label: "10th", value: "10th" },
+      { label: "11th", value: "11th" },
+      { label: "12th", value: "12th" },
     ],
     []
   );
 
   const subjectOptions: SelectOption[] = useMemo(
     () => [
-      {
-        label: "Physics",
-        value: "Physics",
-      },
-      {
-        label: "Mathematics",
-        value: "Mathematics",
-      },
-      {
-        label: "Chemistry",
-        value: "Chemistry",
-      },
-      {
-        label: "Biology",
-        value: "Biology",
-      },
+      { label: "Physics", value: "Physics" },
+      { label: "Mathematics", value: "Mathematics" },
+      { label: "Chemistry", value: "Chemistry" },
+      { label: "Biology", value: "Biology" },
     ],
     []
   );
@@ -229,7 +201,34 @@ export default function AddExaminationPage() {
      VALIDATION
   ======================================================= */
 
+  const isValidExaminationDate = (value: string) => {
+    const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+    if (!match) return false;
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    );
+  };
+
+  const isValidStartTime = (value: string) => {
+    const time = value.trim();
+
+    return /^(?:(?:0?[1-9]|1[0-2]):[0-5]\d\s?(?:AM|PM)|(?:[01]\d|2[0-3]):[0-5]\d)$/i.test(
+      time
+    );
+  };
+
   const handleAddExamination = () => {
+    // Check required fields
     if (
       !examinationName.trim() ||
       !examinationCode.trim() ||
@@ -237,7 +236,7 @@ export default function AddExaminationPage() {
       !subject ||
       !batch ||
       !examinationDate.trim() ||
-      !startTime ||
+      !startTime.trim() ||
       !duration.trim() ||
       !totalMarks.trim() ||
       !passingMarks.trim()
@@ -249,25 +248,58 @@ export default function AddExaminationPage() {
       return;
     }
 
+    // Validate examination date
+    if (!isValidExaminationDate(examinationDate)) {
+      Alert.alert(
+        "Invalid Examination Date",
+        "Enter a valid date in DD/MM/YYYY format, for example 20/10/2026."
+      );
+      return;
+    }
+
+    // Validate start time
+    if (!isValidStartTime(startTime)) {
+      Alert.alert(
+        "Invalid Start Time",
+        "Enter a valid time, such as 09:00 AM or 14:00."
+      );
+      return;
+    }
+
+    // Validate duration
+    const parsedDuration = Number(duration);
+
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      Alert.alert(
+        "Invalid Duration",
+        "Please select a valid duration in minutes."
+      );
+      return;
+    }
+
+    // Validate total marks
     const total = Number(totalMarks);
-    const passing = Number(passingMarks);
 
     if (!Number.isFinite(total) || total <= 0) {
       Alert.alert(
         "Invalid Total Marks",
-        "Please enter a valid total marks value."
+        "Please enter a valid total marks value greater than zero."
       );
       return;
     }
+
+    // Validate passing marks
+    const passing = Number(passingMarks);
 
     if (!Number.isFinite(passing) || passing < 0) {
       Alert.alert(
         "Invalid Passing Marks",
-        "Please enter a valid passing marks value."
+        "Please enter a valid passing marks value of zero or greater."
       );
       return;
     }
 
+    // Passing marks cannot exceed total marks
     if (passing > total) {
       Alert.alert(
         "Invalid Marks",
@@ -276,9 +308,10 @@ export default function AddExaminationPage() {
       return;
     }
 
+    // Mock-only: backend integration will be done later.
     Alert.alert(
-      "Examination Added",
-      `${examinationName} has been added successfully.`,
+      "Validation Successful",
+      "The examination details are valid. Saving to the backend will be added during the integration phase.",
       [
         {
           text: "OK",
@@ -294,9 +327,7 @@ export default function AddExaminationPage() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      {/* ===================================================
-          HEADER
-      =================================================== */}
+      {/* HEADER */}
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -313,21 +344,9 @@ export default function AddExaminationPage() {
 
           <Text style={styles.headerTitle}>Add Examination</Text>
         </View>
-
-        <Pressable style={styles.editButton}>
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={16}
-            color="#7040D5"
-          />
-
-          <Text style={styles.editButtonText}>Edit</Text>
-        </Pressable>
       </View>
 
-      {/* ===================================================
-          CONTENT
-      =================================================== */}
+      {/* CONTENT */}
 
       <ScrollView
         style={styles.container}
@@ -335,9 +354,7 @@ export default function AddExaminationPage() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* =================================================
-            PAGE TITLE
-        ================================================= */}
+        {/* PAGE TITLE */}
 
         <View style={styles.pageTitleRow}>
           <View style={styles.pageTitleIcon}>
@@ -357,9 +374,7 @@ export default function AddExaminationPage() {
           </View>
         </View>
 
-        {/* =================================================
-            BASIC INFORMATION
-        ================================================= */}
+        {/* BASIC INFORMATION */}
 
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
@@ -454,9 +469,7 @@ export default function AddExaminationPage() {
           </View>
         </View>
 
-        {/* =================================================
-            EXAMINATION SCHEDULE
-        ================================================= */}
+        {/* EXAMINATION SCHEDULE */}
 
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
@@ -491,6 +504,8 @@ export default function AddExaminationPage() {
                 placeholder="DD/MM/YYYY"
                 placeholderTextColor="#A1A5B3"
                 style={styles.iconInput}
+                keyboardType="numbers-and-punctuation"
+                maxLength={10}
               />
 
               <MaterialCommunityIcons
@@ -517,6 +532,7 @@ export default function AddExaminationPage() {
                   placeholder="e.g. 09:00 AM"
                   placeholderTextColor="#A1A5B3"
                   style={styles.input}
+                  autoCapitalize="characters"
                 />
               </View>
             </View>
@@ -527,30 +543,12 @@ export default function AddExaminationPage() {
                 value={duration}
                 placeholder="Select duration"
                 options={[
-                  {
-                    label: "30 Minutes",
-                    value: "30",
-                  },
-                  {
-                    label: "45 Minutes",
-                    value: "45",
-                  },
-                  {
-                    label: "60 Minutes",
-                    value: "60",
-                  },
-                  {
-                    label: "90 Minutes",
-                    value: "90",
-                  },
-                  {
-                    label: "120 Minutes",
-                    value: "120",
-                  },
-                  {
-                    label: "180 Minutes",
-                    value: "180",
-                  },
+                  { label: "30 Minutes", value: "30" },
+                  { label: "45 Minutes", value: "45" },
+                  { label: "60 Minutes", value: "60" },
+                  { label: "90 Minutes", value: "90" },
+                  { label: "120 Minutes", value: "120" },
+                  { label: "180 Minutes", value: "180" },
                 ]}
                 onChange={setDuration}
                 required
@@ -559,9 +557,7 @@ export default function AddExaminationPage() {
           </View>
         </View>
 
-        {/* =================================================
-            MARKS & EVALUATION
-        ================================================= */}
+        {/* MARKS & EVALUATION */}
 
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
@@ -638,9 +634,7 @@ export default function AddExaminationPage() {
           </View>
         </View>
 
-        {/* =================================================
-            INSTRUCTIONS
-        ================================================= */}
+        {/* INSTRUCTIONS */}
 
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
@@ -675,9 +669,7 @@ export default function AddExaminationPage() {
           </View>
         </View>
 
-        {/* =================================================
-            INFORMATION NOTICE
-        ================================================= */}
+        {/* INFORMATION NOTICE */}
 
         <View style={styles.infoBox}>
           <View style={styles.infoIcon}>
@@ -699,9 +691,7 @@ export default function AddExaminationPage() {
           </View>
         </View>
 
-        {/* =================================================
-            ACTION BUTTONS
-        ================================================= */}
+        {/* ACTION BUTTONS */}
 
         <View style={styles.actions}>
           <Pressable
@@ -721,9 +711,7 @@ export default function AddExaminationPage() {
               color="#FFFFFF"
             />
 
-            <Text style={styles.addButtonText}>
-              Add Examination
-            </Text>
+            <Text style={styles.addButtonText}>Add Examination</Text>
           </Pressable>
         </View>
 
@@ -743,9 +731,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#7040D5",
   },
 
-  /* =======================================================
-     HEADER
-  ======================================================= */
+  /* HEADER */
 
   header: {
     height: 64,
@@ -795,9 +781,7 @@ const styles = StyleSheet.create({
     color: "#7040D5",
   },
 
-  /* =======================================================
-     CONTAINER
-  ======================================================= */
+  /* CONTAINER */
 
   container: {
     flex: 1,
@@ -810,9 +794,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  /* =======================================================
-     PAGE TITLE
-  ======================================================= */
+  /* PAGE TITLE */
 
   pageTitleRow: {
     flexDirection: "row",
@@ -847,9 +829,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
-  /* =======================================================
-     CARD
-  ======================================================= */
+  /* CARD */
 
   card: {
     backgroundColor: "#FFFFFF",
@@ -870,9 +850,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  /* =======================================================
-     SECTION HEADER
-  ======================================================= */
+  /* SECTION HEADER */
 
   sectionHeader: {
     flexDirection: "row",
@@ -933,9 +911,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
-  /* =======================================================
-     FORM FIELDS
-  ======================================================= */
+  /* FORM FIELDS */
 
   fieldWrapper: {
     marginBottom: 12,
@@ -1007,9 +983,7 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
 
-  /* =======================================================
-     TWO COLUMN
-  ======================================================= */
+  /* TWO COLUMN */
 
   twoColumnRow: {
     flexDirection: "row",
@@ -1022,9 +996,7 @@ const styles = StyleSheet.create({
     maxWidth: "50%",
   },
 
-  /* =======================================================
-     SELECT
-  ======================================================= */
+  /* SELECT */
 
   select: {
     height: 52,
@@ -1099,9 +1071,7 @@ const styles = StyleSheet.create({
     color: "#7040D5",
   },
 
-  /* =======================================================
-     MARKS INFORMATION
-  ======================================================= */
+  /* MARKS INFORMATION */
 
   marksInfo: {
     flexDirection: "row",
@@ -1121,9 +1091,7 @@ const styles = StyleSheet.create({
     marginLeft: 7,
   },
 
-  /* =======================================================
-     INFORMATION BOX
-  ======================================================= */
+  /* INFORMATION BOX */
 
   infoBox: {
     flexDirection: "row",
@@ -1163,9 +1131,7 @@ const styles = StyleSheet.create({
     color: "#68627A",
   },
 
-  /* =======================================================
-     ACTIONS
-  ======================================================= */
+  /* ACTIONS */
 
   actions: {
     flexDirection: "row",

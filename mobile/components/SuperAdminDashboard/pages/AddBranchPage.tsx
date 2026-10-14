@@ -114,7 +114,6 @@ export default function AddBranchPage() {
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
-  const [branchHead, setBranchHead] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("Active");
@@ -128,14 +127,6 @@ export default function AddBranchPage() {
 
   const statusOptions = ["Active", "Inactive"];
 
-  const branchHeadOptions = [
-    "Rajesh Kulkarni",
-    "Amit Deshmukh",
-    "Sneha Patil",
-    "Vikas Sharma",
-    "Priya Mehta",
-  ];
-
   const handleAddBranch = () => {
     if (
       !branchName.trim() ||
@@ -143,7 +134,6 @@ export default function AddBranchPage() {
       !address.trim() ||
       !city.trim() ||
       !state ||
-      !branchHead ||
       !contactNumber.trim()
     ) {
       Alert.alert(
@@ -214,27 +204,6 @@ export default function AddBranchPage() {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Add Branch</Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.editHeaderButton}
-          activeOpacity={0.8}
-          onPress={() =>
-            Alert.alert(
-              "Edit Branch",
-              "Branch editing will be available here."
-            )
-          }
-        >
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={16}
-            color="#7040D5"
-          />
-
-          <Text style={styles.editHeaderButtonText}>
-            Edit
-          </Text>
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -250,8 +219,7 @@ export default function AddBranchPage() {
           </Text>
 
           <Text style={styles.pageSubtitle}>
-            Add branch details and assign the branch head for the
-            educational center.
+            Add branch details for the educational center.
           </Text>
         </View>
 
@@ -381,19 +349,10 @@ export default function AddBranchPage() {
               </Text>
 
               <Text style={styles.sectionSubtitle}>
-                Assign the branch head and contact information
+                Enter branch contact information
               </Text>
             </View>
           </View>
-
-          <SelectField
-            label="Branch Head"
-            value={branchHead}
-            placeholder="Select branch head"
-            options={branchHeadOptions}
-            onSelect={setBranchHead}
-            required
-          />
 
           <View style={styles.fieldContainer}>
             <Text style={styles.fieldLabel}>

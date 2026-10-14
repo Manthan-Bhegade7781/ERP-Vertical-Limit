@@ -46,7 +46,11 @@ function SelectField({
         activeOpacity={0.8}
         onPress={() => setOpen((current) => !current)}
       >
-        <MaterialCommunityIcons name={icon} size={19} color="#7040D5" />
+        <MaterialCommunityIcons
+          name={icon}
+          size={19}
+          color="#7040D5"
+        />
 
         <Text
           style={[
@@ -108,40 +112,44 @@ function SelectField({
 export default function AddTeacherPage() {
   const insets = useSafeAreaInsets();
 
+  // PERSONAL INFORMATION
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
-  const [subject, setSubject] = useState("");
+  const [branch, setBranch] = useState("");
+
+  // ACCOUNT INFORMATION
+  const [password, setPassword] = useState("");
+
+  // PROFESSIONAL INFORMATION
+  const [specialization, setSpecialization] = useState("");
   const [qualification, setQualification] = useState("");
   const [experience, setExperience] = useState("");
-  const [batch, setBatch] = useState("");
-  const [branch, setBranch] = useState("");
-  const [employeeId, setEmployeeId] = useState("");
+
+  // CONTACT INFORMATION
   const [address, setAddress] = useState("");
 
   const resetForm = () => {
     setFullName("");
     setEmail("");
     setMobile("");
-    setSubject("");
+    setBranch("");
+    setPassword("");
+    setSpecialization("");
     setQualification("");
     setExperience("");
-    setBatch("");
-    setBranch("");
-    setEmployeeId("");
     setAddress("");
   };
 
   const handleSave = () => {
+    // Required fields
     if (
       !fullName.trim() ||
       !email.trim() ||
       !mobile.trim() ||
-      !employeeId.trim() ||
-      !subject ||
+      !password.trim() ||
       !qualification ||
       !experience ||
-      !batch ||
       !branch
     ) {
       Alert.alert(
@@ -151,6 +159,7 @@ export default function AddTeacherPage() {
       return;
     }
 
+    // Mobile validation
     if (!/^[6-9]\d{9}$/.test(mobile.trim())) {
       Alert.alert(
         "Invalid Mobile Number",
@@ -159,7 +168,8 @@ export default function AddTeacherPage() {
       return;
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+    // Email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       Alert.alert(
         "Invalid Email",
         "Please enter a valid email address."
@@ -167,6 +177,17 @@ export default function AddTeacherPage() {
       return;
     }
 
+    // Password validation
+    if (password.trim().length < 6) {
+      Alert.alert(
+        "Invalid Password",
+        "Initial password must be at least 6 characters long."
+      );
+      return;
+    }
+
+    // Temporary UI-only behavior.
+    // API integration will be added after backend modules are completed.
     Alert.alert(
       "Teacher Added",
       `${fullName.trim()} has been added successfully.`,
@@ -209,24 +230,6 @@ export default function AddTeacherPage() {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Add Teacher</Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.headerEditButton}
-          activeOpacity={0.8}
-          onPress={() =>
-            Alert.alert(
-              "Edit",
-              "You are currently editing the teacher information form."
-            )
-          }
-        >
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={20}
-            color="#7040D5"
-          />
-          <Text style={styles.headerEditText}>Edit</Text>
-        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -241,8 +244,9 @@ export default function AddTeacherPage() {
           {/* PAGE TITLE */}
           <View style={styles.pageTitleContainer}>
             <Text style={styles.pageTitle}>Teacher Information</Text>
+
             <Text style={styles.pageSubtitle}>
-              Enter faculty details, subject expertise and academic assignment.
+              Create a teacher account and enter faculty information.
             </Text>
           </View>
 
@@ -258,13 +262,17 @@ export default function AddTeacherPage() {
               </View>
 
               <View>
-                <Text style={styles.sectionTitle}>Personal Information</Text>
+                <Text style={styles.sectionTitle}>
+                  Personal Information
+                </Text>
+
                 <Text style={styles.sectionSubtitle}>
                   Basic faculty details
                 </Text>
               </View>
             </View>
 
+            {/* FULL NAME */}
             <View style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>
                 Full Name <Text style={styles.required}>*</Text>
@@ -276,20 +284,24 @@ export default function AddTeacherPage() {
                   size={19}
                   color="#7040D5"
                 />
+
                 <TextInput
                   value={fullName}
                   onChangeText={setFullName}
                   placeholder="Enter full name"
                   placeholderTextColor="#9AA2B1"
+                  autoCapitalize="words"
                   style={styles.textInput}
                 />
               </View>
             </View>
 
+            {/* EMAIL + MOBILE */}
             <View style={styles.twoColumn}>
               <View style={styles.column}>
                 <Text style={styles.fieldLabel}>
-                  Email Address <Text style={styles.required}>*</Text>
+                  Email Address{" "}
+                  <Text style={styles.required}>*</Text>
                 </Text>
 
                 <View style={styles.textInputWrapper}>
@@ -298,6 +310,7 @@ export default function AddTeacherPage() {
                     size={19}
                     color="#7040D5"
                   />
+
                   <TextInput
                     value={email}
                     onChangeText={setEmail}
@@ -305,6 +318,7 @@ export default function AddTeacherPage() {
                     placeholderTextColor="#9AA2B1"
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    autoCorrect={false}
                     style={styles.textInput}
                   />
                 </View>
@@ -312,7 +326,8 @@ export default function AddTeacherPage() {
 
               <View style={styles.column}>
                 <Text style={styles.fieldLabel}>
-                  Mobile Number <Text style={styles.required}>*</Text>
+                  Mobile Number{" "}
+                  <Text style={styles.required}>*</Text>
                 </Text>
 
                 <View style={styles.textInputWrapper}>
@@ -321,6 +336,7 @@ export default function AddTeacherPage() {
                     size={19}
                     color="#7040D5"
                   />
+
                   <TextInput
                     value={mobile}
                     onChangeText={setMobile}
@@ -334,46 +350,75 @@ export default function AddTeacherPage() {
               </View>
             </View>
 
-            <View style={styles.twoColumn}>
-              <View style={styles.column}>
-                <Text style={styles.fieldLabel}>
-                  Employee ID <Text style={styles.required}>*</Text>
-                </Text>
+            {/* BRANCH */}
+            <SelectField
+              label="Branch"
+              required
+              value={branch}
+              placeholder="Select branch"
+              icon="office-building-outline"
+              options={[
+                "Pune Branch",
+                "Mumbai Branch",
+                "Nashik Branch",
+                "Nagpur Branch",
+                "Main Branch",
+              ]}
+              onSelect={setBranch}
+            />
+          </View>
 
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="card-account-details-outline"
-                    size={19}
-                    color="#7040D5"
-                  />
-                  <TextInput
-                    value={employeeId}
-                    onChangeText={setEmployeeId}
-                    placeholder="e.g. VLCC-FAC-001"
-                    placeholderTextColor="#9AA2B1"
-                    autoCapitalize="characters"
-                    style={styles.textInput}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.column}>
-                <SelectField
-                  label="Branch"
-                  required
-                  value={branch}
-                  placeholder="Select branch"
-                  icon="office-building-outline"
-                  options={[
-                    "Pune Branch",
-                    "Mumbai Branch",
-                    "Nashik Branch",
-                    "Nagpur Branch",
-                    "Main Branch",
-                  ]}
-                  onSelect={setBranch}
+          {/* ACCOUNT INFORMATION */}
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIconOrange}>
+                <MaterialCommunityIcons
+                  name="shield-account-outline"
+                  size={20}
+                  color="#E58A2B"
                 />
               </View>
+
+              <View>
+                <Text style={styles.sectionTitle}>
+                  Account Information
+                </Text>
+
+                <Text style={styles.sectionSubtitle}>
+                  Login credentials for the teacher
+                </Text>
+              </View>
+            </View>
+
+            {/* INITIAL PASSWORD */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>
+                Initial Password{" "}
+                <Text style={styles.required}>*</Text>
+              </Text>
+
+              <View style={styles.textInputWrapper}>
+                <MaterialCommunityIcons
+                  name="lock-outline"
+                  size={19}
+                  color="#E58A2B"
+                />
+
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter initial password"
+                  placeholderTextColor="#9AA2B1"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.textInput}
+                />
+              </View>
+
+              <Text style={styles.helperText}>
+                The password will be securely hashed before being stored.
+              </Text>
             </View>
           </View>
 
@@ -392,19 +437,20 @@ export default function AddTeacherPage() {
                 <Text style={styles.sectionTitle}>
                   Professional Information
                 </Text>
+
                 <Text style={styles.sectionSubtitle}>
                   Subject expertise and qualifications
                 </Text>
               </View>
             </View>
 
+            {/* SPECIALIZATION + QUALIFICATION */}
             <View style={styles.twoColumn}>
               <View style={styles.column}>
                 <SelectField
-                  label="Primary Subject"
-                  required
-                  value={subject}
-                  placeholder="Select subject"
+                  label="Specialization"
+                  value={specialization}
+                  placeholder="Select specialization"
                   icon="book-open-outline"
                   options={[
                     "Physics",
@@ -413,8 +459,10 @@ export default function AddTeacherPage() {
                     "Biology",
                     "English",
                     "Aptitude",
+                    "Science",
+                    "Other",
                   ]}
-                  onSelect={setSubject}
+                  onSelect={setSpecialization}
                 />
               </View>
 
@@ -440,47 +488,25 @@ export default function AddTeacherPage() {
               </View>
             </View>
 
-            <View style={styles.twoColumn}>
-              <View style={styles.column}>
-                <SelectField
-                  label="Teaching Experience"
-                  required
-                  value={experience}
-                  placeholder="Select experience"
-                  icon="briefcase-outline"
-                  options={[
-                    "0 - 2 Years",
-                    "3 - 5 Years",
-                    "6 - 10 Years",
-                    "11 - 15 Years",
-                    "15+ Years",
-                  ]}
-                  onSelect={setExperience}
-                />
-              </View>
-
-              <View style={styles.column}>
-                <SelectField
-                  label="Assigned Batch"
-                  required
-                  value={batch}
-                  placeholder="Select batch"
-                  icon="google-circles-communities"
-                  options={[
-                    "8th Foundation - Evening",
-                    "9th Foundation - Evening",
-                    "10th Foundation - Afternoon",
-                    "11th MHT-CET - Evening",
-                    "12th JEE - Morning",
-                    "12th NEET - Morning",
-                  ]}
-                  onSelect={setBatch}
-                />
-              </View>
-            </View>
+            {/* EXPERIENCE */}
+            <SelectField
+              label="Teaching Experience"
+              required
+              value={experience}
+              placeholder="Select experience"
+              icon="briefcase-outline"
+              options={[
+                "0 - 2 Years",
+                "3 - 5 Years",
+                "6 - 10 Years",
+                "11 - 15 Years",
+                "15+ Years",
+              ]}
+              onSelect={setExperience}
+            />
           </View>
 
-          {/* ADDRESS */}
+          {/* CONTACT INFORMATION */}
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIconGreen}>
@@ -492,7 +518,10 @@ export default function AddTeacherPage() {
               </View>
 
               <View>
-                <Text style={styles.sectionTitle}>Contact Information</Text>
+                <Text style={styles.sectionTitle}>
+                  Contact Information
+                </Text>
+
                 <Text style={styles.sectionSubtitle}>
                   Faculty address details
                 </Text>
@@ -522,7 +551,10 @@ export default function AddTeacherPage() {
                   placeholderTextColor="#9AA2B1"
                   multiline
                   textAlignVertical="top"
-                  style={[styles.textInput, styles.textArea]}
+                  style={[
+                    styles.textInput,
+                    styles.textArea,
+                  ]}
                 />
               </View>
             </View>
@@ -537,8 +569,8 @@ export default function AddTeacherPage() {
             />
 
             <Text style={styles.infoText}>
-              Faculty assignments support Classes 8 to 12, Foundation, JEE,
-              NEET and MHT-CET academic modules.
+              Employee ID is generated automatically by the system.
+              Batch and subject assignments are managed separately in Batch Management.
             </Text>
           </View>
 
@@ -549,7 +581,9 @@ export default function AddTeacherPage() {
               activeOpacity={0.8}
               onPress={() => router.back()}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>
+                Cancel
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -562,7 +596,10 @@ export default function AddTeacherPage() {
                 size={18}
                 color="#FFFFFF"
               />
-              <Text style={styles.saveButtonText}>Add Teacher</Text>
+
+              <Text style={styles.saveButtonText}>
+                Add Teacher
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -594,14 +631,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.15)",
-  
   },
 
   headerTitleContainer: {
     flex: 1,
     minWidth: 0,
     marginLeft: 14,
-  
   },
 
   headerTitle: {
@@ -610,9 +645,7 @@ const styles = StyleSheet.create({
     lineHeight: 25,
     color: "#FFFFFF",
     flexShrink: 1,
-  
   },
-
 
   headerEditButton: {
     height: 44,
@@ -641,7 +674,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 34,
-  
   },
 
   pageTitleContainer: {
@@ -649,14 +681,12 @@ const styles = StyleSheet.create({
     maxWidth: 1000,
     alignSelf: "center",
     marginBottom: 14,
-  
   },
 
   pageTitle: {
     fontFamily: "PoppinsBold",
     fontSize: 20,
     color: "#172033",
-  
   },
 
   pageSubtitle: {
@@ -665,7 +695,6 @@ const styles = StyleSheet.create({
     color: "#748096",
     marginTop: 3,
     lineHeight: 16,
-  
   },
 
   card: {
@@ -678,6 +707,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     marginBottom: 13,
+
     shadowColor: "#000000",
     shadowOffset: {
       width: 0,
@@ -693,9 +723,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingBottom: 12,
     marginBottom: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ECEEF3",
-  
   },
 
   sectionIconPurple: {
@@ -706,7 +733,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
-  
   },
 
   sectionIconBlue: {
@@ -717,7 +743,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
-  
   },
 
   sectionIconGreen: {
@@ -728,14 +753,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
-  
+  },
+
+  sectionIconOrange: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#FFF2E4",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
   },
 
   sectionTitle: {
     fontFamily: "PoppinsSemiBold",
     fontSize: 16,
     color: "#172033",
-  
   },
 
   sectionSubtitle: {
@@ -743,7 +776,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#8A93A5",
     marginTop: 2,
-  
   },
 
   fieldContainer: {
@@ -756,7 +788,6 @@ const styles = StyleSheet.create({
     color: "#59657A",
     marginBottom: 7,
     includeFontPadding: false,
-  
   },
 
   required: {
@@ -775,7 +806,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     overflow: "hidden",
-  
   },
 
   textInput: {
@@ -790,21 +820,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#172033",
     includeFontPadding: false,
-  
+  },
+
+  helperText: {
+    fontFamily: "PoppinsRegular",
+    fontSize: 8.5,
+    color: "#8A93A5",
+    marginTop: 5,
+    lineHeight: 13,
   },
 
   twoColumn: {
     width: "100%",
     flexDirection: "row",
     gap: 8,
-  
   },
 
   column: {
     flex: 1,
     minWidth: 0,
     maxWidth: "50%",
-  
   },
 
   selectInput: {
@@ -819,7 +854,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     overflow: "hidden",
-  
   },
 
   selectText: {
@@ -831,7 +865,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#344054",
     includeFontPadding: false,
-  
   },
 
   placeholderText: {
@@ -839,7 +872,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#9AA2B1",
     includeFontPadding: false,
-  
   },
 
   dropdown: {
@@ -850,6 +882,7 @@ const styles = StyleSheet.create({
     borderColor: "#E3E6ED",
     overflow: "hidden",
     elevation: 4,
+
     shadowColor: "#000000",
     shadowOffset: {
       width: 0,
@@ -867,7 +900,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: "#F0F2F6",
-  
   },
 
   dropdownItemActive: {
@@ -881,7 +913,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#344054",
     includeFontPadding: false,
-  
   },
 
   dropdownTextActive: {
@@ -955,6 +986,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+
     shadowColor: "#7040D5",
     shadowOffset: {
       width: 0,

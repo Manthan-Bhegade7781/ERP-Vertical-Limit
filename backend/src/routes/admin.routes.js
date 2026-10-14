@@ -4,6 +4,7 @@ const {
   getPendingRegistrations,
   approveRegistration,
   rejectRegistration,
+  promoteTeacherToAdmin,
 } = require("../controllers/admin.controller");
 
 const { protect } = require("../middleware/auth.middleware");
@@ -31,6 +32,13 @@ router.patch(
   protect,
   authorizeRoles("super_admin"),
   rejectRegistration
+);
+
+router.patch(
+  "/users/:id/promote-to-admin",
+  protect,
+  authorizeRoles("super_admin"),
+  promoteTeacherToAdmin
 );
 
 module.exports = router;

@@ -15,12 +15,17 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+/* ================================================================
+   SELECT FIELD
+================================================================ */
+
 type SelectFieldProps = {
   label: string;
   value: string;
   placeholder: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   options: string[];
+  required?: boolean;
   onSelect: (value: string) => void;
 };
 
@@ -30,16 +35,23 @@ function SelectField({
   placeholder,
   icon,
   options,
+  required = false,
   onSelect,
 }: SelectFieldProps) {
   const [open, setOpen] = useState(false);
 
   return (
     <View style={styles.fieldContainer}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required && <Text style={styles.required}> *</Text>}
+      </Text>
 
       <TouchableOpacity
-        style={styles.selectInput}
+        style={[
+          styles.selectInput,
+          open && styles.selectInputActive,
+        ]}
         activeOpacity={0.8}
         onPress={() => setOpen((current) => !current)}
       >
@@ -105,135 +117,233 @@ function SelectField({
   );
 }
 
-function MultiSelectField({
-  label,
-  values,
-  placeholder,
-  icon,
-  options,
-  onToggle,
-}: {
+/* ================================================================
+   INPUT FIELD
+================================================================ */
+
+type InputFieldProps = {
   label: string;
-  values: string[];
+  value: string;
   placeholder: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  options: string[];
-  onToggle: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
+  required?: boolean;
+  keyboardType?: "default" | "email-address" | "phone-pad";
+  secureTextEntry?: boolean;
+  onChangeText: (value: string) => void;
+};
 
+function InputField({
+  label,
+  value,
+  placeholder,
+  icon,
+  required = false,
+  keyboardType = "default",
+  secureTextEntry = false,
+  onChangeText,
+}: InputFieldProps) {
   return (
     <View style={styles.fieldContainer}>
       <Text style={styles.fieldLabel}>
-        {label} <Text style={styles.required}>*</Text>
+        {label}
+        {required && <Text style={styles.required}> *</Text>}
       </Text>
 
-      <TouchableOpacity
-        style={styles.selectInput}
-        activeOpacity={0.8}
-        onPress={() => setOpen((current) => !current)}
-      >
-        <MaterialCommunityIcons name={icon} size={19} color="#7040D5" />
-
-        <View style={styles.multiSelectValue}>
-          {values.length === 0 ? (
-            <Text style={styles.placeholderText}>{placeholder}</Text>
-          ) : (
-            <Text style={styles.selectText} numberOfLines={1}>
-              {values.join(", ")}
-            </Text>
-          )}
-        </View>
-
+      <View style={styles.textInputWrapper}>
         <MaterialCommunityIcons
-          name={open ? "chevron-up" : "chevron-down"}
-          size={20}
-          color="#8A93A5"
+          name={icon}
+          size={19}
+          color="#7040D5"
         />
-      </TouchableOpacity>
 
-      {open && (
-        <View style={styles.dropdown}>
-          {options.map((option) => {
-            const selected = values.includes(option);
-
-            return (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.dropdownItem,
-                  selected && styles.dropdownItemActive,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => onToggle(option)}
-              >
-                <Text
-                  style={[
-                    styles.dropdownText,
-                    selected && styles.dropdownTextActive,
-                  ]}
-                >
-                  {option}
-                </Text>
-
-                <MaterialCommunityIcons
-                  name={selected ? "checkbox-marked" : "checkbox-blank-outline"}
-                  size={19}
-                  color={selected ? "#7040D5" : "#8A93A5"}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#9AA2B1"
+          keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry}
+          autoCapitalize={
+            keyboardType === "email-address"
+              ? "none"
+              : "sentences"
+          }
+          style={styles.textInput}
+        />
+      </View>
     </View>
   );
 }
+
+/* ================================================================
+   ADD STUDENT PAGE
+================================================================ */
 
 export default function AddStudentPage() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
 
+  /* ============================================================
+     PERSONAL INFORMATION
+  ============================================================ */
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
-  const [standard, setStandard] = useState("");
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+
+  /* ============================================================
+     ACCOUNT INFORMATION
+  ============================================================ */
+
+  const [password, setPassword] = useState("");
+
+  /* ============================================================
+     ACADEMIC INFORMATION
+  ============================================================ */
+
   const [batch, setBatch] = useState("");
-  const [branch, setBranch] = useState("");
-  const [parentName, setParentName] = useState("");
-  const [parentMobile, setParentMobile] = useState("");
+
+  /* ============================================================
+     PARENT / GUARDIAN INFORMATION
+  ============================================================ */
+
+  const [guardianName, setGuardianName] = useState("");
+  const [guardianMobile, setGuardianMobile] = useState("");
   const [address, setAddress] = useState("");
+
+  /* ============================================================
+     MOCK BATCH DATA
+     
+     API integration will be added later.
+  ============================================================ */
+
+  const batchOptions = [
+    "8th Foundation - Evening",
+    "9th Foundation - Evening",
+    "10th Standard - Morning",
+    "10th Standard - Evening",
+    "11th MHT-CET - Evening",
+    "12th JEE - Morning",
+    "12th NEET - Morning",
+  ];
+
+  /* ============================================================
+     RESET FORM
+  ============================================================ */
 
   const resetForm = () => {
     setFullName("");
     setEmail("");
     setMobile("");
-    setStandard("");
-    setSelectedSubjects([]);
+    setPassword("");
     setBatch("");
-    setBranch("");
-    setParentName("");
-    setParentMobile("");
+    setGuardianName("");
+    setGuardianMobile("");
     setAddress("");
   };
 
+  /* ============================================================
+     VALIDATION
+  ============================================================ */
+
   const handleSave = () => {
-    if (
-      !fullName.trim() ||
-      !mobile.trim() ||
-      !standard ||
-      selectedSubjects.length === 0 ||
-      !batch ||
-      !branch
-    ) {
+    if (!fullName.trim()) {
       Alert.alert(
-        "Required Fields",
-        "Please fill all required student details."
+        "Required Field",
+        "Please enter the student's full name."
       );
       return;
     }
+
+    if (!email.trim()) {
+      Alert.alert(
+        "Required Field",
+        "Please enter the student's email address."
+      );
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert(
+        "Invalid Email",
+        "Please enter a valid email address."
+      );
+      return;
+    }
+
+    if (!mobile.trim()) {
+      Alert.alert(
+        "Required Field",
+        "Please enter the student's mobile number."
+      );
+      return;
+    }
+
+    if (!/^\d{10}$/.test(mobile.trim())) {
+      Alert.alert(
+        "Invalid Mobile",
+        "Please enter a valid 10-digit mobile number."
+      );
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert(
+        "Required Field",
+        "Please enter an initial password."
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert(
+        "Invalid Password",
+        "Password must contain at least 6 characters."
+      );
+      return;
+    }
+
+    if (!batch) {
+      Alert.alert(
+        "Required Field",
+        "Please select a batch."
+      );
+      return;
+    }
+
+    if (
+      guardianMobile.trim() &&
+      !/^\d{10}$/.test(guardianMobile.trim())
+    ) {
+      Alert.alert(
+        "Invalid Guardian Mobile",
+        "Please enter a valid 10-digit guardian mobile number."
+      );
+      return;
+    }
+
+    /*
+     * API integration will be added later.
+     *
+     * Final payload:
+     *
+     * {
+     *   fullName,
+     *   email,
+     *   mobileNumber: mobile,
+     *   password,
+     *   batchId,
+     *   guardianName,
+     *   guardianMobile,
+     *   address
+     * }
+     *
+     * Student ID is generated by backend:
+     * STU001, STU002, STU003...
+     */
 
     Alert.alert(
       "Student Added",
@@ -250,9 +360,16 @@ export default function AddStudentPage() {
     );
   };
 
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
     <View style={styles.safeArea}>
-      {/* HEADER */}
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
       <View
         style={[
           styles.header,
@@ -276,25 +393,11 @@ export default function AddStudentPage() {
 
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Add Student</Text>
-        </View>
 
-        <TouchableOpacity
-          style={styles.headerEditButton}
-          activeOpacity={0.8}
-          onPress={() =>
-            Alert.alert(
-              "Edit",
-              "You are currently editing the student information form."
-            )
-          }
-        >
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={20}
-            color="#7040D5"
-          />
-          <Text style={styles.headerEditText}>Edit</Text>
-        </TouchableOpacity>
+          <Text style={styles.headerSubtitle}>
+            Create a new student account
+          </Text>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -309,15 +412,25 @@ export default function AddStudentPage() {
             isTablet && { paddingHorizontal: 24 },
           ]}
         >
-          {/* PAGE TITLE */}
+          {/* ====================================================
+              PAGE TITLE
+          ==================================================== */}
+
           <View style={styles.pageTitleContainer}>
-            <Text style={styles.pageTitle}>Student Information</Text>
+            <Text style={styles.pageTitle}>
+              Student Information
+            </Text>
+
             <Text style={styles.pageSubtitle}>
-              Enter student details, academic information and parent contact.
+              Enter student details, account information and
+              parent contact.
             </Text>
           </View>
 
-          {/* PERSONAL INFORMATION */}
+          {/* ====================================================
+              PERSONAL INFORMATION
+          ==================================================== */}
+
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIconPurple}>
@@ -328,85 +441,110 @@ export default function AddStudentPage() {
                 />
               </View>
 
-              <View>
+              <View style={styles.sectionHeaderText}>
                 <Text style={styles.sectionTitle}>
                   Personal Information
                 </Text>
+
                 <Text style={styles.sectionSubtitle}>
                   Basic student details
                 </Text>
               </View>
             </View>
 
-            <View style={styles.fieldContainer}>
-              <Text style={styles.fieldLabel}>
-                Full Name <Text style={styles.required}>*</Text>
-              </Text>
+            {/* Full Name */}
 
-              <View style={styles.textInputWrapper}>
-                <MaterialCommunityIcons
-                  name="account-outline"
-                  size={19}
-                  color="#7040D5"
-                />
-                <TextInput
-                  value={fullName}
-                  onChangeText={setFullName}
-                  placeholder="Enter full name"
-                  placeholderTextColor="#9AA2B1"
-                  style={styles.textInput}
-                />
-              </View>
-            </View>
+            <InputField
+              label="Full Name"
+              value={fullName}
+              placeholder="Enter full name"
+              icon="account-outline"
+              required
+              onChangeText={setFullName}
+            />
+
+            {/* Email + Mobile */}
 
             <View style={styles.twoColumn}>
               <View style={styles.column}>
-                <Text style={styles.fieldLabel}>Email Address</Text>
-
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="email-outline"
-                    size={19}
-                    color="#7040D5"
-                  />
-                  <TextInput
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder="Enter email"
-                    placeholderTextColor="#9AA2B1"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    style={styles.textInput}
-                  />
-                </View>
+                <InputField
+                  label="Email Address"
+                  value={email}
+                  placeholder="Enter email"
+                  icon="email-outline"
+                  required
+                  keyboardType="email-address"
+                  onChangeText={setEmail}
+                />
               </View>
 
               <View style={styles.column}>
-                <Text style={styles.fieldLabel}>
-                  Mobile Number <Text style={styles.required}>*</Text>
-                </Text>
-
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="phone-outline"
-                    size={19}
-                    color="#7040D5"
-                  />
-                  <TextInput
-                    value={mobile}
-                    onChangeText={setMobile}
-                    placeholder="Enter mobile"
-                    placeholderTextColor="#9AA2B1"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    style={styles.textInput}
-                  />
-                </View>
+                <InputField
+                  label="Mobile Number"
+                  value={mobile}
+                  placeholder="Enter mobile"
+                  icon="phone-outline"
+                  required
+                  keyboardType="phone-pad"
+                  onChangeText={setMobile}
+                />
               </View>
             </View>
           </View>
 
-          {/* ACADEMIC INFORMATION */}
+          {/* ====================================================
+              ACCOUNT INFORMATION
+          ==================================================== */}
+
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIconPurple}>
+                <MaterialCommunityIcons
+                  name="lock-outline"
+                  size={20}
+                  color="#7040D5"
+                />
+              </View>
+
+              <View style={styles.sectionHeaderText}>
+                <Text style={styles.sectionTitle}>
+                  Account Information
+                </Text>
+
+                <Text style={styles.sectionSubtitle}>
+                  Login credentials for the student
+                </Text>
+              </View>
+            </View>
+
+            <InputField
+              label="Initial Password"
+              value={password}
+              placeholder="Enter initial password"
+              icon="lock-outline"
+              required
+              secureTextEntry
+              onChangeText={setPassword}
+            />
+
+            <View style={styles.passwordNotice}>
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={18}
+                color="#7040D5"
+              />
+
+              <Text style={styles.passwordNoticeText}>
+                This password will be used for the student's
+                initial login.
+              </Text>
+            </View>
+          </View>
+
+          {/* ====================================================
+              ACADEMIC INFORMATION
+          ==================================================== */}
+
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIconBlue}>
@@ -421,92 +559,42 @@ export default function AddStudentPage() {
                 <Text style={styles.sectionTitle}>
                   Academic Information
                 </Text>
+
                 <Text style={styles.sectionSubtitle}>
-                  Standard, subject and batch details
+                  Select the student's batch
                 </Text>
               </View>
             </View>
 
-            <View style={styles.twoColumn}>
-              <View style={styles.column}>
-                <SelectField
-                  label="Standard"
-                  value={standard}
-                  placeholder="Select standard"
-                  icon="school-outline"
-                  options={[
-                    "8th Standard",
-                    "9th Standard",
-                    "10th Standard",
-                    "11th Standard",
-                    "12th Standard",
-                  ]}
-                  onSelect={setStandard}
-                />
-              </View>
+            <SelectField
+              label="Batch"
+              value={batch}
+              placeholder="Select batch"
+              icon="google-circles-communities"
+              options={batchOptions}
+              required
+              onSelect={setBatch}
+            />
 
-              <View style={styles.column}>
-                <MultiSelectField
-                  label="Subject"
-                  values={selectedSubjects}
-                  placeholder="Select subject"
-                  icon="book-open-outline"
-                  options={[
-                    "Physics",
-                    "Mathematics",
-                    "Chemistry",
-                    "Biology",
-                  ]}
-                  onToggle={(value) =>
-                    setSelectedSubjects((current) =>
-                      current.includes(value)
-                        ? current.filter((item) => item !== value)
-                        : [...current, value]
-                    )
-                  }
-                />
-              </View>
-            </View>
+            <View style={styles.infoNoticeSmall}>
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={18}
+                color="#7040D5"
+              />
 
-            <View style={styles.twoColumn}>
-              <View style={styles.column}>
-                <SelectField
-                  label="Batch"
-                  value={batch}
-                  placeholder="Select batch"
-                  icon="google-circles-communities"
-                  options={[
-                    "8th Foundation - Evening",
-                    "9th Foundation - Evening",
-                    "10th Foundation - Afternoon",
-                    "11th MHT-CET - Evening",
-                    "12th JEE - Morning",
-                    "12th NEET - Morning",
-                  ]}
-                  onSelect={setBatch}
-                />
-              </View>
-
-              <View style={styles.column}>
-                <SelectField
-                  label="Branch"
-                  value={branch}
-                  placeholder="Select branch"
-                  icon="office-building-outline"
-                  options={[
-                    "Pune Branch",
-                    "Mumbai Branch",
-                    "Nashik Branch",
-                    "Nagpur Branch",
-                    "Main Branch",
-                  ]}
-                  onSelect={setBranch}
-                />
-              </View>
+              <Text style={styles.infoNoticeSmallText}>
+                Standard and branch are automatically determined
+                from the selected batch. Subjects will be assigned
+                separately.
+              </Text>
             </View>
           </View>
 
-          {/* PARENT INFORMATION */}
+          {/* ====================================================
+              PARENT / GUARDIAN INFORMATION
+          ==================================================== */}
+
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIconGreen}>
@@ -517,10 +605,11 @@ export default function AddStudentPage() {
                 />
               </View>
 
-              <View>
+              <View style={styles.sectionHeaderText}>
                 <Text style={styles.sectionTitle}>
                   Parent / Guardian Information
                 </Text>
+
                 <Text style={styles.sectionSubtitle}>
                   Parent or guardian contact details
                 </Text>
@@ -529,50 +618,33 @@ export default function AddStudentPage() {
 
             <View style={styles.twoColumn}>
               <View style={styles.column}>
-                <Text style={styles.fieldLabel}>Parent / Guardian Name</Text>
-
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="account-supervisor-outline"
-                    size={19}
-                    color="#35B878"
-                  />
-                  <TextInput
-                    value={parentName}
-                    onChangeText={setParentName}
-                    placeholder="Enter name"
-                    placeholderTextColor="#9AA2B1"
-                    style={styles.textInput}
-                  />
-                </View>
+                <InputField
+                  label="Guardian Name"
+                  value={guardianName}
+                  placeholder="Enter name"
+                  icon="account-supervisor-outline"
+                  onChangeText={setGuardianName}
+                />
               </View>
 
               <View style={styles.column}>
-                <Text style={styles.fieldLabel}>
-                  Parent Mobile Number
-                </Text>
-
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="phone-outline"
-                    size={19}
-                    color="#35B878"
-                  />
-                  <TextInput
-                    value={parentMobile}
-                    onChangeText={setParentMobile}
-                    placeholder="Enter mobile"
-                    placeholderTextColor="#9AA2B1"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    style={styles.textInput}
-                  />
-                </View>
+                <InputField
+                  label="Guardian Mobile"
+                  value={guardianMobile}
+                  placeholder="Enter mobile"
+                  icon="phone-outline"
+                  keyboardType="phone-pad"
+                  onChangeText={setGuardianMobile}
+                />
               </View>
             </View>
 
+            {/* Address */}
+
             <View style={styles.fieldContainer}>
-              <Text style={styles.fieldLabel}>Address</Text>
+              <Text style={styles.fieldLabel}>
+                Address
+              </Text>
 
               <View
                 style={[
@@ -586,6 +658,7 @@ export default function AddStudentPage() {
                   color="#35B878"
                   style={styles.textAreaIcon}
                 />
+
                 <TextInput
                   value={address}
                   onChangeText={setAddress}
@@ -593,13 +666,19 @@ export default function AddStudentPage() {
                   placeholderTextColor="#9AA2B1"
                   multiline
                   textAlignVertical="top"
-                  style={[styles.textInput, styles.textArea]}
+                  style={[
+                    styles.textInput,
+                    styles.textArea,
+                  ]}
                 />
               </View>
             </View>
           </View>
 
-          {/* INFORMATION NOTICE */}
+          {/* ====================================================
+              INFORMATION NOTICE
+          ==================================================== */}
+
           <View style={styles.infoNotice}>
             <MaterialCommunityIcons
               name="information-outline"
@@ -608,19 +687,25 @@ export default function AddStudentPage() {
             />
 
             <Text style={styles.infoText}>
-              Student records are used across Classes 8 to 12, Foundation,
-              JEE, NEET and MHT-CET academic modules.
+              A unique Student ID will be generated automatically
+              after the student is created. Standard and branch
+              information comes from the selected batch.
             </Text>
           </View>
 
-          {/* ACTIONS */}
+          {/* ====================================================
+              ACTIONS
+          ==================================================== */}
+
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={styles.cancelButton}
               activeOpacity={0.8}
               onPress={() => router.back()}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>
+                Cancel
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -633,7 +718,10 @@ export default function AddStudentPage() {
                 size={18}
                 color="#FFFFFF"
               />
-              <Text style={styles.saveButtonText}>Add Student</Text>
+
+              <Text style={styles.saveButtonText}>
+                Add Student
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -644,11 +732,19 @@ export default function AddStudentPage() {
   );
 }
 
+/* ================================================================
+   STYLES
+================================================================ */
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#F7F8FC",
   },
+
+  /* ============================================================
+     HEADER
+  ============================================================ */
 
   header: {
     backgroundColor: "#7040D5",
@@ -688,24 +784,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  headerEditButton: {
-    height: 44,
-    minWidth: 112,
-    borderRadius: 13,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-
-  headerEditText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 13,
-    color: "#7040D5",
-    marginLeft: 6,
-  },
+  /* ============================================================
+     CONTAINER
+  ============================================================ */
 
   container: {
     flex: 1,
@@ -716,6 +797,10 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 34,
   },
+
+  /* ============================================================
+     PAGE TITLE
+  ============================================================ */
 
   pageTitleContainer: {
     width: "100%",
@@ -738,6 +823,10 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
+  /* ============================================================
+     CARD
+  ============================================================ */
+
   card: {
     width: "100%",
     maxWidth: 1000,
@@ -748,6 +837,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     marginBottom: 13,
+
     shadowColor: "#000000",
     shadowOffset: {
       width: 0,
@@ -757,6 +847,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+
+  /* ============================================================
+     SECTION HEADER
+  ============================================================ */
 
   sectionHeader: {
     flexDirection: "row",
@@ -815,8 +909,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  /* ============================================================
+     FORM FIELDS
+  ============================================================ */
+
   fieldContainer: {
     marginTop: 13,
+    flex: 1,
+    minWidth: 0,
   },
 
   fieldLabel: {
@@ -825,7 +925,6 @@ const styles = StyleSheet.create({
     color: "#59657A",
     marginBottom: 7,
     includeFontPadding: false,
-  
   },
 
   required: {
@@ -844,7 +943,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     overflow: "hidden",
-  
   },
 
   textInput: {
@@ -859,22 +957,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#172033",
     includeFontPadding: false,
-  
   },
 
   twoColumn: {
     width: "100%",
     flexDirection: "row",
     gap: 8,
-  
   },
 
   column: {
     flex: 1,
     minWidth: 0,
     maxWidth: "50%",
-  
   },
+
+  /* ============================================================
+     SELECT
+  ============================================================ */
 
   selectInput: {
     width: "100%",
@@ -888,16 +987,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     overflow: "hidden",
-  
   },
 
-  multiSelectValue: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: "100%",
-    marginLeft: 7,
-    overflow: "hidden",
-  
+  selectInputActive: {
+    borderColor: "#7040D5",
   },
 
   selectText: {
@@ -909,7 +1002,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#344054",
     includeFontPadding: false,
-  
   },
 
   placeholderText: {
@@ -917,7 +1009,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#9AA2B1",
     includeFontPadding: false,
-  
   },
 
   dropdown: {
@@ -927,7 +1018,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DDE1E9",
     overflow: "hidden",
+
     elevation: 5,
+
     shadowColor: "#000000",
     shadowOffset: {
       width: 0,
@@ -963,6 +1056,58 @@ const styles = StyleSheet.create({
     color: "#7040D5",
   },
 
+  /* ============================================================
+     PASSWORD NOTICE
+  ============================================================ */
+
+  passwordNotice: {
+    marginTop: 10,
+    padding: 11,
+    borderRadius: 10,
+    backgroundColor: "#F8F4FF",
+    borderWidth: 1,
+    borderColor: "#E9DFFF",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+
+  passwordNoticeText: {
+    flex: 1,
+    fontFamily: "PoppinsRegular",
+    fontSize: 10,
+    lineHeight: 15,
+    color: "#7040D5",
+  },
+
+  /* ============================================================
+     SMALL INFORMATION NOTICE
+  ============================================================ */
+
+  infoNoticeSmall: {
+    marginTop: 10,
+    padding: 11,
+    borderRadius: 10,
+    backgroundColor: "#F8F4FF",
+    borderWidth: 1,
+    borderColor: "#E9DFFF",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+
+  infoNoticeSmallText: {
+    flex: 1,
+    fontFamily: "PoppinsRegular",
+    fontSize: 10,
+    lineHeight: 15,
+    color: "#7040D5",
+  },
+
+  /* ============================================================
+     TEXT AREA
+  ============================================================ */
+
   textAreaWrapper: {
     minHeight: 92,
     alignItems: "flex-start",
@@ -978,6 +1123,10 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     paddingTop: 0,
   },
+
+  /* ============================================================
+     INFORMATION NOTICE
+  ============================================================ */
 
   infoNotice: {
     width: "100%",
@@ -1001,6 +1150,10 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: "#7040D5",
   },
+
+  /* ============================================================
+     ACTION BUTTONS
+  ============================================================ */
 
   actionButtons: {
     width: "100%",
@@ -1036,6 +1189,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
+
     shadowColor: "#7040D5",
     shadowOffset: {
       width: 0,

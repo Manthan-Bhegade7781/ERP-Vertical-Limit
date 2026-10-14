@@ -1,0 +1,518 @@
+const mongoose = require("mongoose");
+
+const Student = require("../models/Student");
+const User = require("../models/User");
+const Batch = require("../models/Batch");
+
+const { hashPassword } = require("../utils/password");
+const { generateStudentId } = require("../utils/studentId");
+const createNotification = require("../utils/createNotification");
+
+// =====================================================
+// CREATE STUDENT
+// =====================================================
+
+const createStudent = async (req, res) => {
+  let session;
+
+  try {
+    const {
+      fullName,
+      email,
+      mobileNumber,
+      password,
+      batchId,
+      guardianName,
+      guardianMobile,
+      address,
+    } = req.body;
+
+    if (!fullName || !email || !password || !batchId) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name, email, password and batch are required",
+      });
+    }
+
+    const batch = await Batch.findById(batchId);
+
+    if (!batch) {
+      return res.status(404).json({
+        success: false,
+        message: "Batch not found",
+      });
+    }
+
+    if (batch.isRemoved === true) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot add student to a removed batch",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "A user with this email already exists",
+      });
+    }
+
+    const studentId = await generateStudentId();
+    const passwordHash = await hashPassword(password);
+
+    session = await mongoose.startSession();
+
+    let user;
+    let student;
+
+    try {
+      session.startTransaction();
+
+      // Create User account
+      [user] = await User.create(
+        [
+          {
+            fullName: fullName.trim(),
+            email: normalizedEmail,
+            mobileNumber: mobileNumber?.trim() || "",
+            passwordHash,
+            roles: ["student"],
+            branchId: batch.branchId,
+            status: "active",
+            registrationRole: null,
+          },
+        ],
+        { session }
+      );
+
+      // Create Student profile
+      [student] = await Student.create(
+        [
+          {
+            userId: user._id,
+            studentId,
+            batchId,
+            guardianName: guardianName?.trim() || "",
+            guardianMobile: guardianMobile?.trim() || "",
+            address: address?.trim() || "",
+            status: "active",
+          },
+        ],
+        { session }
+      );
+
+      await session.commitTransaction();
+    } catch (transactionError) {
+      await session.abortTransaction();
+      throw transactionError;
+    } finally {
+      await session.endSession();
+    }
+
+    // Notify the newly created student
+    await createNotification({
+      recipient: user._id,
+      title: "Welcome to Vertical Limit",
+      message: "Your student account has been created successfully.",
+      type: "registration",
+      icon: "account-check-outline",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Student created successfully",
+      data: {
+        student: {
+          id: student._id,
+          studentId: student.studentId,
+          batchId: student.batchId,
+          guardianName: student.guardianName,
+          guardianMobile: student.guardianMobile,
+          address: student.address,
+          status: student.status,
+        },
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          mobileNumber: user.mobileNumber,
+          roles: user.roles,
+          branchId: user.branchId,
+          status: user.status,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Create student error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create student",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// GET ALL STUDENTS
+// =====================================================
+
+const getStudents = async (req, res) => {
+  try {
+    const students = await Student.find({})
+      .populate({
+        path: "userId",
+        select: "fullName email mobileNumber roles branchId status",
+        populate: {
+          path: "branchId",
+          select: "name code",
+        },
+      })
+      .populate({
+        path: "batchId",
+        select: "name code standard academicYear branchId startDate endDate",
+      })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: students.length,
+      data: students,
+    });
+  } catch (error) {
+    console.error("Get students error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch students",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// GET STUDENT BY ID
+// =====================================================
+
+const getStudentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const student = await Student.findById(id)
+      .populate({
+        path: "userId",
+        select: "fullName email mobileNumber roles branchId status",
+        populate: {
+          path: "branchId",
+          select: "name code",
+        },
+      })
+      .populate({
+        path: "batchId",
+        select:
+          "name code standard academicYear branchId startDate endDate schedule capacity",
+        populate: {
+          path: "branchId",
+          select: "name code",
+        },
+      });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: student,
+    });
+  } catch (error) {
+    console.error("Get student error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch student",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// UPDATE STUDENT
+// =====================================================
+
+const updateStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      fullName,
+      email,
+      mobileNumber,
+      batchId,
+      guardianName,
+      guardianMobile,
+      address,
+      status,
+    } = req.body;
+
+    const student = await Student.findById(id);
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+
+    // Capture original values before updating
+    const previousBatchId = student.batchId?.toString();
+    const previousStatus = student.status;
+
+    // Validate new batch
+    if (batchId) {
+      const batch = await Batch.findById(batchId);
+
+      if (!batch) {
+        return res.status(404).json({
+          success: false,
+          message: "Batch not found",
+        });
+      }
+
+      if (batch.isRemoved === true) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot assign student to a removed batch",
+        });
+      }
+
+      student.batchId = batchId;
+    }
+
+    // Update Student profile
+    if (guardianName !== undefined) {
+      student.guardianName = guardianName.trim();
+    }
+
+    if (guardianMobile !== undefined) {
+      student.guardianMobile = guardianMobile.trim();
+    }
+
+    if (address !== undefined) {
+      student.address = address.trim();
+    }
+
+    if (status !== undefined) {
+      if (!["active", "inactive"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid student status",
+        });
+      }
+
+      student.status = status;
+    }
+
+    // Update User account
+    const user = await User.findById(student.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Student user account not found",
+      });
+    }
+
+    if (fullName !== undefined) {
+      user.fullName = fullName.trim();
+    }
+
+    if (email !== undefined) {
+      const normalizedEmail = email.trim().toLowerCase();
+
+      if (normalizedEmail !== user.email) {
+        const existingUser = await User.findOne({
+          email: normalizedEmail,
+          _id: { $ne: user._id },
+        });
+
+        if (existingUser) {
+          return res.status(409).json({
+            success: false,
+            message: "A user with this email already exists",
+          });
+        }
+
+        user.email = normalizedEmail;
+      }
+    }
+
+    if (mobileNumber !== undefined) {
+      user.mobileNumber = mobileNumber.trim();
+    }
+
+    // Synchronize account status when changed through this controller
+    if (status !== undefined) {
+      user.status = status;
+    }
+
+    await user.save();
+    await student.save();
+
+    // Notify when the student's batch changes
+    const newBatchId = student.batchId?.toString();
+
+    if (previousBatchId !== newBatchId) {
+      await createNotification({
+        recipient: user._id,
+        title: "Batch Updated",
+        message: "Your batch assignment has been updated.",
+        type: "general",
+        icon: "account-group-outline",
+      });
+    }
+
+    // Notify when the student's status changes
+    if (previousStatus !== student.status) {
+      const isActive = student.status === "active";
+
+      await createNotification({
+        recipient: user._id,
+        title: isActive ? "Account Activated" : "Account Deactivated",
+        message: isActive
+          ? "Your student account has been activated."
+          : "Your student account has been deactivated.",
+        type: isActive ? "approval" : "general",
+        icon: isActive
+          ? "check-circle-outline"
+          : "account-cancel-outline",
+      });
+    }
+
+    const updatedStudent = await Student.findById(student._id)
+      .populate({
+        path: "userId",
+        select: "fullName email mobileNumber roles branchId status",
+      })
+      .populate({
+        path: "batchId",
+        select: "name code standard academicYear branchId",
+      });
+
+    return res.status(200).json({
+      success: true,
+      message: "Student updated successfully",
+      data: updatedStudent,
+    });
+  } catch (error) {
+    console.error("Update student error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update student",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// UPDATE STUDENT STATUS
+// =====================================================
+
+const updateStudentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Status must be active or inactive",
+      });
+    }
+
+    const student = await Student.findById(id);
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+
+    const previousStatus = student.status;
+
+    const user = await User.findById(student.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Student user account not found",
+      });
+    }
+
+    // Synchronize Student and User account statuses
+    student.status = status;
+    user.status = status;
+
+    await student.save();
+    await user.save();
+
+    // Notify only when the status actually changes
+    if (previousStatus !== status) {
+      const isActive = status === "active";
+
+      await createNotification({
+        recipient: user._id,
+        title: isActive ? "Account Activated" : "Account Deactivated",
+        message: isActive
+          ? "Your student account has been activated."
+          : "Your student account has been deactivated.",
+        type: isActive ? "approval" : "general",
+        icon: isActive
+          ? "check-circle-outline"
+          : "account-cancel-outline",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Student ${
+        status === "active" ? "activated" : "deactivated"
+      } successfully`,
+      data: {
+        studentId: student.studentId,
+        status: student.status,
+      },
+    });
+  } catch (error) {
+    console.error("Update student status error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update student status",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// EXPORT CONTROLLERS
+// =====================================================
+
+module.exports = {
+  createStudent,
+  getStudents,
+  getStudentById,
+  updateStudent,
+  updateStudentStatus,
+};

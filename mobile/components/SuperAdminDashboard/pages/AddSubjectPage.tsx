@@ -36,8 +36,7 @@ const SelectField = ({
   return (
     <View style={styles.fieldContainer}>
       <Text style={styles.fieldLabel}>
-        {label}{" "}
-        {required && <Text style={styles.required}>*</Text>}
+        {label} {required && <Text style={styles.required}>*</Text>}
       </Text>
 
       <TouchableOpacity
@@ -113,8 +112,8 @@ export default function AddSubjectPage() {
   const [subjectCode, setSubjectCode] = useState("");
   const [standard, setStandard] = useState("");
   const [subjectType, setSubjectType] = useState("");
-  const [teacher, setTeacher] = useState("");
-  const [batch, setBatch] = useState("");
+  const [duration, setDuration] = useState("");
+  const [status, setStatus] = useState("Active");
   const [description, setDescription] = useState("");
 
   const standardOptions = [
@@ -131,22 +130,9 @@ export default function AddSubjectPage() {
     "Entrance",
   ];
 
-  const teacherOptions = [
-    "Anita Desai - Physics",
-    "Neha Kapoor - Chemistry",
-    "Pooja Sharma - Biology",
-    "Ravi Patil - Mathematics",
-    "Meena Joshi - English & Aptitude",
-    "Karan Shah - Physics & JEE",
-  ];
-
-  const batchOptions = [
-    "12th JEE - Morning",
-    "12th NEET - Morning",
-    "11th MHT-CET - Evening",
-    "10th Foundation - Afternoon",
-    "9th Foundation - Evening",
-    "8th Foundation - Evening",
+  const statusOptions = [
+    "Active",
+    "Inactive",
   ];
 
   const handleAddSubject = () => {
@@ -155,8 +141,8 @@ export default function AddSubjectPage() {
       !subjectCode.trim() ||
       !standard ||
       !subjectType ||
-      !teacher ||
-      !batch
+      !duration.trim() ||
+      !status
     ) {
       Alert.alert(
         "Required Fields",
@@ -204,25 +190,6 @@ export default function AddSubjectPage() {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Add Subject</Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.editHeaderButton}
-          activeOpacity={0.8}
-          onPress={() =>
-            Alert.alert(
-              "Edit Subject",
-              "Subject editing will be available here."
-            )
-          }
-        >
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={16}
-            color="#7040D5"
-          />
-
-          <Text style={styles.editHeaderButtonText}>Edit</Text>
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -235,8 +202,7 @@ export default function AddSubjectPage() {
           <Text style={styles.pageTitle}>Subject Information</Text>
 
           <Text style={styles.pageSubtitle}>
-            Add academic subject details and assign it to the appropriate
-            teacher and batch.
+            Add academic subject details for the educational center.
           </Text>
         </View>
 
@@ -321,7 +287,7 @@ export default function AddSubjectPage() {
           </View>
         </View>
 
-        {/* ACADEMIC ASSIGNMENT */}
+        {/* ADDITIONAL INFORMATION */}
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <View
@@ -331,7 +297,7 @@ export default function AddSubjectPage() {
               ]}
             >
               <MaterialCommunityIcons
-                name="account-school-outline"
+                name="information-outline"
                 size={20}
                 color="#4285F4"
               />
@@ -339,30 +305,35 @@ export default function AddSubjectPage() {
 
             <View style={styles.sectionHeaderText}>
               <Text style={styles.sectionTitle}>
-                Academic Assignment
+                Additional Information
               </Text>
 
               <Text style={styles.sectionSubtitle}>
-                Assign teacher and batch for this subject
+                Set subject duration and current status
               </Text>
             </View>
           </View>
 
-          <SelectField
-            label="Assigned Teacher"
-            value={teacher}
-            placeholder="Select teacher"
-            options={teacherOptions}
-            onSelect={setTeacher}
-            required
-          />
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>
+              Duration <Text style={styles.required}>*</Text>
+            </Text>
+
+            <TextInput
+              value={duration}
+              onChangeText={setDuration}
+              placeholder="e.g. 1 Year"
+              placeholderTextColor="#A0A7B4"
+              style={styles.textInput}
+            />
+          </View>
 
           <SelectField
-            label="Assigned Batch"
-            value={batch}
-            placeholder="Select batch"
-            options={batchOptions}
-            onSelect={setBatch}
+            label="Status"
+            value={status}
+            placeholder="Select status"
+            options={statusOptions}
+            onSelect={setStatus}
             required
           />
         </View>
@@ -427,8 +398,8 @@ export default function AddSubjectPage() {
             </Text>
 
             <Text style={styles.infoText}>
-              The selected teacher and batch will be associated with
-              this subject after it is added.
+              Teachers and batches are assigned separately through
+              Batch Subject management.
             </Text>
           </View>
         </View>
@@ -497,23 +468,6 @@ const styles = StyleSheet.create({
     fontFamily: "PoppinsSemiBold",
     fontSize: 20,
     color: "#FFFFFF",
-  },
-
-  editHeaderButton: {
-    height: 36,
-    paddingHorizontal: 13,
-    borderRadius: 9,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
-
-  editHeaderButtonText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
-    color: "#7040D5",
   },
 
   scrollView: {

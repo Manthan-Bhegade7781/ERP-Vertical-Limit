@@ -64,12 +64,12 @@ const managementItems: MenuItem[] = [
     icon: 'cash-multiple',
   },
   {
-    label: 'Performance',
-    icon: 'chart-line',
-  },
-  {
     label: 'Academics',
     icon: 'school-outline',
+  },
+  {
+    label: 'PTG',
+    icon: 'account-group-outline',
   },
   {
     label: 'Timetable',
@@ -91,16 +91,16 @@ const administrationItems: MenuItem[] = [
     icon: 'account-cog-outline',
   },
   {
+    label: 'Pending Registrations',
+    icon: 'account-clock-outline',
+  },
+  {
     label: 'Announcements',
     icon: 'bullhorn-outline',
   },
   {
     label: 'Messages',
     icon: 'message-text-outline',
-  },
-  {
-    label: 'Reports',
-    icon: 'file-chart-outline',
   },
   {
     label: 'Accounts',
@@ -113,10 +113,6 @@ const administrationItems: MenuItem[] = [
   {
     label: 'Settings',
     icon: 'cog-outline',
-  },
-  {
-    label: 'Audit Logs',
-    icon: 'history',
   },
 ];
 

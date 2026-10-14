@@ -18,34 +18,228 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+/* =========================================================
+   TYPES
+========================================================= */
+
+type StudentStatus = 'Active' | 'Inactive';
+
 type Student = {
   id: string;
-  name: string;
   studentId: string;
-  branch: string;
-  course: string;
-  batch: string;
-  phone: string;
+  name: string;
   email: string;
-  status: 'Active' | 'Inactive';
+  phone: string;
+
+  batch: string;
+  standard: string;
+  branch: string;
+
+  guardianName: string;
+  guardianMobile: string;
+  address: string;
+
+  status: StudentStatus;
 };
 
+type MockBatchSubject = {
+  id: string;
+  name: string;
+  teacher: string;
+};
+
+type EnrollmentStatus = 'active' | 'inactive';
+
+/* =========================================================
+   MOCK DATA
+   API INTEGRATION WILL BE DONE LATER
+========================================================= */
+
 const initialStudents: Student[] = [
-  { id: '1', name: 'Aarav Sharma', studentId: 'VLCC-STU-001', branch: 'Pune Branch', course: 'Class 12 - JEE', batch: '12th JEE Morning', phone: '+91 98765 43210', email: 'aarav.sharma@example.com', status: 'Active' },
-  { id: '2', name: 'Ananya Patil', studentId: 'VLCC-STU-002', branch: 'Pune Branch', course: 'Class 12 - NEET', batch: '12th NEET Morning', phone: '+91 98765 43211', email: 'ananya.patil@example.com', status: 'Active' },
-  { id: '3', name: 'Rohan Kulkarni', studentId: 'VLCC-STU-003', branch: 'Mumbai Branch', course: 'Class 11 - MHT-CET', batch: '11th CET Evening', phone: '+91 98765 43212', email: 'rohan.kulkarni@example.com', status: 'Active' },
-  { id: '4', name: 'Ishita Joshi', studentId: 'VLCC-STU-004', branch: 'Nashik Branch', course: 'Class 10 - Foundation', batch: '10th Foundation', phone: '+91 98765 43213', email: 'ishita.joshi@example.com', status: 'Active' },
-  { id: '5', name: 'Vedant Deshmukh', studentId: 'VLCC-STU-005', branch: 'Nagpur Branch', course: 'Class 9 - Foundation', batch: '9th Foundation', phone: '+91 98765 43214', email: 'vedant.deshmukh@example.com', status: 'Active' },
-  { id: '6', name: 'Sakshi Mehta', studentId: 'VLCC-STU-006', branch: 'Main Branch', course: 'Class 8 - Foundation', batch: '8th Foundation', phone: '+91 98765 43215', email: 'sakshi.mehta@example.com', status: 'Active' },
+  {
+    id: '1',
+    studentId: 'STU001',
+    name: 'Aarav Sharma',
+    email: 'aarav.sharma@example.com',
+    phone: '+91 98765 43210',
+    batch: '12th JEE Morning',
+    standard: '12th',
+    branch: 'Pune Branch',
+    guardianName: 'Rajesh Sharma',
+    guardianMobile: '+91 98765 40001',
+    address: 'Pune, Maharashtra',
+    status: 'Active',
+  },
+  {
+    id: '2',
+    studentId: 'STU002',
+    name: 'Ananya Patil',
+    email: 'ananya.patil@example.com',
+    phone: '+91 98765 43211',
+    batch: '12th NEET Morning',
+    standard: '12th',
+    branch: 'Pune Branch',
+    guardianName: 'Suresh Patil',
+    guardianMobile: '+91 98765 40002',
+    address: 'Pune, Maharashtra',
+    status: 'Active',
+  },
+  {
+    id: '3',
+    studentId: 'STU003',
+    name: 'Rohan Kulkarni',
+    email: 'rohan.kulkarni@example.com',
+    phone: '+91 98765 43212',
+    batch: '11th MHT-CET Evening',
+    standard: '11th',
+    branch: 'Mumbai Branch',
+    guardianName: 'Mahesh Kulkarni',
+    guardianMobile: '+91 98765 40003',
+    address: 'Mumbai, Maharashtra',
+    status: 'Active',
+  },
+  {
+    id: '4',
+    studentId: 'STU004',
+    name: 'Ishita Joshi',
+    email: 'ishita.joshi@example.com',
+    phone: '+91 98765 43213',
+    batch: '10th Foundation',
+    standard: '10th',
+    branch: 'Nashik Branch',
+    guardianName: 'Vijay Joshi',
+    guardianMobile: '+91 98765 40004',
+    address: 'Nashik, Maharashtra',
+    status: 'Active',
+  },
+  {
+    id: '5',
+    studentId: 'STU005',
+    name: 'Vedant Deshmukh',
+    email: 'vedant.deshmukh@example.com',
+    phone: '+91 98765 43214',
+    batch: '9th Foundation',
+    standard: '9th',
+    branch: 'Nagpur Branch',
+    guardianName: 'Amit Deshmukh',
+    guardianMobile: '+91 98765 40005',
+    address: 'Nagpur, Maharashtra',
+    status: 'Inactive',
+  },
+  {
+    id: '6',
+    studentId: 'STU006',
+    name: 'Sakshi Mehta',
+    email: 'sakshi.mehta@example.com',
+    phone: '+91 98765 43215',
+    batch: '8th Foundation',
+    standard: '8th',
+    branch: 'Main Branch',
+    guardianName: 'Ramesh Mehta',
+    guardianMobile: '+91 98765 40006',
+    address: 'Pune, Maharashtra',
+    status: 'Active',
+  },
 ];
 
-const branches = [
-  'Pune Branch',
-  'Mumbai Branch',
-  'Nashik Branch',
-  'Nagpur Branch',
-  'Main Branch',
+/* =========================================================
+   MOCK BATCH DATA
+========================================================= */
+
+const batches = [
+  {
+    name: '8th Foundation',
+    standard: '8th',
+    branch: 'Main Branch',
+  },
+  {
+    name: '9th Foundation',
+    standard: '9th',
+    branch: 'Nagpur Branch',
+  },
+  {
+    name: '10th Foundation',
+    standard: '10th',
+    branch: 'Nashik Branch',
+  },
+  {
+    name: '10th Standard - Morning',
+    standard: '10th',
+    branch: 'Pune Branch',
+  },
+  {
+    name: '10th Standard - Evening',
+    standard: '10th',
+    branch: 'Pune Branch',
+  },
+  {
+    name: '11th MHT-CET Evening',
+    standard: '11th',
+    branch: 'Mumbai Branch',
+  },
+  {
+    name: '12th JEE Morning',
+    standard: '12th',
+    branch: 'Pune Branch',
+  },
+  {
+    name: '12th NEET Morning',
+    standard: '12th',
+    branch: 'Pune Branch',
+  },
 ];
+
+/* =========================================================
+   MOCK SUBJECTS ASSIGNED TO EACH BATCH
+   Frontend-only data. Backend integration will be done later.
+========================================================= */
+
+const mockBatchSubjects: Record<string, MockBatchSubject[]> = {
+  '8th Foundation': [
+    { id: '8-math', name: 'Mathematics', teacher: 'Amit Patil' },
+    { id: '8-science', name: 'Science', teacher: 'Neha Joshi' },
+    { id: '8-english', name: 'English', teacher: 'Priya Shah' },
+  ],
+  '9th Foundation': [
+    { id: '9-math', name: 'Mathematics', teacher: 'Amit Patil' },
+    { id: '9-science', name: 'Science', teacher: 'Neha Joshi' },
+    { id: '9-english', name: 'English', teacher: 'Priya Shah' },
+  ],
+  '10th Foundation': [
+    { id: '10f-math', name: 'Mathematics', teacher: 'Ganesh Mhamane' },
+    { id: '10f-science', name: 'Science', teacher: 'Rahul More' },
+    { id: '10f-english', name: 'English', teacher: 'Priya Shah' },
+  ],
+  '10th Standard - Morning': [
+    { id: '10m-math', name: 'Mathematics', teacher: 'Ganesh Mhamane' },
+    { id: '10m-science', name: 'Science', teacher: 'Rahul More' },
+    { id: '10m-english', name: 'English', teacher: 'Priya Shah' },
+  ],
+  '10th Standard - Evening': [
+    { id: '10e-math', name: 'Mathematics', teacher: 'Ganesh Mhamane' },
+    { id: '10e-science', name: 'Science', teacher: 'Rahul More' },
+    { id: '10e-english', name: 'English', teacher: 'Priya Shah' },
+  ],
+  '11th MHT-CET Evening': [
+    { id: '11-math', name: 'Mathematics', teacher: 'Amit Patil' },
+    { id: '11-physics', name: 'Physics', teacher: 'Sanjay Kulkarni' },
+    { id: '11-chemistry', name: 'Chemistry', teacher: 'Meera Desai' },
+  ],
+  '12th JEE Morning': [
+    { id: '12j-physics', name: 'Physics', teacher: 'Sanjay Kulkarni' },
+    { id: '12j-chemistry', name: 'Chemistry', teacher: 'Meera Desai' },
+    { id: '12j-math', name: 'Mathematics', teacher: 'Ganesh Mhamane' },
+  ],
+  '12th NEET Morning': [
+    { id: '12n-physics', name: 'Physics', teacher: 'Sanjay Kulkarni' },
+    { id: '12n-chemistry', name: 'Chemistry', teacher: 'Meera Desai' },
+    { id: '12n-biology', name: 'Biology', teacher: 'Dr. Kavita Rao' },
+  ],
+};
+
+/* =========================================================
+   PAGE
+========================================================= */
 
 export default function StudentsPage() {
   const { width } = useWindowDimensions();
@@ -53,10 +247,28 @@ export default function StudentsPage() {
 
   const isDesktop = width >= 900;
 
+  /* -------------------------------------------------------
+     STUDENTS
+  ------------------------------------------------------- */
+
   const [students, setStudents] =
     useState<Student[]>(initialStudents);
 
+  /* -------------------------------------------------------
+     SEARCH / FILTER
+  ------------------------------------------------------- */
+
   const [search, setSearch] = useState('');
+
+  const [filterStatus, setFilterStatus] =
+    useState<'All' | StudentStatus>('All');
+
+  const [showFilterModal, setShowFilterModal] =
+    useState(false);
+
+  /* -------------------------------------------------------
+     SELECTED STUDENT
+  ------------------------------------------------------- */
 
   const [selectedStudent, setSelectedStudent] =
     useState<Student | null>(null);
@@ -64,41 +276,105 @@ export default function StudentsPage() {
   const [showActions, setShowActions] =
     useState(false);
 
+
+  /* -------------------------------------------------------
+     STUDENT SUBJECT ENROLLMENTS (MOCK)
+  ------------------------------------------------------- */
+
+  const [showSubjectsModal, setShowSubjectsModal] =
+    useState(false);
+
+  const [enrollmentStatuses, setEnrollmentStatuses] = useState<
+    Record<string, EnrollmentStatus>
+  >({
+    '1:12j-physics': 'active',
+    '1:12j-math': 'active',
+    '2:12n-physics': 'active',
+    '2:12n-biology': 'active',
+    '3:11-math': 'active',
+    '4:10f-math': 'active',
+    '4:10f-science': 'active',
+    '5:9-math': 'active',
+    '6:8-math': 'active',
+    '6:8-english': 'active',
+  });
+
+  /* -------------------------------------------------------
+     VIEW MODAL
+  ------------------------------------------------------- */
+
+  const [showViewModal, setShowViewModal] =
+    useState(false);
+
+  /* -------------------------------------------------------
+     EDIT MODAL
+  ------------------------------------------------------- */
+
   const [showEditModal, setShowEditModal] =
     useState(false);
 
-  const [showBranchList, setShowBranchList] =
+  const [showBatchList, setShowBatchList] =
     useState(false);
 
-  const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editBranch, setEditBranch] = useState('');
-  const [editCourse, setEditCourse] = useState('');
-  const [editBatch, setEditBatch] = useState('');
+  const [editName, setEditName] =
+    useState('');
+
+  const [editEmail, setEditEmail] =
+    useState('');
+
+  const [editPhone, setEditPhone] =
+    useState('');
+
+  const [editBatch, setEditBatch] =
+    useState('');
+
+  const [editGuardianName, setEditGuardianName] =
+    useState('');
+
+  const [editGuardianMobile, setEditGuardianMobile] =
+    useState('');
+
+  const [editAddress, setEditAddress] =
+    useState('');
+
+  /* =======================================================
+     FILTERED STUDENTS
+  ======================================================= */
 
   const filteredStudents = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return students;
-    }
+    return students.filter((student) => {
+      const matchesSearch =
+        !query ||
+        [
+          student.name,
+          student.studentId,
+          student.email,
+          student.phone,
+          student.batch,
+          student.standard,
+          student.branch,
+          student.guardianName,
+          student.guardianMobile,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query);
 
-    return students.filter((student) =>
-      [
-        student.name,
-        student.studentId,
-        student.branch,
-        student.course,
-        student.batch,
-        student.phone,
-        student.email,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
-    );
-  }, [search, students]);
+      const matchesStatus =
+        filterStatus === 'All' ||
+        student.status === filterStatus;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [search, students, filterStatus]);
+
+  /* =======================================================
+     SUMMARY COUNTS
+  ======================================================= */
+
+  const totalStudents = students.length;
 
   const activeStudents = students.filter(
     (student) => student.status === 'Active'
@@ -108,19 +384,103 @@ export default function StudentsPage() {
     (student) => student.status === 'Inactive'
   ).length;
 
+  /* =======================================================
+     ADD STUDENT
+  ======================================================= */
+
   const openAddStudent = () => {
     router.push({
-      pathname: '/(tabs)/explore',
+      pathname: '/(super_admin)/explore',
       params: {
         feature: 'Add Student',
       },
     });
   };
 
+  /* =======================================================
+     ACTIONS
+  ======================================================= */
+
   const openStudentActions = (student: Student) => {
     setSelectedStudent(student);
     setShowActions(true);
   };
+
+  /* =======================================================
+     MANAGE STUDENT SUBJECTS
+  ======================================================= */
+
+  const openManageSubjects = () => {
+    if (!selectedStudent) return;
+    setShowActions(false);
+    setShowSubjectsModal(true);
+  };
+
+  const toggleSubjectEnrollment = (subject: MockBatchSubject) => {
+    if (!selectedStudent) return;
+
+    const enrollmentKey = `${selectedStudent.id}:${subject.id}`;
+    const currentStatus = enrollmentStatuses[enrollmentKey];
+
+    if (currentStatus === 'active') {
+      Alert.alert(
+        'Deactivate Enrollment',
+        `Remove ${subject.name} from ${selectedStudent.name}'s enrolled subjects?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Deactivate',
+            style: 'destructive',
+            onPress: () => {
+              setEnrollmentStatuses((current) => ({
+                ...current,
+                [enrollmentKey]: 'inactive',
+              }));
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    const message = currentStatus === 'inactive'
+      ? `Reactivate ${subject.name} for ${selectedStudent.name}?`
+      : `Enroll ${selectedStudent.name} in ${subject.name}?`;
+
+    Alert.alert(
+      currentStatus === 'inactive' ? 'Reactivate Subject' : 'Enroll in Subject',
+      message,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: currentStatus === 'inactive' ? 'Reactivate' : 'Enroll',
+          onPress: () => {
+            setEnrollmentStatuses((current) => ({
+              ...current,
+              [enrollmentKey]: 'active',
+            }));
+          },
+        },
+      ]
+    );
+  };
+
+  /* =======================================================
+     VIEW STUDENT
+  ======================================================= */
+
+  const viewStudent = () => {
+    if (!selectedStudent) {
+      return;
+    }
+
+    setShowActions(false);
+    setShowViewModal(true);
+  };
+
+  /* =======================================================
+     OPEN EDIT
+  ======================================================= */
 
   const openEditStudent = () => {
     if (!selectedStudent) {
@@ -130,13 +490,18 @@ export default function StudentsPage() {
     setEditName(selectedStudent.name);
     setEditEmail(selectedStudent.email);
     setEditPhone(selectedStudent.phone);
-    setEditBranch(selectedStudent.branch);
-    setEditCourse(selectedStudent.course);
     setEditBatch(selectedStudent.batch);
+    setEditGuardianName(selectedStudent.guardianName);
+    setEditGuardianMobile(selectedStudent.guardianMobile);
+    setEditAddress(selectedStudent.address);
 
     setShowActions(false);
     setShowEditModal(true);
   };
+
+  /* =======================================================
+     SAVE EDIT
+  ======================================================= */
 
   const saveStudentChanges = () => {
     if (!selectedStudent) {
@@ -144,36 +509,80 @@ export default function StudentsPage() {
     }
 
     if (!editName.trim()) {
-      Alert.alert('Required', 'Please enter the student name.');
+      Alert.alert(
+        'Required',
+        'Please enter the student name.'
+      );
       return;
     }
 
     if (!editEmail.trim()) {
-      Alert.alert('Required', 'Please enter the email address.');
+      Alert.alert(
+        'Required',
+        'Please enter the email address.'
+      );
       return;
     }
 
     if (!editPhone.trim()) {
-      Alert.alert('Required', 'Please enter the phone number.');
+      Alert.alert(
+        'Required',
+        'Please enter the mobile number.'
+      );
       return;
     }
 
-    if (!editBranch) {
-      Alert.alert('Required', 'Please select a branch.');
+    if (!editBatch) {
+      Alert.alert(
+        'Required',
+        'Please select a batch.'
+      );
       return;
     }
+
+    if (
+      editGuardianMobile.trim() &&
+      editGuardianMobile.trim().length < 10
+    ) {
+      Alert.alert(
+        'Invalid Mobile',
+        'Please enter a valid guardian mobile number.'
+      );
+      return;
+    }
+
+    const selectedBatch = batches.find(
+      (batch) => batch.name === editBatch
+    );
 
     setStudents((currentStudents) =>
       currentStudents.map((student) =>
         student.id === selectedStudent.id
           ? {
               ...student,
+
               name: editName.trim(),
               email: editEmail.trim(),
               phone: editPhone.trim(),
-              branch: editBranch,
-              course: editCourse.trim(),
-              batch: editBatch.trim(),
+
+              batch: editBatch,
+
+              standard:
+                selectedBatch?.standard ??
+                student.standard,
+
+              branch:
+                selectedBatch?.branch ??
+                student.branch,
+
+              guardianName:
+                editGuardianName.trim(),
+
+              guardianMobile:
+                editGuardianMobile.trim(),
+
+              address:
+                editAddress.trim(),
             }
           : student
       )
@@ -183,12 +592,29 @@ export default function StudentsPage() {
       current
         ? {
             ...current,
+
             name: editName.trim(),
             email: editEmail.trim(),
             phone: editPhone.trim(),
-            branch: editBranch,
-            course: editCourse.trim(),
-            batch: editBatch.trim(),
+
+            batch: editBatch,
+
+            standard:
+              selectedBatch?.standard ??
+              current.standard,
+
+            branch:
+              selectedBatch?.branch ??
+              current.branch,
+
+            guardianName:
+              editGuardianName.trim(),
+
+            guardianMobile:
+              editGuardianMobile.trim(),
+
+            address:
+              editAddress.trim(),
           }
         : null
     );
@@ -201,39 +627,64 @@ export default function StudentsPage() {
     );
   };
 
-  const deleteStudent = () => {
+  /* =======================================================
+     ACTIVATE / DEACTIVATE
+  ======================================================= */
+
+  const toggleStudentStatus = () => {
     if (!selectedStudent) {
       return;
     }
 
-    const studentId = selectedStudent.id;
-    const studentName = selectedStudent.name;
+    const nextStatus: StudentStatus =
+      selectedStudent.status === 'Active'
+        ? 'Inactive'
+        : 'Active';
+
+    const action =
+      nextStatus === 'Active'
+        ? 'activate'
+        : 'deactivate';
 
     setShowActions(false);
 
     Alert.alert(
-      'Delete Student',
-      `Are you sure you want to delete ${studentName}? This action cannot be undone.`,
+      `${nextStatus} Student`,
+      `Are you sure you want to ${action} ${selectedStudent.name}?`,
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text:
+            nextStatus === 'Active'
+              ? 'Activate'
+              : 'Deactivate',
           onPress: () => {
             setStudents((currentStudents) =>
-              currentStudents.filter(
-                (student) => student.id !== studentId
+              currentStudents.map((student) =>
+                student.id === selectedStudent.id
+                  ? {
+                      ...student,
+                      status: nextStatus,
+                    }
+                  : student
               )
             );
 
-            setSelectedStudent(null);
+            setSelectedStudent((current) =>
+              current
+                ? {
+                    ...current,
+                    status: nextStatus,
+                  }
+                : null
+            );
 
             Alert.alert(
-              'Deleted',
-              `${studentName} has been deleted successfully.`
+              'Updated',
+              `${selectedStudent.name} is now ${nextStatus.toLowerCase()}.`
             );
           },
         },
@@ -241,18 +692,24 @@ export default function StudentsPage() {
     );
   };
 
-  const viewStudent = () => {
-    setShowActions(false);
+  /* =======================================================
+     FILTER
+  ======================================================= */
 
-    if (!selectedStudent) {
-      return;
-    }
-
-    Alert.alert(
-      selectedStudent.name,
-      `Student ID: ${selectedStudent.studentId}\n\nEmail: ${selectedStudent.email}\nPhone: ${selectedStudent.phone}\nBranch: ${selectedStudent.branch}\nCourse: ${selectedStudent.course}\nBatch: ${selectedStudent.batch}`
-    );
+  const openFilter = () => {
+    setShowFilterModal(true);
   };
+
+  const selectFilter = (
+    status: 'All' | StudentStatus
+  ) => {
+    setFilterStatus(status);
+    setShowFilterModal(false);
+  };
+
+  /* =======================================================
+     RENDER STUDENT
+  ======================================================= */
 
   const renderStudent = ({
     item,
@@ -265,11 +722,15 @@ export default function StudentsPage() {
         activeOpacity={0.85}
         onPress={() => openStudentActions(item)}
       >
+        {/* AVATAR */}
+
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {item.name.charAt(0)}
+            {item.name.charAt(0).toUpperCase()}
           </Text>
         </View>
+
+        {/* STUDENT INFO */}
 
         <View style={styles.studentInfo}>
           <Text
@@ -285,6 +746,21 @@ export default function StudentsPage() {
 
           <View style={styles.detailRow}>
             <MaterialCommunityIcons
+              name="account-multiple-outline"
+              size={14}
+              color="#8A98A9"
+            />
+
+            <Text
+              style={styles.detailText}
+              numberOfLines={1}
+            >
+              {item.batch}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <MaterialCommunityIcons
               name="office-building-outline"
               size={14}
               color="#8A98A9"
@@ -294,25 +770,12 @@ export default function StudentsPage() {
               style={styles.detailText}
               numberOfLines={1}
             >
-              {item.branch}
-            </Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <MaterialCommunityIcons
-              name="book-open-outline"
-              size={14}
-              color="#8A98A9"
-            />
-
-            <Text
-              style={styles.detailText}
-              numberOfLines={1}
-            >
-              {item.course}
+              {item.branch} • {item.standard}
             </Text>
           </View>
         </View>
+
+        {/* STATUS */}
 
         <View
           style={[
@@ -343,6 +806,8 @@ export default function StudentsPage() {
           </Text>
         </View>
 
+        {/* MORE */}
+
         <TouchableOpacity
           style={styles.moreButton}
           activeOpacity={0.7}
@@ -358,10 +823,16 @@ export default function StudentsPage() {
     );
   };
 
+  /* =======================================================
+     PAGE
+  ======================================================= */
+
   return (
     <View style={styles.container}>
 
-      {/* HEADER */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
 
       <View
         style={[
@@ -412,7 +883,9 @@ export default function StudentsPage() {
         </TouchableOpacity>
       </View>
 
-      {/* CONTENT */}
+      {/* =================================================
+          CONTENT
+      ================================================= */}
 
       <View style={styles.content}>
 
@@ -425,16 +898,19 @@ export default function StudentsPage() {
             </Text>
 
             <Text style={styles.pageDescription}>
-              Manage student profiles, personal information,
-              courses, batches and branches.
+              Manage student profiles, batches,
+              guardians and account status.
             </Text>
           </View>
-
         </View>
 
-        {/* SUMMARY */}
+        {/* =================================================
+            SUMMARY
+        ================================================= */}
 
         <View style={styles.summaryGrid}>
+
+          {/* TOTAL */}
 
           <View style={styles.summaryCard}>
             <View
@@ -456,10 +932,12 @@ export default function StudentsPage() {
               </Text>
 
               <Text style={styles.summaryValue}>
-                2,568
+                {totalStudents}
               </Text>
             </View>
           </View>
+
+          {/* ACTIVE */}
 
           <View style={styles.summaryCard}>
             <View
@@ -486,30 +964,7 @@ export default function StudentsPage() {
             </View>
           </View>
 
-          <View style={styles.summaryCard}>
-            <View
-              style={[
-                styles.summaryIcon,
-                styles.blueBg,
-              ]}
-            >
-              <MaterialCommunityIcons
-                name="account-plus-outline"
-                size={22}
-                color="#2675E8"
-              />
-            </View>
-
-            <View style={styles.summaryInfo}>
-              <Text style={styles.summaryLabel}>
-                New Students
-              </Text>
-
-              <Text style={styles.summaryValue}>
-                147
-              </Text>
-            </View>
-          </View>
+          {/* INACTIVE */}
 
           <View style={styles.summaryCard}>
             <View
@@ -527,7 +982,7 @@ export default function StudentsPage() {
 
             <View style={styles.summaryInfo}>
               <Text style={styles.summaryLabel}>
-                Inactive
+                Inactive Students
               </Text>
 
               <Text style={styles.summaryValue}>
@@ -538,7 +993,9 @@ export default function StudentsPage() {
 
         </View>
 
-        {/* SEARCH */}
+        {/* =================================================
+            SEARCH
+        ================================================= */}
 
         <View style={styles.searchBox}>
           <MaterialCommunityIcons
@@ -569,7 +1026,9 @@ export default function StudentsPage() {
           )}
         </View>
 
-        {/* ALL STUDENTS */}
+        {/* =================================================
+            LIST HEADER
+        ================================================= */}
 
         <View style={styles.listHeader}>
           <View>
@@ -585,6 +1044,7 @@ export default function StudentsPage() {
           <TouchableOpacity
             style={styles.filterButton}
             activeOpacity={0.8}
+            onPress={openFilter}
           >
             <MaterialCommunityIcons
               name="filter-variant"
@@ -593,10 +1053,16 @@ export default function StudentsPage() {
             />
 
             <Text style={styles.filterText}>
-              Filter
+              {filterStatus === 'All'
+                ? 'Filter'
+                : filterStatus}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* =================================================
+            STUDENT LIST
+        ================================================= */}
 
         <FlatList
           data={filteredStudents}
@@ -619,14 +1085,16 @@ export default function StudentsPage() {
               </Text>
 
               <Text style={styles.emptyText}>
-                Try changing your search.
+                Try changing your search or filter.
               </Text>
             </View>
           }
         />
       </View>
 
-      {/* ACTION MODAL */}
+      {/* =================================================
+          ACTION MODAL
+      ================================================= */}
 
       <Modal
         visible={showActions}
@@ -637,10 +1105,14 @@ export default function StudentsPage() {
         <View style={styles.modalOverlay}>
           <View style={styles.actionSheet}>
 
+            {/* ACTION HEADER */}
+
             <View style={styles.actionHeader}>
               <View style={styles.actionStudentAvatar}>
                 <Text style={styles.actionStudentAvatarText}>
-                  {selectedStudent?.name.charAt(0)}
+                  {selectedStudent?.name
+                    .charAt(0)
+                    .toUpperCase()}
                 </Text>
               </View>
 
@@ -659,7 +1131,9 @@ export default function StudentsPage() {
 
               <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => setShowActions(false)}
+                onPress={() =>
+                  setShowActions(false)
+                }
               >
                 <MaterialCommunityIcons
                   name="close"
@@ -670,6 +1144,8 @@ export default function StudentsPage() {
             </View>
 
             <View style={styles.actionDivider} />
+
+            {/* VIEW */}
 
             <TouchableOpacity
               style={styles.actionItem}
@@ -706,6 +1182,8 @@ export default function StudentsPage() {
               />
             </TouchableOpacity>
 
+            {/* EDIT */}
+
             <TouchableOpacity
               style={styles.actionItem}
               onPress={openEditStudent}
@@ -726,11 +1204,11 @@ export default function StudentsPage() {
 
               <View style={styles.actionTextContainer}>
                 <Text style={styles.actionTitle}>
-                  Edit Personal Information
+                  Edit Student
                 </Text>
 
                 <Text style={styles.actionDescription}>
-                  Update name, email, phone and details
+                  Update personal and guardian information
                 </Text>
               </View>
 
@@ -741,19 +1219,62 @@ export default function StudentsPage() {
               />
             </TouchableOpacity>
 
+            {/* MANAGE SUBJECTS */}
+
             <TouchableOpacity
-              style={[
-                styles.actionItem,
-                styles.deleteAction,
-              ]}
-              onPress={deleteStudent}
+              style={styles.actionItem}
+              onPress={openManageSubjects}
               activeOpacity={0.75}
             >
-              <View style={styles.deleteIcon}>
+              <View style={[styles.actionIcon, styles.purpleBg]}>
                 <MaterialCommunityIcons
-                  name="delete-outline"
+                  name="book-open-page-variant"
                   size={21}
-                  color="#E95368"
+                  color="#7040D5"
+                />
+              </View>
+
+              <View style={styles.actionTextContainer}>
+                <Text style={styles.actionTitle}>Manage Subjects</Text>
+                <Text style={styles.actionDescription}>
+                  Enroll this student in batch subjects
+                </Text>
+              </View>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#A0ADBC"
+              />
+            </TouchableOpacity>
+
+            {/* STATUS */}
+
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={toggleStudentStatus}
+              activeOpacity={0.75}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  selectedStudent?.status === 'Active'
+                    ? styles.orangeBg
+                    : styles.greenBg,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={
+                    selectedStudent?.status === 'Active'
+                      ? 'account-off-outline'
+                      : 'account-check-outline'
+                  }
+                  size={21}
+                  color={
+                    selectedStudent?.status === 'Active'
+                      ? '#F7941D'
+                      : '#35B878'
+                  }
                 />
               </View>
 
@@ -761,21 +1282,27 @@ export default function StudentsPage() {
                 <Text
                   style={[
                     styles.actionTitle,
-                    styles.deleteTitle,
+                    selectedStudent?.status === 'Active'
+                      ? styles.deactivateTitle
+                      : styles.activateTitle,
                   ]}
                 >
-                  Delete Student
+                  {selectedStudent?.status === 'Active'
+                    ? 'Deactivate Student'
+                    : 'Activate Student'}
                 </Text>
 
                 <Text style={styles.actionDescription}>
-                  Permanently remove this student
+                  {selectedStudent?.status === 'Active'
+                    ? 'Temporarily disable this student account'
+                    : 'Activate this student account'}
                 </Text>
               </View>
 
               <MaterialCommunityIcons
                 name="chevron-right"
                 size={20}
-                color="#E95368"
+                color="#A0ADBC"
               />
             </TouchableOpacity>
 
@@ -783,22 +1310,417 @@ export default function StudentsPage() {
         </View>
       </Modal>
 
-      {/* EDIT MODAL */}
+      {/* =================================================
+           MANAGE STUDENT SUBJECTS MODAL
+      ================================================= */}
+
+      <Modal
+        visible={showSubjectsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSubjectsModal(false)}
+      >
+        <View style={styles.subjectsModalOverlay}>
+          <View
+            style={[
+              styles.subjectsModal,
+              isDesktop && styles.subjectsModalDesktop,
+            ]}
+          >
+            <View style={styles.subjectsHeader}>
+              <View style={styles.subjectsHeaderIcon}>
+                <MaterialCommunityIcons
+                  name="book-open-page-variant"
+                  size={23}
+                  color="#7040D5"
+                />
+              </View>
+              <View style={styles.subjectsHeaderInfo}>
+                <Text style={styles.subjectsTitle}>Manage Subjects</Text>
+                <Text style={styles.subjectsSubtitle}>
+                  {selectedStudent?.name || 'Student'} • {selectedStudent?.studentId || ''}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.editCloseButton}
+                onPress={() => setShowSubjectsModal(false)}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.subjectsBatchInfo}>
+              <MaterialCommunityIcons name="account-multiple-outline" size={19} color="#7040D5" />
+              <View style={styles.subjectsBatchTextWrap}>
+                <Text style={styles.subjectsBatchLabel}>Assigned batch</Text>
+                <Text style={styles.subjectsBatchName}>
+                  {selectedStudent?.batch || 'No batch assigned'}
+                </Text>
+                <Text style={styles.subjectsBatchMeta}>
+                  {selectedStudent?.branch || ''} {selectedStudent?.standard ? `• ${selectedStudent.standard}` : ''}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.subjectsListHeading}>
+              <View>
+                <Text style={styles.subjectsListTitle}>Available Batch Subjects</Text>
+                <Text style={styles.subjectsListSubtitle}>
+                  Enroll only in the subjects this student takes.
+                </Text>
+              </View>
+              <View style={styles.subjectsCountBadge}>
+                <Text style={styles.subjectsCountText}>
+                  {selectedStudent
+                    ? (mockBatchSubjects[selectedStudent.batch] || []).filter(
+                        (subject) => enrollmentStatuses[`${selectedStudent.id}:${subject.id}`] === 'active'
+                      ).length
+                    : 0}
+                </Text>
+              </View>
+            </View>
+
+            <ScrollView
+              style={styles.subjectsScroll}
+              contentContainerStyle={styles.subjectsListContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {selectedStudent && (mockBatchSubjects[selectedStudent.batch] || []).length > 0 ? (
+                (mockBatchSubjects[selectedStudent.batch] || []).map((subject) => {
+                  const enrollmentKey = `${selectedStudent.id}:${subject.id}`;
+                  const status = enrollmentStatuses[enrollmentKey];
+                  const isEnrolled = status === 'active';
+                  const isInactive = status === 'inactive';
+
+                  return (
+                    <View key={subject.id} style={styles.subjectCard}>
+                      <View style={styles.subjectIcon}>
+                        <MaterialCommunityIcons
+                          name="book-education-outline"
+                          size={22}
+                          color="#7040D5"
+                        />
+                      </View>
+                      <View style={styles.subjectInfo}>
+                        <Text style={styles.subjectName}>{subject.name}</Text>
+                        <View style={styles.subjectTeacherRow}>
+                          <MaterialCommunityIcons name="account-outline" size={13} color="#8A98A9" />
+                          <Text style={styles.subjectTeacher}>{subject.teacher}</Text>
+                        </View>
+                        <View style={[
+                          styles.subjectStatusBadge,
+                          isEnrolled ? styles.subjectEnrolledBadge : isInactive ? styles.subjectInactiveBadge : styles.subjectNotEnrolledBadge,
+                        ]}>
+                          <View style={[
+                            styles.subjectStatusDot,
+                            isEnrolled ? styles.subjectEnrolledDot : isInactive ? styles.subjectInactiveDot : styles.subjectNotEnrolledDot,
+                          ]} />
+                          <Text style={[
+                            styles.subjectStatusText,
+                            isEnrolled ? styles.subjectEnrolledText : isInactive ? styles.subjectInactiveText : styles.subjectNotEnrolledText,
+                          ]}>
+                            {isEnrolled ? 'Enrolled' : isInactive ? 'Inactive' : 'Not enrolled'}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={[
+                          styles.subjectActionButton,
+                          isEnrolled ? styles.subjectDeactivateButton : styles.subjectEnrollButton,
+                        ]}
+                        onPress={() => toggleSubjectEnrollment(subject)}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialCommunityIcons
+                          name={isEnrolled ? 'minus' : isInactive ? 'refresh' : 'plus'}
+                          size={16}
+                          color={isEnrolled ? '#D97706' : '#FFFFFF'}
+                        />
+                        <Text style={[
+                          styles.subjectActionText,
+                          isEnrolled && styles.subjectDeactivateText,
+                        ]}>
+                          {isEnrolled ? 'Remove' : isInactive ? 'Reactivate' : 'Enroll'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })
+              ) : (
+                <View style={styles.subjectsEmptyState}>
+                  <MaterialCommunityIcons name="book-off-outline" size={34} color="#9AA8B8" />
+                  <Text style={styles.subjectsEmptyTitle}>No subjects available</Text>
+                  <Text style={styles.subjectsEmptyText}>
+                    No mock subjects are configured for this batch yet.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.subjectsFooter}>
+              <Text style={styles.subjectsFooterNote}>
+                Mock data only • API integration will be done later
+              </Text>
+              <TouchableOpacity
+                style={styles.subjectsDoneButton}
+                onPress={() => setShowSubjectsModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.subjectsDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* =================================================
+          VIEW STUDENT MODAL
+      ================================================= */}
+
+      <Modal
+        visible={showViewModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setShowViewModal(false)
+        }
+      >
+        <View style={styles.viewModalOverlay}>
+          <View
+            style={[
+              styles.viewModal,
+              isDesktop && styles.viewModalDesktop,
+            ]}
+          >
+
+            {/* HEADER */}
+
+            <View style={styles.viewHeader}>
+              <View>
+                <Text style={styles.viewTitle}>
+                  Student Details
+                </Text>
+
+                <Text style={styles.viewSubtitle}>
+                  Complete student information
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.editCloseButton}
+                onPress={() =>
+                  setShowViewModal(false)
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={20}
+                  color="#64748B"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.viewContent}
+            >
+
+              {/* PROFILE */}
+
+              <View style={styles.profileCard}>
+                <View style={styles.profileAvatar}>
+                  <Text style={styles.profileAvatarText}>
+                    {selectedStudent?.name
+                      .charAt(0)
+                      .toUpperCase()}
+                  </Text>
+                </View>
+
+                <View style={styles.profileInfo}>
+                  <Text style={styles.profileName}>
+                    {selectedStudent?.name}
+                  </Text>
+
+                  <Text style={styles.profileId}>
+                    {selectedStudent?.studentId}
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.profileStatus,
+                      selectedStudent?.status ===
+                      'Active'
+                        ? styles.activeBadge
+                        : styles.inactiveBadge,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.statusDot,
+                        selectedStudent?.status ===
+                        'Active'
+                          ? styles.activeDot
+                          : styles.inactiveDot,
+                      ]}
+                    />
+
+                    <Text
+                      style={[
+                        styles.statusText,
+                        selectedStudent?.status ===
+                        'Active'
+                          ? styles.activeText
+                          : styles.inactiveText,
+                      ]}
+                    >
+                      {selectedStudent?.status}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* PERSONAL */}
+
+              <Text style={styles.viewSectionTitle}>
+                Personal Information
+              </Text>
+
+              <View style={styles.infoCard}>
+
+                <InfoRow
+                  icon="email-outline"
+                  label="Email"
+                  value={
+                    selectedStudent?.email || '-'
+                  }
+                />
+
+                <InfoRow
+                  icon="phone-outline"
+                  label="Mobile"
+                  value={
+                    selectedStudent?.phone || '-'
+                  }
+                />
+
+              </View>
+
+              {/* ACADEMIC */}
+
+              <Text style={styles.viewSectionTitle}>
+                Academic Information
+              </Text>
+
+              <View style={styles.infoCard}>
+
+                <InfoRow
+                  icon="account-multiple-outline"
+                  label="Batch"
+                  value={
+                    selectedStudent?.batch || '-'
+                  }
+                />
+
+                <InfoRow
+                  icon="school-outline"
+                  label="Standard"
+                  value={
+                    selectedStudent?.standard || '-'
+                  }
+                />
+
+                <InfoRow
+                  icon="office-building-outline"
+                  label="Branch"
+                  value={
+                    selectedStudent?.branch || '-'
+                  }
+                />
+
+              </View>
+
+              {/* GUARDIAN */}
+
+              <Text style={styles.viewSectionTitle}>
+                Guardian Information
+              </Text>
+
+              <View style={styles.infoCard}>
+
+                <InfoRow
+                  icon="account-supervisor-outline"
+                  label="Guardian Name"
+                  value={
+                    selectedStudent?.guardianName ||
+                    '-'
+                  }
+                />
+
+                <InfoRow
+                  icon="phone-outline"
+                  label="Guardian Mobile"
+                  value={
+                    selectedStudent?.guardianMobile ||
+                    '-'
+                  }
+                />
+
+                <InfoRow
+                  icon="map-marker-outline"
+                  label="Address"
+                  value={
+                    selectedStudent?.address || '-'
+                  }
+                />
+
+              </View>
+
+            </ScrollView>
+
+            {/* CLOSE */}
+
+            <View style={styles.viewButtons}>
+              <TouchableOpacity
+                style={styles.viewCloseButton}
+                onPress={() =>
+                  setShowViewModal(false)
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={styles.viewCloseText}>
+                  Close
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </View>
+      </Modal>
+
+      {/* =================================================
+          EDIT STUDENT MODAL
+      ================================================= */}
 
       <Modal
         visible={showEditModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowEditModal(false)}
+        onRequestClose={() =>
+          setShowEditModal(false)
+        }
       >
         <View style={styles.editModalOverlay}>
 
           <View
             style={[
               styles.editModal,
-              isDesktop && styles.editModalDesktop,
+              isDesktop &&
+                styles.editModalDesktop,
             ]}
           >
+
+            {/* HEADER */}
 
             <View style={styles.editHeader}>
               <View>
@@ -807,13 +1729,15 @@ export default function StudentsPage() {
                 </Text>
 
                 <Text style={styles.editSubtitle}>
-                  Personal Information
+                  Update student information
                 </Text>
               </View>
 
               <TouchableOpacity
                 style={styles.editCloseButton}
-                onPress={() => setShowEditModal(false)}
+                onPress={() =>
+                  setShowEditModal(false)
+                }
               >
                 <MaterialCommunityIcons
                   name="close"
@@ -826,8 +1750,46 @@ export default function StudentsPage() {
             <ScrollView
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.editContent}
+              contentContainerStyle={
+                styles.editContent
+              }
             >
+
+              {/* STUDENT ID */}
+
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>
+                  Student ID
+                </Text>
+
+                <View
+                  style={[
+                    styles.editInputBox,
+                    styles.readOnlyInput,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="card-account-details-outline"
+                    size={19}
+                    color="#A0ADBC"
+                  />
+
+                  <Text
+                    style={styles.readOnlyText}
+                  >
+                    {selectedStudent?.studentId ||
+                      '-'}
+                  </Text>
+
+                  <MaterialCommunityIcons
+                    name="lock-outline"
+                    size={16}
+                    color="#A0ADBC"
+                  />
+                </View>
+              </View>
+
+              {/* NAME */}
 
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>
@@ -850,6 +1812,8 @@ export default function StudentsPage() {
                   />
                 </View>
               </View>
+
+              {/* EMAIL */}
 
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>
@@ -875,6 +1839,8 @@ export default function StudentsPage() {
                 </View>
               </View>
 
+              {/* MOBILE */}
+
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>
                   Mobile Number
@@ -898,31 +1864,42 @@ export default function StudentsPage() {
                 </View>
               </View>
 
+              {/* BATCH */}
+
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>
-                  Branch
+                  Batch
                 </Text>
 
                 <TouchableOpacity
                   style={styles.editInputBox}
                   onPress={() =>
-                    setShowBranchList(!showBranchList)
+                    setShowBatchList(
+                      !showBatchList
+                    )
                   }
                   activeOpacity={0.8}
                 >
                   <MaterialCommunityIcons
-                    name="office-building-outline"
+                    name="account-multiple-outline"
                     size={19}
                     color="#8A98A9"
                   />
 
-                  <Text style={styles.editSelectText}>
-                    {editBranch || 'Select branch'}
+                  <Text
+                    style={[
+                      styles.editSelectText,
+                      !editBatch &&
+                        styles.placeholderText,
+                    ]}
+                  >
+                    {editBatch ||
+                      'Select batch'}
                   </Text>
 
                   <MaterialCommunityIcons
                     name={
-                      showBranchList
+                      showBatchList
                         ? 'chevron-up'
                         : 'chevron-down'
                     }
@@ -931,23 +1908,47 @@ export default function StudentsPage() {
                   />
                 </TouchableOpacity>
 
-                {showBranchList && (
-                  <View style={styles.branchDropdown}>
-                    {branches.map((branch) => (
+                {showBatchList && (
+                  <View
+                    style={styles.batchDropdown}
+                  >
+                    {batches.map((batch) => (
                       <TouchableOpacity
-                        key={branch}
-                        style={styles.branchItem}
+                        key={batch.name}
+                        style={styles.batchItem}
                         onPress={() => {
-                          setEditBranch(branch);
-                          setShowBranchList(false);
+                          setEditBatch(
+                            batch.name
+                          );
+                          setShowBatchList(false);
                         }}
                         activeOpacity={0.7}
                       >
-                        <Text style={styles.branchText}>
-                          {branch}
-                        </Text>
+                        <View
+                          style={
+                            styles.batchItemInfo
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.batchText
+                            }
+                          >
+                            {batch.name}
+                          </Text>
 
-                        {editBranch === branch && (
+                          <Text
+                            style={
+                              styles.batchMeta
+                            }
+                          >
+                            {batch.standard} •{' '}
+                            {batch.branch}
+                          </Text>
+                        </View>
+
+                        {editBatch ===
+                          batch.name && (
                           <MaterialCommunityIcons
                             name="check"
                             size={18}
@@ -960,57 +1961,104 @@ export default function StudentsPage() {
                 )}
               </View>
 
+              {/* GUARDIAN NAME */}
+
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>
-                  Course
+                  Guardian Name
                 </Text>
 
                 <View style={styles.editInputBox}>
                   <MaterialCommunityIcons
-                    name="book-open-outline"
+                    name="account-supervisor-outline"
                     size={19}
                     color="#8A98A9"
                   />
 
                   <TextInput
-                    value={editCourse}
-                    onChangeText={setEditCourse}
+                    value={editGuardianName}
+                    onChangeText={
+                      setEditGuardianName
+                    }
                     style={styles.editInput}
-                    placeholder="Enter course"
+                    placeholder="Enter guardian name"
                     placeholderTextColor="#A3AFBE"
                   />
                 </View>
               </View>
 
+              {/* GUARDIAN MOBILE */}
+
               <View style={styles.editField}>
                 <Text style={styles.editLabel}>
-                  Batch
+                  Guardian Mobile
                 </Text>
 
                 <View style={styles.editInputBox}>
                   <MaterialCommunityIcons
-                    name="account-multiple-outline"
+                    name="phone-outline"
                     size={19}
                     color="#8A98A9"
                   />
 
                   <TextInput
-                    value={editBatch}
-                    onChangeText={setEditBatch}
+                    value={editGuardianMobile}
+                    onChangeText={
+                      setEditGuardianMobile
+                    }
                     style={styles.editInput}
-                    placeholder="Enter batch"
+                    placeholder="Enter guardian mobile"
                     placeholderTextColor="#A3AFBE"
+                    keyboardType="phone-pad"
+                  />
+                </View>
+              </View>
+
+              {/* ADDRESS */}
+
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>
+                  Address
+                </Text>
+
+                <View
+                  style={[
+                    styles.editInputBox,
+                    styles.addressInputBox,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="map-marker-outline"
+                    size={19}
+                    color="#8A98A9"
+                  />
+
+                  <TextInput
+                    value={editAddress}
+                    onChangeText={setEditAddress}
+                    style={[
+                      styles.editInput,
+                      styles.addressInput,
+                    ]}
+                    placeholder="Enter address"
+                    placeholderTextColor="#A3AFBE"
+                    multiline
+                    textAlignVertical="top"
                   />
                 </View>
               </View>
 
             </ScrollView>
 
+            {/* BUTTONS */}
+
             <View style={styles.editButtons}>
 
               <TouchableOpacity
                 style={styles.editCancelButton}
-                onPress={() => setShowEditModal(false)}
+                onPress={() =>
+                  setShowEditModal(false)
+                }
                 activeOpacity={0.8}
               >
                 <Text style={styles.editCancelText}>
@@ -1040,17 +2088,223 @@ export default function StudentsPage() {
         </View>
       </Modal>
 
+      {/* =================================================
+          FILTER MODAL
+      ================================================= */}
+
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setShowFilterModal(false)
+        }
+      >
+        <TouchableOpacity
+          style={styles.filterOverlay}
+          activeOpacity={1}
+          onPress={() =>
+            setShowFilterModal(false)
+          }
+        >
+          <View
+            style={styles.filterModal}
+            onStartShouldSetResponder={() =>
+              true
+            }
+          >
+
+            <View style={styles.filterHeader}>
+              <View>
+                <Text style={styles.filterTitle}>
+                  Filter Students
+                </Text>
+
+                <Text
+                  style={styles.filterSubtitle}
+                >
+                  Filter by account status
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.editCloseButton}
+                onPress={() =>
+                  setShowFilterModal(false)
+                }
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={20}
+                  color="#64748B"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* ALL */}
+
+            <TouchableOpacity
+              style={styles.filterOption}
+              onPress={() =>
+                selectFilter('All')
+              }
+            >
+              <View
+                style={[
+                  styles.filterOptionIcon,
+                  styles.purpleBg,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="account-group-outline"
+                  size={20}
+                  color="#7040D5"
+                />
+              </View>
+
+              <Text style={styles.filterOptionText}>
+                All Students
+              </Text>
+
+              {filterStatus === 'All' && (
+                <MaterialCommunityIcons
+                  name="check-circle"
+                  size={20}
+                  color="#7040D5"
+                />
+              )}
+            </TouchableOpacity>
+
+            {/* ACTIVE */}
+
+            <TouchableOpacity
+              style={styles.filterOption}
+              onPress={() =>
+                selectFilter('Active')
+              }
+            >
+              <View
+                style={[
+                  styles.filterOptionIcon,
+                  styles.greenBg,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="account-check-outline"
+                  size={20}
+                  color="#35B878"
+                />
+              </View>
+
+              <Text style={styles.filterOptionText}>
+                Active Students
+              </Text>
+
+              {filterStatus === 'Active' && (
+                <MaterialCommunityIcons
+                  name="check-circle"
+                  size={20}
+                  color="#35B878"
+                />
+              )}
+            </TouchableOpacity>
+
+            {/* INACTIVE */}
+
+            <TouchableOpacity
+              style={styles.filterOption}
+              onPress={() =>
+                selectFilter('Inactive')
+              }
+            >
+              <View
+                style={[
+                  styles.filterOptionIcon,
+                  styles.orangeBg,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="account-off-outline"
+                  size={20}
+                  color="#F7941D"
+                />
+              </View>
+
+              <Text style={styles.filterOptionText}>
+                Inactive Students
+              </Text>
+
+              {filterStatus === 'Inactive' && (
+                <MaterialCommunityIcons
+                  name="check-circle"
+                  size={20}
+                  color="#F7941D"
+                />
+              )}
+            </TouchableOpacity>
+
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
 
+/* =========================================================
+   INFO ROW
+========================================================= */
+
+function InfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.infoRow}>
+      <View style={styles.infoIcon}>
+        <MaterialCommunityIcons
+          name={icon}
+          size={18}
+          color="#7040D5"
+        />
+      </View>
+
+      <View style={styles.infoTextContainer}>
+        <Text style={styles.infoLabel}>
+          {label}
+        </Text>
+
+        <Text style={styles.infoValue}>
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/* =========================================================
+   STYLES
+========================================================= */
+
 const styles = StyleSheet.create({
+
+  /* =======================================================
+     CONTAINER
+  ======================================================= */
+
   container: {
     flex: 1,
     backgroundColor: '#F7F8FC',
   },
 
-  /* HEADER */
+  /* =======================================================
+     HEADER
+  ======================================================= */
 
   header: {
     width: '100%',
@@ -1069,7 +2323,8 @@ const styles = StyleSheet.create({
 
     borderRadius: 12,
 
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor:
+      'rgba(255,255,255,0.15)',
 
     alignItems: 'center',
     justifyContent: 'center',
@@ -1081,12 +2336,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-
-  /*
-   * IMPORTANT:
-   * Only "Students" stays in the purple header.
-   * "Student Management" is shown below.
-   */
 
   headerTitle: {
     fontFamily: 'PoppinsSemiBold',
@@ -1117,7 +2366,9 @@ const styles = StyleSheet.create({
     color: '#7040D5',
   },
 
-  /* CONTENT */
+  /* =======================================================
+     CONTENT
+  ======================================================= */
 
   content: {
     flex: 1,
@@ -1158,21 +2409,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  mobileAddButton: {
-    width: 42,
-    height: 42,
-
-    borderRadius: 12,
-
-    backgroundColor: '#7040D5',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginLeft: 10,
-  },
-
-  /* SUMMARY */
+  /* =======================================================
+     SUMMARY
+  ======================================================= */
 
   summaryGrid: {
     flexDirection: 'row',
@@ -1202,10 +2441,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
 
     shadowColor: '#000000',
+
     shadowOffset: {
       width: 0,
       height: 2,
     },
+
     shadowOpacity: 0.05,
     shadowRadius: 6,
 
@@ -1262,7 +2503,9 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
-  /* SEARCH */
+  /* =======================================================
+     SEARCH
+  ======================================================= */
 
   searchBox: {
     width: '100%',
@@ -1296,7 +2539,9 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
 
-  /* LIST HEADER */
+  /* =======================================================
+     LIST HEADER
+  ======================================================= */
 
   listHeader: {
     flexDirection: 'row',
@@ -1344,7 +2589,9 @@ const styles = StyleSheet.create({
     color: '#7040D5',
   },
 
-  /* STUDENT LIST */
+  /* =======================================================
+     STUDENT LIST
+  ======================================================= */
 
   listContent: {
     paddingBottom: 30,
@@ -1369,10 +2616,12 @@ const styles = StyleSheet.create({
     marginBottom: 9,
 
     shadowColor: '#000000',
+
     shadowOffset: {
       width: 0,
       height: 2,
     },
+
     shadowOpacity: 0.05,
     shadowRadius: 6,
 
@@ -1498,7 +2747,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  /* EMPTY */
+  /* =======================================================
+     EMPTY
+  ======================================================= */
 
   emptyState: {
     alignItems: 'center',
@@ -1535,17 +2786,23 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  /* ACTION MODAL */
+  /* =======================================================
+     ACTION MODAL
+  ======================================================= */
 
   modalOverlay: {
     flex: 1,
 
-    backgroundColor: 'rgba(10,18,35,0.48)',
+    backgroundColor:
+      'rgba(10,18,35,0.48)',
 
     justifyContent: 'flex-end',
 
     paddingHorizontal: 12,
-    paddingBottom: Platform.OS === 'android' ? 12 : 25,
+    paddingBottom:
+      Platform.OS === 'android'
+        ? 12
+        : 25,
   },
 
   actionSheet: {
@@ -1560,10 +2817,12 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
 
     shadowColor: '#000000',
+
     shadowOffset: {
       width: 0,
       height: -2,
     },
+
     shadowOpacity: 0.12,
     shadowRadius: 10,
 
@@ -1681,22 +2940,196 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  deleteAction: {
-    marginTop: 3,
-
-    borderTopWidth: 1,
-    borderTopColor: '#F0F1F4',
-
-    paddingTop: 10,
+  activateTitle: {
+    color: '#35B878',
   },
 
-  deleteIcon: {
-    width: 43,
-    height: 43,
+  deactivateTitle: {
+    color: '#F7941D',
+  },
 
-    borderRadius: 12,
+  /* =======================================================
+     VIEW MODAL
+  ======================================================= */
 
-    backgroundColor: '#FFF0F1',
+  viewModalOverlay: {
+    flex: 1,
+
+    backgroundColor:
+      'rgba(10,18,35,0.45)',
+
+    justifyContent: 'flex-end',
+  },
+
+  viewModal: {
+    width: '100%',
+    maxHeight: '92%',
+
+    backgroundColor: '#F7F8FC',
+
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+
+    overflow: 'hidden',
+  },
+
+  viewModalDesktop: {
+    width: 560,
+
+    alignSelf: 'center',
+
+    borderRadius: 20,
+
+    marginBottom: 20,
+
+    maxHeight: '90%',
+  },
+
+  viewHeader: {
+    minHeight: 72,
+
+    backgroundColor: '#FFFFFF',
+
+    paddingHorizontal: 18,
+
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F5',
+  },
+
+  viewTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 17,
+
+    color: '#172033',
+  },
+
+  viewSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+
+    color: '#8A98A9',
+
+    marginTop: 1,
+  },
+
+  viewContent: {
+    padding: 18,
+    paddingBottom: 25,
+  },
+
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 15,
+
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+
+    padding: 14,
+
+    flexDirection: 'row',
+    alignItems: 'center',
+
+    marginBottom: 18,
+  },
+
+  profileAvatar: {
+    width: 58,
+    height: 58,
+
+    borderRadius: 17,
+
+    backgroundColor: '#F1EAFF',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    marginRight: 12,
+  },
+
+  profileAvatarText: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 22,
+
+    color: '#7040D5',
+  },
+
+  profileInfo: {
+    flex: 1,
+  },
+
+  profileName: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 15,
+
+    color: '#172033',
+  },
+
+  profileId: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9.5,
+
+    color: '#7040D5',
+
+    marginTop: 2,
+    marginBottom: 6,
+  },
+
+  profileStatus: {
+    alignSelf: 'flex-start',
+
+    flexDirection: 'row',
+    alignItems: 'center',
+
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+
+    borderRadius: 7,
+  },
+
+  viewSectionTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11.5,
+
+    color: '#445266',
+
+    marginBottom: 8,
+  },
+
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 14,
+
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+
+    paddingHorizontal: 13,
+
+    marginBottom: 16,
+  },
+
+  infoRow: {
+    minHeight: 61,
+
+    flexDirection: 'row',
+    alignItems: 'center',
+
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F5',
+  },
+
+  infoIcon: {
+    width: 36,
+    height: 36,
+
+    borderRadius: 10,
+
+    backgroundColor: '#F1EAFF',
 
     alignItems: 'center',
     justifyContent: 'center',
@@ -1704,16 +3137,62 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
 
-  deleteTitle: {
-    color: '#E95368',
+  infoTextContainer: {
+    flex: 1,
   },
 
-  /* EDIT MODAL */
+  infoLabel: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+
+    color: '#8A98A9',
+
+    marginBottom: 2,
+  },
+
+  infoValue: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10.5,
+
+    color: '#172033',
+  },
+
+  viewButtons: {
+    backgroundColor: '#FFFFFF',
+
+    borderTopWidth: 1,
+    borderTopColor: '#EEF0F5',
+
+    padding: 14,
+  },
+
+  viewCloseButton: {
+    height: 48,
+
+    borderRadius: 12,
+
+    backgroundColor: '#F1F3F6',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  viewCloseText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10.5,
+
+    color: '#66768A',
+  },
+
+  /* =======================================================
+     EDIT MODAL
+  ======================================================= */
 
   editModalOverlay: {
     flex: 1,
 
-    backgroundColor: 'rgba(10,18,35,0.45)',
+    backgroundColor:
+      'rgba(10,18,35,0.45)',
 
     justifyContent: 'flex-end',
   },
@@ -1832,6 +3311,21 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
 
+  readOnlyInput: {
+    backgroundColor: '#F3F5F8',
+  },
+
+  readOnlyText: {
+    flex: 1,
+
+    fontFamily: 'PoppinsMedium',
+    fontSize: 11.5,
+
+    color: '#7A8798',
+
+    marginLeft: 8,
+  },
+
   editSelectText: {
     flex: 1,
 
@@ -1843,7 +3337,23 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  branchDropdown: {
+  placeholderText: {
+    color: '#A3AFBE',
+  },
+
+  addressInputBox: {
+    minHeight: 85,
+
+    alignItems: 'flex-start',
+
+    paddingTop: 13,
+  },
+
+  addressInput: {
+    minHeight: 65,
+  },
+
+  batchDropdown: {
     marginTop: 5,
 
     backgroundColor: '#FFFFFF',
@@ -1858,8 +3368,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  branchItem: {
-    minHeight: 43,
+  batchItem: {
+    minHeight: 55,
 
     paddingHorizontal: 13,
 
@@ -1871,11 +3381,24 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F2F5',
   },
 
-  branchText: {
-    fontFamily: 'PoppinsRegular',
+  batchItemInfo: {
+    flex: 1,
+  },
+
+  batchText: {
+    fontFamily: 'PoppinsMedium',
     fontSize: 10.5,
 
     color: '#445266',
+  },
+
+  batchMeta: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+
+    color: '#8A98A9',
+
+    marginTop: 2,
   },
 
   editButtons: {
@@ -1933,4 +3456,344 @@ const styles = StyleSheet.create({
 
     color: '#FFFFFF',
   },
+
+  /* =======================================================
+     MANAGE SUBJECTS MODAL
+  ======================================================= */
+
+  subjectsModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(10,18,35,0.48)',
+    justifyContent: 'flex-end',
+  },
+  subjectsModal: {
+    width: '100%',
+    maxHeight: '92%',
+    backgroundColor: '#F7F8FC',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    overflow: 'hidden',
+  },
+  subjectsModalDesktop: {
+    width: 620,
+    alignSelf: 'center',
+    borderRadius: 20,
+    marginBottom: 20,
+    maxHeight: '90%',
+  },
+  subjectsHeader: {
+    minHeight: 76,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F5',
+  },
+  subjectsHeaderIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 13,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+  subjectsHeaderInfo: { flex: 1, minWidth: 0 },
+  subjectsTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 16,
+    color: '#172033',
+  },
+  subjectsSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    color: '#8A98A9',
+    marginTop: 2,
+  },
+  subjectsBatchInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1EAFF',
+    marginHorizontal: 16,
+    marginTop: 15,
+    padding: 12,
+    borderRadius: 13,
+  },
+  subjectsBatchTextWrap: { flex: 1, marginLeft: 10 },
+  subjectsBatchLabel: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+    color: '#7A8798',
+  },
+  subjectsBatchName: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11.5,
+    color: '#38206F',
+    marginTop: 1,
+  },
+  subjectsBatchMeta: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+    color: '#7A8798',
+    marginTop: 1,
+  },
+  subjectsListHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 17,
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  subjectsListTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+    color: '#172033',
+  },
+  subjectsListSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+    color: '#8A98A9',
+    marginTop: 2,
+  },
+  subjectsCountBadge: {
+    minWidth: 29,
+    height: 29,
+    borderRadius: 10,
+    backgroundColor: '#E7F8EF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+  },
+  subjectsCountText: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 11,
+    color: '#25965D',
+  },
+  subjectsScroll: { flexShrink: 1 },
+  subjectsListContent: { paddingHorizontal: 16, paddingBottom: 12 },
+  subjectCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF0F5',
+    borderRadius: 14,
+    padding: 11,
+    marginBottom: 9,
+  },
+  subjectIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  subjectInfo: { flex: 1, minWidth: 0 },
+  subjectName: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11.5,
+    color: '#172033',
+  },
+  subjectTeacherRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  subjectTeacher: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+    color: '#8A98A9',
+    marginLeft: 4,
+  },
+  subjectStatusBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+  subjectStatusDot: { width: 5, height: 5, borderRadius: 3, marginRight: 4 },
+  subjectEnrolledBadge: { backgroundColor: '#E7F8EF' },
+  subjectInactiveBadge: { backgroundColor: '#FFF1E2' },
+  subjectNotEnrolledBadge: { backgroundColor: '#F1F3F6' },
+  subjectEnrolledDot: { backgroundColor: '#35B878' },
+  subjectInactiveDot: { backgroundColor: '#F7941D' },
+  subjectNotEnrolledDot: { backgroundColor: '#9AA8B8' },
+  subjectStatusText: { fontFamily: 'PoppinsMedium', fontSize: 7.5 },
+  subjectEnrolledText: { color: '#25965D' },
+  subjectInactiveText: { color: '#B96A0A' },
+  subjectNotEnrolledText: { color: '#7A8798' },
+  subjectActionButton: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+    paddingHorizontal: 9,
+    marginLeft: 8,
+  },
+  subjectEnrollButton: { backgroundColor: '#7040D5' },
+  subjectDeactivateButton: { backgroundColor: '#FFF1E2' },
+  subjectActionText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 8.5,
+    color: '#FFFFFF',
+    marginLeft: 3,
+  },
+  subjectDeactivateText: { color: '#B96A0A' },
+  subjectsEmptyState: { alignItems: 'center', paddingVertical: 35, paddingHorizontal: 20 },
+  subjectsEmptyTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+    color: '#445266',
+    marginTop: 9,
+  },
+  subjectsEmptyText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
+    color: '#8A98A9',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  subjectsFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#EEF0F5',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  subjectsFooterNote: {
+    flex: 1,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8,
+    color: '#8A98A9',
+    marginRight: 8,
+  },
+  subjectsDoneButton: {
+    minWidth: 82,
+    height: 39,
+    borderRadius: 10,
+    backgroundColor: '#7040D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 15,
+  },
+  subjectsDoneText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+
+  /* =======================================================
+     FILTER MODAL
+  ======================================================= */
+
+  filterOverlay: {
+    flex: 1,
+
+    backgroundColor:
+      'rgba(10,18,35,0.45)',
+
+    justifyContent: 'flex-end',
+
+    paddingHorizontal: 12,
+    paddingBottom:
+      Platform.OS === 'android'
+        ? 12
+        : 25,
+  },
+
+  filterModal: {
+    width: '100%',
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 20,
+
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 10,
+
+    shadowColor: '#000000',
+
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+
+    elevation: 10,
+  },
+
+  filterHeader: {
+    minHeight: 55,
+
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F5',
+
+    marginBottom: 5,
+  },
+
+  filterTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 15,
+
+    color: '#172033',
+  },
+
+  filterSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+
+    color: '#8A98A9',
+
+    marginTop: 2,
+  },
+
+  filterOption: {
+    minHeight: 64,
+
+    flexDirection: 'row',
+    alignItems: 'center',
+
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F5',
+  },
+
+  filterOptionIcon: {
+    width: 40,
+    height: 40,
+
+    borderRadius: 11,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    marginRight: 11,
+  },
+
+  filterOptionText: {
+    flex: 1,
+
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10.5,
+
+    color: '#172033',
+  },
+
 });

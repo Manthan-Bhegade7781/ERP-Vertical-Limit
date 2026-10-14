@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   /* Input Box */
   inputContainer: {
     width: '100%',
-    height: 65,
+    height: 55,
 
     flexDirection: 'row',
     alignItems: 'center',
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   /* Password Eye Button */
   eyeButton: {
     width: 40,
-    height: 50,
+    height: 55,
 
     justifyContent: 'center',
     alignItems: 'center',

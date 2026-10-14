@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+
+import React, { useEffect, useState } from 'react';
+
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -8,18 +11,49 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const staffMembers = [
-  'Rahul Sharma',
-  'Priya Singh',
-  'Amit Kumar',
-  'Neha Joshi',
-  'Vikas Patil',
-  'Sneha Kulkarni',
-];
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
+import { useAuth } from '@/context/AuthContext';
+
+type StaffOption = {
+  _id: string;
+  fullName: string;
+  email: string;
+  roles: string[];
+  branchId?: string | {
+    _id: string;
+    name?: string;
+    code?: string;
+  } | null;
+  branch?: {
+    _id: string;
+    name?: string;
+    code?: string;
+  };
+};
+
+type StaffOptionsResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    staff?: StaffOption[];
+    staffOptions?: StaffOption[];
+    users?: StaffOption[];
+  };
+};
+
+type LeaveResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    leave?: unknown;
+  };
+};
 
 const leaveTypes = [
   'Casual Leave',
@@ -29,21 +63,150 @@ const leaveTypes = [
   'Other',
 ];
 
+function formatDateForApi(value: string): string | null {
+  const trimmed = value.trim();
+
+  // Accept YYYY-MM-DD or DD/MM/YYYY.
+  let normalized = trimmed;
+
+  const dmyMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  if (dmyMatch) {
+    normalized = `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+  }
+
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return normalized;
+}
+
 export default function AddLeavePage() {
+  const { user } = useAuth();
+
+  const roles = user?.roles ?? [];
+  const isTeacherOnly =
+    roles.includes('teacher') &&
+    !roles.includes('admin') &&
+    !roles.includes('super_admin');
+
+  const canChooseStaff =
+    roles.includes('super_admin') || roles.includes('admin');
+
   const [staff, setStaff] = useState('');
+  const [staffMembers, setStaffMembers] = useState<StaffOption[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+
   const [leaveType, setLeaveType] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const saveLeave = () => {
-    if (
-      !staff.trim() ||
-      !leaveType.trim() ||
-      !fromDate.trim() ||
-      !toDate.trim() ||
-      !reason.trim()
-    ) {
+  useEffect(() => {
+    if (!canChooseStaff) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadStaff = async () => {
+      setLoadingStaff(true);
+
+      try {
+        const token = await getToken();
+
+        if (!token) {
+          throw new Error('Your session has expired. Please log in again.');
+        }
+
+        const response = await fetch(
+          `${API_BASE_URL}/leaves/staff-options`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const result: StaffOptionsResponse = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message || 'Unable to load staff members.'
+          );
+        }
+
+        // The exact array key should match the controller response.
+        const options =
+          result.data?.staff ??
+          result.data?.staffOptions ??
+          result.data?.users ??
+          [];
+
+        if (!cancelled) {
+          setStaffMembers(options);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Unable to load staff members.';
+
+          Alert.alert('Staff Loading Error', message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingStaff(false);
+        }
+      }
+    };
+
+    loadStaff();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canChooseStaff]);
+
+  const saveLeave = async () => {
+    if (saving) {
+      return;
+    }
+
+    if (!user) {
+      Alert.alert('Authentication Required', 'Please log in again.');
+      return;
+    }
+
+    if (!isTeacherOnly && !canChooseStaff) {
+      Alert.alert(
+        'Access Denied',
+        'Your account does not have permission to create leave requests.'
+      );
+      return;
+    }
+
+    if (!leaveType || !fromDate.trim() || !toDate.trim() || !reason.trim()) {
       Alert.alert(
         'Required Fields',
         'Please fill all required fields marked with *.'
@@ -51,24 +214,96 @@ export default function AddLeavePage() {
       return;
     }
 
-    Alert.alert(
-      'Leave Added',
-      'The staff leave request has been added successfully.',
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
+    if (canChooseStaff && !staff) {
+      Alert.alert('Required Fields', 'Please select a staff member.');
+      return;
+    }
+
+    const normalizedFromDate = formatDateForApi(fromDate);
+    const normalizedToDate = formatDateForApi(toDate);
+
+    if (!normalizedFromDate || !normalizedToDate) {
+      Alert.alert(
+        'Invalid Date',
+        'Enter dates as YYYY-MM-DD or DD/MM/YYYY, for example 2026-10-20.'
+      );
+      return;
+    }
+
+    if (normalizedToDate < normalizedFromDate) {
+      Alert.alert(
+        'Invalid Date Range',
+        'The To Date cannot be earlier than the From Date.'
+      );
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error('Your session has expired. Please log in again.');
+      }
+
+      const payload: {
+        staffId?: string;
+        leaveType: string;
+        fromDate: string;
+        toDate: string;
+        reason: string;
+      } = {
+        leaveType,
+        fromDate: normalizedFromDate,
+        toDate: normalizedToDate,
+        reason: reason.trim(),
+      };
+
+      // The backend derives the staff member from the Teacher's token.
+      if (canChooseStaff) {
+        payload.staffId = staff;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/leaves`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-      ]
-    );
+        body: JSON.stringify(payload),
+      });
+
+      const result: LeaveResponse = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to create leave request.');
+      }
+
+      Alert.alert(
+        'Leave Added',
+        result.message || 'The leave request was created successfully.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong while creating the leave request.';
+
+      Alert.alert('Unable to Save Leave', message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <SafeAreaView
-      style={styles.safeArea}
-      edges={['top', 'bottom']}
-    >
-      {/* HEADER */}
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -84,23 +319,7 @@ export default function AddLeavePage() {
 
         <Text style={styles.headerTitle}>Add Leave</Text>
 
-        <TouchableOpacity
-          style={styles.editButton}
-          activeOpacity={0.85}
-          onPress={() => {
-            Alert.alert(
-              'Edit Leave',
-              'Edit mode is ready for this leave form.'
-            );
-          }}
-        >
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={17}
-            color="#7040D5"
-          />
-          <Text style={styles.editButtonText}>Edit</Text>
-        </TouchableOpacity>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
@@ -111,7 +330,6 @@ export default function AddLeavePage() {
       >
         <Text style={styles.pageTitle}>Add Leave</Text>
 
-        {/* LEAVE INFORMATION */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIcon}>
@@ -123,57 +341,81 @@ export default function AddLeavePage() {
             </View>
 
             <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>
-                Leave Information
-              </Text>
+              <Text style={styles.sectionTitle}>Leave Information</Text>
               <Text style={styles.sectionSubtitle}>
-                Enter the staff leave details
+                Enter the leave details
               </Text>
             </View>
           </View>
 
-          {/* STAFF */}
-          <FormLabel label="Staff" required />
+          {canChooseStaff && (
+            <>
+              <FormLabel label="Staff" required />
 
-          <View style={styles.staffOptionWrap}>
-            {staffMembers.map((item) => {
-              const selected = staff === item;
+              {loadingStaff ? (
+                <View style={styles.loadingStaff}>
+                  <ActivityIndicator color="#7040D5" />
+                  <Text style={styles.loadingText}>Loading staff...</Text>
+                </View>
+              ) : staffMembers.length === 0 ? (
+                <Text style={styles.emptyStaffText}>
+                  No eligible staff members found.
+                </Text>
+              ) : (
+                <View style={styles.staffOptionWrap}>
+                  {staffMembers.map((item) => {
+                    const selected = staff === item._id;
 
-              return (
-                <TouchableOpacity
-                  key={item}
-                  style={[
-                    styles.staffOptionButton,
-                    selected && styles.optionButtonActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => setStaff(item)}
-                >
-                  <MaterialCommunityIcons
-                    name={
-                      selected
-                        ? 'check-circle'
-                        : 'account-outline'
-                    }
-                    size={14}
-                    color={selected ? '#7040D5' : '#7B8496'}
-                  />
+                    return (
+                      <TouchableOpacity
+                        key={item._id}
+                        style={[
+                          styles.staffOptionButton,
+                          selected && styles.optionButtonActive,
+                        ]}
+                        activeOpacity={0.8}
+                        onPress={() => setStaff(item._id)}
+                      >
+                        <MaterialCommunityIcons
+                          name={
+                            selected
+                              ? 'check-circle'
+                              : 'account-outline'
+                          }
+                          size={14}
+                          color={selected ? '#7040D5' : '#7B8496'}
+                        />
 
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.optionText,
-                      selected && styles.optionTextActive,
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.optionText,
+                            selected && styles.optionTextActive,
+                          ]}
+                        >
+                          {item.fullName}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </>
+          )}
 
-          {/* LEAVE TYPE */}
+          {isTeacherOnly && (
+            <View style={styles.teacherInfo}>
+              <MaterialCommunityIcons
+                name="account-check-outline"
+                size={18}
+                color="#7040D5"
+              />
+              <Text style={styles.teacherInfoText}>
+                Leave request will be created for {user?.fullName}.
+              </Text>
+            </View>
+          )}
+
           <FormLabel label="Leave Type" required />
 
           <View style={styles.optionWrap}>
@@ -199,6 +441,7 @@ export default function AddLeavePage() {
                     size={15}
                     color={selected ? '#7040D5' : '#7B8496'}
                   />
+
                   <Text
                     style={[
                       styles.optionText,
@@ -212,7 +455,6 @@ export default function AddLeavePage() {
             })}
           </View>
 
-          {/* DATE ROW */}
           <View style={styles.twoColumnRow}>
             <View style={styles.column}>
               <FormLabel label="From Date" required />
@@ -220,7 +462,7 @@ export default function AddLeavePage() {
                 icon="calendar-outline"
                 value={fromDate}
                 onChangeText={setFromDate}
-                placeholder="e.g. 15 Sep 2026"
+                placeholder="YYYY-MM-DD"
               />
             </View>
 
@@ -230,12 +472,11 @@ export default function AddLeavePage() {
                 icon="calendar-outline"
                 value={toDate}
                 onChangeText={setToDate}
-                placeholder="e.g. 17 Sep 2026"
+                placeholder="YYYY-MM-DD"
               />
             </View>
           </View>
 
-          {/* REASON */}
           <FormLabel label="Reason" required />
 
           <View style={styles.textAreaWrapper}>
@@ -257,7 +498,6 @@ export default function AddLeavePage() {
           </View>
         </View>
 
-        {/* INFORMATION */}
         <View style={styles.infoBox}>
           <MaterialCommunityIcons
             name="information-outline"
@@ -266,37 +506,39 @@ export default function AddLeavePage() {
           />
 
           <Text style={styles.infoText}>
-            Fields marked with * are required. Please enter
-            the correct staff and leave information before
-            saving the request.
+            Fields marked with * are required. Leave duration and status are
+            calculated by the server. New requests are submitted as pending.
           </Text>
         </View>
 
-        {/* ACTION BUTTONS */}
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={styles.cancelButton}
             activeOpacity={0.8}
+            disabled={saving}
             onPress={() => router.back()}
           >
-            <Text style={styles.cancelButtonText}>
-              Cancel
-            </Text>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.saveButton}
+            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
             activeOpacity={0.85}
+            disabled={saving || loadingStaff}
             onPress={saveLeave}
           >
-            <MaterialCommunityIcons
-              name="check-circle-outline"
-              size={19}
-              color="#FFFFFF"
-            />
+            {saving ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <MaterialCommunityIcons
+                name="check-circle-outline"
+                size={19}
+                color="#FFFFFF"
+              />
+            )}
 
             <Text style={styles.saveButtonText}>
-              Save Leave
+              {saving ? 'Saving...' : 'Save Leave'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -315,9 +557,7 @@ function FormLabel({
   return (
     <Text style={styles.formLabel}>
       {label}
-      {required && (
-        <Text style={styles.required}> *</Text>
-      )}
+      {required && <Text style={styles.required}> *</Text>}
     </Text>
   );
 }
@@ -335,11 +575,7 @@ function Input({
 }) {
   return (
     <View style={styles.inputWrapper}>
-      <MaterialCommunityIcons
-        name={icon}
-        size={18}
-        color="#7040D5"
-      />
+      <MaterialCommunityIcons name={icon} size={18} color="#7040D5" />
 
       <TextInput
         value={value}
@@ -347,6 +583,7 @@ function Input({
         placeholder={placeholder}
         placeholderTextColor="#A2AABB"
         style={styles.input}
+        autoCapitalize="none"
       />
     </View>
   );
@@ -385,23 +622,8 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
 
-  editButton: {
-    minHeight: 36,
-    minWidth: 88,
-    borderRadius: 9,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-
-  editButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 11,
-    color: '#7040D5',
-    marginLeft: 4,
+  headerSpacer: {
+    width: 40,
   },
 
   container: {
@@ -418,13 +640,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsBold',
     fontSize: 20,
     color: '#172033',
-  },
-
-  pageSubtitle: {
-    fontFamily: 'PoppinsRegular',
-    fontSize: 11,
-    color: '#7B8496',
-    marginTop: 1,
     marginBottom: 14,
   },
 
@@ -435,10 +650,7 @@ const styles = StyleSheet.create({
     borderColor: '#EEF0F5',
     padding: 16,
     shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 7,
     elevation: 2,
@@ -492,57 +704,67 @@ const styles = StyleSheet.create({
     color: '#D84B63',
   },
 
-  inputWrapper: {
-    minHeight: 52,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E0E3EA',
-    backgroundColor: '#FFFFFF',
+  loadingStaff: {
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 11,
+    gap: 9,
   },
 
-  input: {
-    flex: 1,
-    minHeight: 52,
-    marginLeft: 8,
-    paddingVertical: 0,
-    color: '#172033',
+  loadingText: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 10,
+    fontSize: 11,
+    color: '#7B8496',
   },
 
-  twoColumnRow: {
-    flexDirection: 'row',
-    gap: 8,
+  emptyStaffText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#D84B63',
+    paddingVertical: 10,
   },
 
-  column: {
-    flex: 1,
-  },
-
-  staffOptionWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: 6,
-    rowGap: 6,
-  },
-
-  staffOptionButton: {
-    minHeight: 40,
-    flexGrow: 1,
-    flexBasis: '30%',
-    paddingHorizontal: 8,
-    borderRadius: 9,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E5EC',
+  teacherInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
+    gap: 8,
+    backgroundColor: '#F1EAFF',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 12,
   },
+
+  teacherInfoText: {
+    flex: 1,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#7040D5',
+  },
+
+  
+staffOptionWrap: {
+  flexDirection: 'column',
+  gap: 8,
+  marginTop: 4,
+},
+
+
+  
+staffOptionButton: {
+  width: '100%',
+  minHeight: 52,
+  paddingHorizontal: 14,
+  paddingVertical: 10,
+  borderRadius: 12,
+  backgroundColor: '#FFFFFF',
+  borderWidth: 1,
+  borderColor: '#E2E5EC',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  gap: 10,
+},
+
 
   optionWrap: {
     flexDirection: 'row',
@@ -577,6 +799,37 @@ const styles = StyleSheet.create({
   optionTextActive: {
     fontFamily: 'PoppinsSemiBold',
     color: '#7040D5',
+  },
+
+  inputWrapper: {
+    minHeight: 52,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E3EA',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+  },
+
+  input: {
+    flex: 1,
+    minHeight: 52,
+    marginLeft: 8,
+    paddingVertical: 0,
+    color: '#172033',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+  },
+
+  twoColumnRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  column: {
+    flex: 1,
+    minWidth: 0,
   },
 
   textAreaWrapper: {
@@ -651,6 +904,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+  },
+
+  saveButtonDisabled: {
+    opacity: 0.65,
   },
 
   saveButtonText: {

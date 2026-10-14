@@ -41,7 +41,6 @@ function SectionCard({ title, subtitle, icon, children }: SectionCardProps) {
             <Text style={styles.educationSubtitle}>{subtitle}</Text>
           </View>
         </View>
-        <MaterialCommunityIcons name="chevron-right" size={19} color="#A0A9B8" />
       </View>
       {children}
     </View>
@@ -184,6 +183,7 @@ function AcademicQuickActions() {
     ['Add Teacher', 'account-tie-outline', 'Add Teacher', '#2675E8'],
     ['Create Batch', 'account-multiple-plus-outline', 'Add Batch', '#35B878'],
     ['Add Subject', 'book-plus-outline', 'Add Subject', '#F7941D'],
+    ['PTG', 'account-group-outline', 'PTG', '#E95386'],
     ['Schedule Test', 'file-document-edit-outline', 'Add Examination', '#7040D5'],
     ['Publish Result', 'clipboard-check-outline', 'Add Performance', '#2675E8'],
     ['Academic Event', 'calendar-plus-outline', 'Academic Event', '#35B878'],
@@ -448,7 +448,7 @@ export default function SuperAdminDashboard() {
                 icon="book-open-variant"
                 type="orange"
                 onPress={() =>
-                  openDashboardFeature('Academics')
+                  openDashboardFeature('Subjects')
                 }
               />
             </View>

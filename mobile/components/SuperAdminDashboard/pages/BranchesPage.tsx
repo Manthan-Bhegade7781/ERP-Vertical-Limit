@@ -21,10 +21,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 type Branch = {
   id: string;
   name: string;
-  branchId: string;
+  code: string;
+  address: string;
   city: string;
-  manager: string;
-  phone: string;
+  state: string;
+  branchHead: string;
+  contactNumber: string;
   email: string;
   students: number;
   teachers: number;
@@ -35,10 +37,12 @@ const initialBranches: Branch[] = [
   {
     id: '1',
     name: 'Pune Branch',
-    branchId: 'VLCC-BR-001',
+    code: 'VLCC-BR-001',
+    address: 'Pune Main Road',
     city: 'Pune',
-    manager: 'Amit Kulkarni',
-    phone: '+91 98765 60001',
+    state: 'Maharashtra',
+    branchHead: 'Amit Kulkarni',
+    contactNumber: '+91 98765 60001',
     email: 'pune@example.com',
     students: 684,
     teachers: 42,
@@ -47,10 +51,12 @@ const initialBranches: Branch[] = [
   {
     id: '2',
     name: 'Mumbai Branch',
-    branchId: 'VLCC-BR-002',
+    code: 'VLCC-BR-002',
+    address: 'Mumbai Main Road',
     city: 'Mumbai',
-    manager: 'Priya Mehta',
-    phone: '+91 98765 60002',
+    state: 'Maharashtra',
+    branchHead: 'Priya Mehta',
+    contactNumber: '+91 98765 60002',
     email: 'mumbai@example.com',
     students: 742,
     teachers: 48,
@@ -59,10 +65,12 @@ const initialBranches: Branch[] = [
   {
     id: '3',
     name: 'Nashik Branch',
-    branchId: 'VLCC-BR-003',
+    code: 'VLCC-BR-003',
+    address: 'Nashik Main Road',
     city: 'Nashik',
-    manager: 'Rahul Patil',
-    phone: '+91 98765 60003',
+    state: 'Maharashtra',
+    branchHead: 'Rahul Patil',
+    contactNumber: '+91 98765 60003',
     email: 'nashik@example.com',
     students: 365,
     teachers: 24,
@@ -71,10 +79,12 @@ const initialBranches: Branch[] = [
   {
     id: '4',
     name: 'Nagpur Branch',
-    branchId: 'VLCC-BR-004',
+    code: 'VLCC-BR-004',
+    address: 'Nagpur Main Road',
     city: 'Nagpur',
-    manager: 'Sneha Joshi',
-    phone: '+91 98765 60004',
+    state: 'Maharashtra',
+    branchHead: 'Sneha Joshi',
+    contactNumber: '+91 98765 60004',
     email: 'nagpur@example.com',
     students: 291,
     teachers: 21,
@@ -83,10 +93,12 @@ const initialBranches: Branch[] = [
   {
     id: '5',
     name: 'Main Branch',
-    branchId: 'VLCC-BR-005',
+    code: 'VLCC-BR-005',
+    address: 'Main Pune Road',
     city: 'Pune',
-    manager: 'Vikram Shah',
-    phone: '+91 98765 60005',
+    state: 'Maharashtra',
+    branchHead: 'Vikram Shah',
+    contactNumber: '+91 98765 60005',
     email: 'main@example.com',
     students: 486,
     teachers: 21,
@@ -112,10 +124,13 @@ export default function BranchesPage() {
   const [showEditModal, setShowEditModal] = useState(false);
 
   const [editName, setEditName] = useState('');
+  const [editCode, setEditCode] = useState('');
+  const [editAddress, setEditAddress] = useState('');
   const [editCity, setEditCity] = useState('');
-  const [editManager, setEditManager] = useState('');
-  const [editPhone, setEditPhone] = useState('');
+  const [editState, setEditState] = useState('');
+  const [editContactNumber, setEditContactNumber] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editStatus, setEditStatus] = useState<'Active' | 'Inactive'>('Active');
 
   const filteredBranches = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -127,10 +142,12 @@ export default function BranchesPage() {
     return branches.filter((branch) =>
       [
         branch.name,
-        branch.branchId,
+        branch.code,
+        branch.address,
         branch.city,
-        branch.manager,
-        branch.phone,
+        branch.state,
+        branch.branchHead,
+        branch.contactNumber,
         branch.email,
       ]
         .join(' ')
@@ -149,7 +166,7 @@ export default function BranchesPage() {
 
   const openAddBranch = () => {
     router.push({
-      pathname: '/(tabs)/explore',
+      pathname: '/(super_admin)/explore',
       params: {
         feature: 'Add Branch',
       },
@@ -170,7 +187,7 @@ export default function BranchesPage() {
 
     Alert.alert(
       selectedBranch.name,
-      `Branch ID: ${selectedBranch.branchId}\n\nCity: ${selectedBranch.city}\nManager: ${selectedBranch.manager}\nPhone: ${selectedBranch.phone}\nEmail: ${selectedBranch.email}\nStudents: ${selectedBranch.students}\nTeachers: ${selectedBranch.teachers}`
+      `Branch Code: ${selectedBranch.code}\n\nAddress: ${selectedBranch.address}\nCity: ${selectedBranch.city}\nState: ${selectedBranch.state}\nBranch Head: ${selectedBranch.branchHead}\nContact Number: ${selectedBranch.contactNumber}\nEmail: ${selectedBranch.email}\nStatus: ${selectedBranch.status}\nStudents: ${selectedBranch.students}\nTeachers: ${selectedBranch.teachers}`
     );
   };
 
@@ -180,10 +197,13 @@ export default function BranchesPage() {
     }
 
     setEditName(selectedBranch.name);
+    setEditCode(selectedBranch.code);
+    setEditAddress(selectedBranch.address);
     setEditCity(selectedBranch.city);
-    setEditManager(selectedBranch.manager);
-    setEditPhone(selectedBranch.phone);
+    setEditState(selectedBranch.state);
+    setEditContactNumber(selectedBranch.contactNumber);
     setEditEmail(selectedBranch.email);
+    setEditStatus(selectedBranch.status);
 
     setShowActions(false);
     setShowEditModal(true);
@@ -199,18 +219,28 @@ export default function BranchesPage() {
       return;
     }
 
+    if (!editCode.trim()) {
+      Alert.alert('Required', 'Please enter the branch code.');
+      return;
+    }
+
+    if (!editAddress.trim()) {
+      Alert.alert('Required', 'Please enter the address.');
+      return;
+    }
+
     if (!editCity.trim()) {
       Alert.alert('Required', 'Please enter the city.');
       return;
     }
 
-    if (!editManager.trim()) {
-      Alert.alert('Required', 'Please enter the branch manager.');
+    if (!editState.trim()) {
+      Alert.alert('Required', 'Please enter the state.');
       return;
     }
 
-    if (!editPhone.trim()) {
-      Alert.alert('Required', 'Please enter the phone number.');
+    if (!editContactNumber.trim()) {
+      Alert.alert('Required', 'Please enter the contact number.');
       return;
     }
 
@@ -222,10 +252,13 @@ export default function BranchesPage() {
     const updatedBranch = {
       ...selectedBranch,
       name: editName.trim(),
+      code: editCode.trim().toUpperCase(),
+      address: editAddress.trim(),
       city: editCity.trim(),
-      manager: editManager.trim(),
-      phone: editPhone.trim(),
-      email: editEmail.trim(),
+      state: editState.trim(),
+      contactNumber: editContactNumber.trim(),
+      email: editEmail.trim().toLowerCase(),
+      status: editStatus,
     };
 
     setBranches((currentBranches) =>
@@ -245,39 +278,47 @@ export default function BranchesPage() {
     );
   };
 
-  const deleteBranch = () => {
+  const toggleBranchStatus = () => {
     if (!selectedBranch) {
       return;
     }
 
     const branchId = selectedBranch.id;
     const branchName = selectedBranch.name;
+    const nextStatus = selectedBranch.status === 'Active' ? 'Inactive' : 'Active';
+    const actionText = nextStatus === 'Inactive' ? 'deactivate' : 'activate';
 
     setShowActions(false);
 
     Alert.alert(
-      'Delete Branch',
-      `Are you sure you want to delete ${branchName}? This action cannot be undone.`,
+      `${nextStatus === 'Inactive' ? 'Deactivate' : 'Activate'} Branch`,
+      `Are you sure you want to ${actionText} ${branchName}?`,
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: nextStatus === 'Inactive' ? 'Deactivate' : 'Activate',
+          style: nextStatus === 'Inactive' ? 'destructive' : 'default',
           onPress: () => {
             setBranches((currentBranches) =>
-              currentBranches.filter(
-                (branch) => branch.id !== branchId
+              currentBranches.map((branch) =>
+                branch.id === branchId
+                  ? { ...branch, status: nextStatus }
+                  : branch
               )
             );
 
-            setSelectedBranch(null);
+            setSelectedBranch((currentBranch) =>
+              currentBranch
+                ? { ...currentBranch, status: nextStatus }
+                : null
+            );
 
             Alert.alert(
-              'Deleted',
-              `${branchName} has been deleted successfully.`
+              nextStatus === 'Inactive' ? 'Branch Deactivated' : 'Branch Activated',
+              `${branchName} has been ${nextStatus === 'Inactive' ? 'deactivated' : 'activated'} successfully.`
             );
           },
         },
@@ -313,7 +354,7 @@ export default function BranchesPage() {
           </Text>
 
           <Text style={styles.branchId}>
-            {item.branchId}
+            {item.code}
           </Text>
 
           <View style={styles.detailRow}>
@@ -342,7 +383,7 @@ export default function BranchesPage() {
               style={styles.detailText}
               numberOfLines={1}
             >
-              {item.manager}
+              {item.branchHead}
             </Text>
           </View>
         </View>
@@ -465,8 +506,7 @@ export default function BranchesPage() {
             </Text>
 
             <Text style={styles.pageDescription}>
-              Manage branches, branch managers, locations,
-              students and teachers.
+              Manage branches, locations, students and teachers.
             </Text>
           </View>
 
@@ -497,7 +537,7 @@ export default function BranchesPage() {
               </Text>
 
               <Text style={styles.summaryValue}>
-                12
+                {branches.length}
               </Text>
             </View>
           </View>
@@ -543,11 +583,11 @@ export default function BranchesPage() {
 
             <View style={styles.summaryInfo}>
               <Text style={styles.summaryLabel}>
-                New Branches
+                Locations
               </Text>
 
               <Text style={styles.summaryValue}>
-                2
+                {new Set(branches.map((branch) => branch.city)).size}
               </Text>
             </View>
           </View>
@@ -708,7 +748,7 @@ export default function BranchesPage() {
                 </Text>
 
                 <Text style={styles.actionBranchId}>
-                  {selectedBranch?.branchId}
+                  {selectedBranch?.code}
                 </Text>
 
               </View>
@@ -791,7 +831,7 @@ export default function BranchesPage() {
                 </Text>
 
                 <Text style={styles.actionDescription}>
-                  Update branch and manager information
+                  Update branch information
                 </Text>
               </View>
 
@@ -802,19 +842,23 @@ export default function BranchesPage() {
               />
             </TouchableOpacity>
 
-            {/* DELETE */}
+            {/* DEACTIVATE / ACTIVATE */}
 
             <TouchableOpacity
               style={[
                 styles.actionItem,
                 styles.deleteAction,
               ]}
-              onPress={deleteBranch}
+              onPress={toggleBranchStatus}
               activeOpacity={0.75}
             >
               <View style={styles.deleteIcon}>
                 <MaterialCommunityIcons
-                  name="delete-outline"
+                  name={
+                    selectedBranch?.status === 'Active'
+                      ? 'office-building-remove-outline'
+                      : 'office-building-outline'
+                  }
                   size={21}
                   color="#E95368"
                 />
@@ -827,11 +871,15 @@ export default function BranchesPage() {
                     styles.deleteTitle,
                   ]}
                 >
-                  Delete Branch
+                  {selectedBranch?.status === 'Active'
+                    ? 'Deactivate Branch'
+                    : 'Activate Branch'}
                 </Text>
 
                 <Text style={styles.actionDescription}>
-                  Permanently remove this branch
+                  {selectedBranch?.status === 'Active'
+                    ? 'Deactivate this branch without deleting its records'
+                    : 'Reactivate this branch'}
                 </Text>
               </View>
 
@@ -871,7 +919,7 @@ export default function BranchesPage() {
                 </Text>
 
                 <Text style={styles.editSubtitle}>
-                  Branch Information
+                  Update branch information
                 </Text>
               </View>
 
@@ -897,19 +945,13 @@ export default function BranchesPage() {
               {/* NAME */}
 
               <View style={styles.editField}>
-
-                <Text style={styles.editLabel}>
-                  Branch Name
-                </Text>
-
+                <Text style={styles.editLabel}>Branch Name</Text>
                 <View style={styles.editInputBox}>
-
                   <MaterialCommunityIcons
                     name="office-building-outline"
                     size={19}
                     color="#8A98A9"
                   />
-
                   <TextInput
                     value={editName}
                     onChangeText={setEditName}
@@ -917,26 +959,61 @@ export default function BranchesPage() {
                     placeholder="Enter branch name"
                     placeholderTextColor="#A3AFBE"
                   />
+                </View>
+              </View>
 
+              {/* CODE */}
+
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>Branch Code</Text>
+                <View style={styles.editInputBox}>
+                  <MaterialCommunityIcons
+                    name="identifier"
+                    size={19}
+                    color="#8A98A9"
+                  />
+                  <TextInput
+                    value={editCode}
+                    onChangeText={setEditCode}
+                    style={styles.editInput}
+                    placeholder="Enter branch code"
+                    placeholderTextColor="#A3AFBE"
+                    autoCapitalize="characters"
+                  />
+                </View>
+              </View>
+
+              {/* ADDRESS */}
+
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>Address</Text>
+                <View style={[styles.editInputBox, styles.editMultilineBox]}>
+                  <MaterialCommunityIcons
+                    name="map-marker-outline"
+                    size={19}
+                    color="#8A98A9"
+                  />
+                  <TextInput
+                    value={editAddress}
+                    onChangeText={setEditAddress}
+                    style={[styles.editInput, styles.editMultilineInput]}
+                    placeholder="Enter branch address"
+                    placeholderTextColor="#A3AFBE"
+                    multiline
+                  />
                 </View>
               </View>
 
               {/* CITY */}
 
               <View style={styles.editField}>
-
-                <Text style={styles.editLabel}>
-                  City
-                </Text>
-
+                <Text style={styles.editLabel}>City</Text>
                 <View style={styles.editInputBox}>
-
                   <MaterialCommunityIcons
-                    name="map-marker-outline"
+                    name="city-variant-outline"
                     size={19}
                     color="#8A98A9"
                   />
-
                   <TextInput
                     value={editCity}
                     onChangeText={setEditCity}
@@ -944,81 +1021,60 @@ export default function BranchesPage() {
                     placeholder="Enter city"
                     placeholderTextColor="#A3AFBE"
                   />
-
                 </View>
               </View>
 
-              {/* MANAGER */}
+              {/* STATE */}
 
               <View style={styles.editField}>
-
-                <Text style={styles.editLabel}>
-                  Branch Manager
-                </Text>
-
+                <Text style={styles.editLabel}>State</Text>
                 <View style={styles.editInputBox}>
-
                   <MaterialCommunityIcons
-                    name="account-outline"
+                    name="map-outline"
                     size={19}
                     color="#8A98A9"
                   />
-
                   <TextInput
-                    value={editManager}
-                    onChangeText={setEditManager}
+                    value={editState}
+                    onChangeText={setEditState}
                     style={styles.editInput}
-                    placeholder="Enter manager name"
+                    placeholder="Enter state"
                     placeholderTextColor="#A3AFBE"
                   />
-
                 </View>
               </View>
 
-              {/* PHONE */}
+              {/* CONTACT NUMBER */}
 
               <View style={styles.editField}>
-
-                <Text style={styles.editLabel}>
-                  Mobile Number
-                </Text>
-
+                <Text style={styles.editLabel}>Contact Number</Text>
                 <View style={styles.editInputBox}>
-
                   <MaterialCommunityIcons
                     name="phone-outline"
                     size={19}
                     color="#8A98A9"
                   />
-
                   <TextInput
-                    value={editPhone}
-                    onChangeText={setEditPhone}
+                    value={editContactNumber}
+                    onChangeText={setEditContactNumber}
                     style={styles.editInput}
-                    placeholder="Enter mobile number"
+                    placeholder="Enter contact number"
                     placeholderTextColor="#A3AFBE"
                     keyboardType="phone-pad"
                   />
-
                 </View>
               </View>
 
               {/* EMAIL */}
 
               <View style={styles.editField}>
-
-                <Text style={styles.editLabel}>
-                  Email Address
-                </Text>
-
+                <Text style={styles.editLabel}>Email Address</Text>
                 <View style={styles.editInputBox}>
-
                   <MaterialCommunityIcons
                     name="email-outline"
                     size={19}
                     color="#8A98A9"
                   />
-
                   <TextInput
                     value={editEmail}
                     onChangeText={setEditEmail}
@@ -1028,7 +1084,49 @@ export default function BranchesPage() {
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
+                </View>
+              </View>
 
+              {/* STATUS */}
+
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>Status</Text>
+                <View style={styles.statusSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.statusOption,
+                      editStatus === 'Active' && styles.statusOptionActive,
+                    ]}
+                    onPress={() => setEditStatus('Active')}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.statusOptionText,
+                        editStatus === 'Active' && styles.statusOptionTextActive,
+                      ]}
+                    >
+                      Active
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.statusOption,
+                      editStatus === 'Inactive' && styles.statusOptionInactive,
+                    ]}
+                    onPress={() => setEditStatus('Inactive')}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.statusOptionText,
+                        editStatus === 'Inactive' && styles.statusOptionTextInactive,
+                      ]}
+                    >
+                      Inactive
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -1661,6 +1759,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+
+  editMultilineBox: {
+    alignItems: 'flex-start',
+    minHeight: 78,
+    paddingVertical: 10,
+  },
+
+  editMultilineInput: {
+    minHeight: 55,
+    textAlignVertical: 'top',
+  },
+
+  statusSelector: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  statusOption: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E6EC',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  statusOptionActive: {
+    borderColor: '#35B878',
+    backgroundColor: '#E7F8EF',
+  },
+
+  statusOptionInactive: {
+    borderColor: '#F7941D',
+    backgroundColor: '#FFF1E2',
+  },
+
+  statusOptionText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10.5,
+    color: '#66768A',
+  },
+
+  statusOptionTextActive: {
+    color: '#35B878',
+  },
+
+  statusOptionTextInactive: {
+    color: '#F7941D',
   },
 
   editInput: {

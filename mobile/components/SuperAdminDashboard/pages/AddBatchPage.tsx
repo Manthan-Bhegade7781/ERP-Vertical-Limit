@@ -31,33 +31,12 @@ const academicYearOptions: Option[] = [
   { label: '2028-29', value: '2028-29' },
 ];
 
-const subjectOptions: Option[] = [
-  { label: 'Physics', value: 'Physics' },
-  { label: 'Mathematics', value: 'Mathematics' },
-  { label: 'Chemistry', value: 'Chemistry' },
-  { label: 'Biology', value: 'Biology' },
-];
-
-const teacherOptions: Option[] = [
-  { label: 'Anita Desai - Physics', value: 'anita-desai' },
-  { label: 'Neha Kapoor - Chemistry', value: 'neha-kapoor' },
-  { label: 'Pooja Sharma - Biology', value: 'pooja-sharma' },
-  { label: 'Ravi Patil - Mathematics', value: 'ravi-patil' },
-  { label: 'Karan Shah - Physics & JEE', value: 'karan-shah' },
-];
-
 const branchOptions: Option[] = [
   { label: 'Pune Branch', value: 'pune' },
   { label: 'Mumbai Branch', value: 'mumbai' },
   { label: 'Nashik Branch', value: 'nashik' },
   { label: 'Nagpur Branch', value: 'nagpur' },
   { label: 'Main Branch', value: 'main' },
-];
-
-const statusOptions: Option[] = [
-  { label: 'Active', value: 'Active' },
-  { label: 'Completed', value: 'Completed' },
-  { label: 'Stopped', value: 'Stopped' },
 ];
 
 const dayOptions: Option[] = [
@@ -155,131 +134,6 @@ function SelectField({
   );
 }
 
-function MultiSelectField({
-  label,
-  values,
-  placeholder,
-  options,
-  required = false,
-  onChange,
-}: {
-  label: string;
-  values: string[];
-  placeholder: string;
-  options: Option[];
-  required?: boolean;
-  onChange: (values: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  const toggleOption = (optionValue: string) => {
-    if (values.includes(optionValue)) {
-      onChange(
-        values.filter((item) => item !== optionValue)
-      );
-    } else {
-      onChange([...values, optionValue]);
-    }
-  };
-
-  const selectedLabels = options
-    .filter((option) => values.includes(option.value))
-    .map((option) => option.label);
-
-  return (
-    <View style={styles.fieldContainer}>
-      <Text style={styles.label}>
-        {label}
-        {required && <Text style={styles.required}> *</Text>}
-      </Text>
-
-      <Pressable
-        style={[
-          styles.select,
-          open && styles.selectOpen,
-        ]}
-        onPress={() => setOpen(!open)}
-      >
-        <Text
-          style={[
-            styles.selectText,
-            values.length === 0 && styles.placeholderText,
-          ]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {selectedLabels.length > 0
-            ? selectedLabels.join(', ')
-            : placeholder}
-        </Text>
-
-        <MaterialCommunityIcons
-          name={open ? 'chevron-up' : 'chevron-down'}
-          size={18}
-          color="#7B7F8D"
-        />
-      </Pressable>
-
-      {open && (
-        <View style={styles.dropdown}>
-          {options.map((option) => {
-            const selected = values.includes(
-              option.value
-            );
-
-            return (
-              <Pressable
-                key={option.value}
-                style={styles.dropdownItem}
-                onPress={() =>
-                  toggleOption(option.value)
-                }
-              >
-                <View style={styles.multiOptionLeft}>
-                  <View
-                    style={[
-                      styles.checkbox,
-                      selected &&
-                        styles.checkboxSelected,
-                    ]}
-                  >
-                    {selected && (
-                      <MaterialCommunityIcons
-                        name="check"
-                        size={14}
-                        color="#FFFFFF"
-                      />
-                    )}
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.dropdownText,
-                      selected &&
-                        styles.dropdownTextSelected,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-
-          <Pressable
-            style={styles.doneButton}
-            onPress={() => setOpen(false)}
-          >
-            <Text style={styles.doneButtonText}>
-              Done
-            </Text>
-          </Pressable>
-        </View>
-      )}
-    </View>
-  );
-}
-
 function SectionHeader({
   icon,
   title,
@@ -317,10 +171,6 @@ export default function AddBatchPage() {
   const [standard, setStandard] = useState('');
   const [academicYear, setAcademicYear] = useState('');
 
-  const [subjects, setSubjects] = useState<string[]>([]);
-
-  const [assignedTeacher, setAssignedTeacher] =
-    useState('');
   const [branch, setBranch] = useState('');
 
   const [startDate, setStartDate] = useState('');
@@ -335,8 +185,6 @@ export default function AddBatchPage() {
 
   const [maximumStudents, setMaximumStudents] =
     useState('');
-
-  const [status, setStatus] = useState('Active');
 
   const [description, setDescription] = useState('');
 
@@ -356,16 +204,13 @@ export default function AddBatchPage() {
       !batchCode.trim() ||
       !standard ||
       !academicYear ||
-      subjects.length === 0 ||
-      !assignedTeacher ||
       !branch ||
       !startDate.trim() ||
       !endDate.trim() ||
       !startTime.trim() ||
       !endTime.trim() ||
       classDays.length === 0 ||
-      !maximumStudents.trim() ||
-      !status
+      !maximumStudents.trim()
     ) {
       Alert.alert(
         'Required Fields',
@@ -422,17 +267,6 @@ export default function AddBatchPage() {
             Add Batch
           </Text>
 
-          <Pressable style={styles.editButton}>
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={15}
-              color="#7040D5"
-            />
-
-            <Text style={styles.editButtonText}>
-              Edit
-            </Text>
-          </Pressable>
         </View>
 
         {/* CONTENT */}
@@ -521,41 +355,6 @@ export default function AddBatchPage() {
                     options={academicYearOptions}
                     required
                     onChange={setAcademicYear}
-                  />
-                </View>
-
-                <View style={styles.halfField}>
-                  <MultiSelectField
-                    label="Subjects"
-                    values={subjects}
-                    placeholder="Select subjects"
-                    options={subjectOptions}
-                    required
-                    onChange={setSubjects}
-                  />
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* ACADEMIC ASSIGNMENT */}
-          <View style={styles.card}>
-            <SectionHeader
-              icon="school-outline"
-              title="Academic Assignment"
-              color="#4D8BE8"
-            />
-
-            <View style={styles.fieldGroup}>
-              <View style={styles.row}>
-                <View style={styles.halfField}>
-                  <SelectField
-                    label="Assigned Teacher"
-                    value={assignedTeacher}
-                    placeholder="Select teacher"
-                    options={teacherOptions}
-                    required
-                    onChange={setAssignedTeacher}
                   />
                 </View>
 
@@ -772,17 +571,6 @@ export default function AddBatchPage() {
                     keyboardType="number-pad"
                   />
                 </View>
-
-                <View style={styles.halfField}>
-                  <SelectField
-                    label="Status"
-                    value={status}
-                    placeholder="Select status"
-                    options={statusOptions}
-                    required
-                    onChange={setStatus}
-                  />
-                </View>
               </View>
             </View>
           </View>
@@ -827,9 +615,9 @@ export default function AddBatchPage() {
               </Text>
 
               <Text style={styles.infoText}>
-                Fields marked with * are required. You
-                can select multiple subjects for the
-                batch.
+                Fields marked with * are required. Subject and
+                teacher assignments are managed separately
+                after the batch is created.
               </Text>
             </View>
           </View>
@@ -908,23 +696,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
     fontSize: 20,
     color: '#FFFFFF',
-  },
-
-  editButton: {
-    height: 34,
-    paddingHorizontal: 12,
-    borderRadius: 9,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-  },
-
-  editButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10,
-    color: '#7040D5',
   },
 
   scrollView: {
@@ -1176,43 +947,6 @@ const styles = StyleSheet.create({
 
   dropdownTextSelected: {
     fontFamily: 'PoppinsSemiBold',
-    color: '#7040D5',
-  },
-
-  /*
-   * MULTI SELECT
-   */
-  multiOptionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: '#C9CBD4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  checkboxSelected: {
-    backgroundColor: '#7040D5',
-    borderColor: '#7040D5',
-  },
-
-  doneButton: {
-    height: 38,
-    backgroundColor: '#F5F1FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  doneButtonText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 10,
     color: '#7040D5',
   },
 
