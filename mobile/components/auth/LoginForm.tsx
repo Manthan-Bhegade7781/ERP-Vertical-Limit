@@ -59,7 +59,43 @@ export function LoginForm() {
         {
           text: 'Continue',
           onPress: () => {
-            router.replace('/(tabs)');
+            const roles = result.data?.user.roles ?? [];
+
+const dashboardRoutes: Record<string, '/(super_admin)' | '/admin' | '/(tabs)' | '/(student)'> = {
+  super_admin: '/(super_admin)',
+  admin: '/admin',
+  teacher: '/(tabs)',
+  student: '/(student)',
+};
+
+const supportedRoles = Object.keys(dashboardRoutes);
+const assignedRoles = roles.filter((role) =>
+  supportedRoles.includes(role)
+);
+
+if (assignedRoles.length !== 1) {
+  Alert.alert(
+    'Access denied',
+    'Your account must have exactly one supported dashboard role.'
+  );
+  return;
+}
+
+Alert.alert(
+  'Login successful',
+  `Welcome back, ${result.data?.user.fullName || 'User'}!`,
+  [
+    {
+      text: 'Continue',
+      onPress: () => {
+        const destination = dashboardRoutes[assignedRoles[0]];
+
+        router.replace(destination);
+      },
+    },
+  ]
+);
+
           },
         },
       ]

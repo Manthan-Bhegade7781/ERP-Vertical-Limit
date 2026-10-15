@@ -3,13 +3,11 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from '@react-navigation/native';
-
 import {
   Stack,
   useRouter,
   useSegments,
 } from 'expo-router';
-
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
@@ -25,7 +23,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-
 import {
   AuthProvider,
   useAuth,
@@ -34,61 +31,73 @@ import {
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
-  const {
-    user,
-    isLoading,
-    isAuthenticated,
-  } = useAuth();
-
+  const { user, isLoading, isAuthenticated } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) {
-      return;
-    }
+    if (isLoading) return;
 
     const firstSegment = segments[0];
 
     const inAuthGroup = firstSegment === '(auth)';
-    const inTabsGroup = firstSegment === '(tabs)';
-    const inSuperAdminRoute = firstSegment === '(super_admin)';
 
-    const isSuperAdmin =
-      user?.roles?.includes('super_admin') ?? false;
+    const roles = user?.roles ?? [];
+    const dashboardRoles = [
+      'super_admin',
+      'admin',
+      'teacher',
+      'student',
+    ];
 
-    const isTeacher =
-      user?.roles?.includes('teacher') ?? false;
+    // Require exactly one dashboard role.
+    const assignedRoles = roles.filter((role) =>
+      dashboardRoles.includes(role)
+    );
 
-    // Not authenticated → only allow Auth screens
+    const role =
+      assignedRoles.length === 1 ? assignedRoles[0] : null;
+
+    // Map each role to its dashboard route.
+    const dashboardRoutes: Record<string, string> = {
+      super_admin: '/(super_admin)',
+      admin: '/admin',
+      teacher: '/(tabs)',
+      student: '/(student)',
+    };
+
+    // Allow unauthenticated users only on login/register.
     if (!isAuthenticated) {
       if (!inAuthGroup) {
         router.replace('/(auth)');
       }
-
       return;
     }
 
-    // Super Admin → only allow Super Admin Dashboard
-    if (isSuperAdmin) {
-      if (!inSuperAdminRoute) {
-        router.replace('/(super_admin)');
-      }
-
+    // Never allow an unsupported or ambiguous role to enter a dashboard.
+    if (!role) {
+      router.replace('/(auth)');
       return;
     }
 
-    // Teacher → only allow Teacher Dashboard
-    if (isTeacher) {
-      if (!inTabsGroup) {
-        router.replace('/(tabs)');
-      }
+    const expectedRoute = dashboardRoutes[role];
 
+    // Send authenticated users away from login/register.
+    if (inAuthGroup) {
+      router.replace(expectedRoute as any);
       return;
     }
 
-    // Authenticated user with an unsupported role
-    router.replace('/(auth)');
+    // Allow access only to the dashboard matching the user's role.
+    const isCorrectRoute =
+      (role === 'student' && firstSegment === '(student)') ||
+      (role === 'teacher' && firstSegment === '(tabs)') ||
+      (role === 'super_admin' && firstSegment === '(super_admin)') ||
+      (role === 'admin' && firstSegment === 'admin');
+
+    if (!isCorrectRoute) {
+      router.replace(expectedRoute as any);
+    }
   }, [
     isLoading,
     isAuthenticated,
@@ -97,31 +106,33 @@ function RootNavigator() {
     router,
   ]);
 
-  if (isLoading) {
-    return null;
-  }
+  if (isLoading) return null;
 
   return (
     <Stack>
       <Stack.Screen
         name="(auth)"
-        options={{
-          headerShown: false,
-        }}
+        options={{ headerShown: false }}
+      />
+
+      <Stack.Screen
+        name="(student)"
+        options={{ headerShown: false }}
       />
 
       <Stack.Screen
         name="(tabs)"
-        options={{
-          headerShown: false,
-        }}
+        options={{ headerShown: false }}
       />
 
       <Stack.Screen
         name="(super_admin)"
-        options={{
-          headerShown: false,
-        }}
+        options={{ headerShown: false }}
+      />
+
+      <Stack.Screen
+        name="admin"
+        options={{ headerShown: false }}
       />
 
       <Stack.Screen
@@ -134,6 +145,7 @@ function RootNavigator() {
     </Stack>
   );
 }
+
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -151,9 +163,7 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) {
-    return null;
-  }
+  if (!fontsLoaded) return null;
 
   return (
     <AuthProvider>
@@ -165,7 +175,6 @@ export default function RootLayout() {
         }
       >
         <RootNavigator />
-
         <StatusBar style="auto" />
       </ThemeProvider>
     </AuthProvider>

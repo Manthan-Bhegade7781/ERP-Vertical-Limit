@@ -8,6 +8,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { Alert } from 'react-native';
+import { router } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
+
 import StudentHeader from './StudentHeader';
 import StudentBottomNav from './StudentBottomNav';
 
@@ -100,6 +104,16 @@ function PageBackButton({
 }
 
 export default function StudentDashboard() {
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.replace('/(auth)');
+    } catch (error) {
+      Alert.alert('Logout failed', 'Please try again.');
+    }
+  };
   const [activeTab, setActiveTab] =
     useState<BottomTab>('home');
 
@@ -626,21 +640,14 @@ export default function StudentDashboard() {
         />
 
         <StudentProfilePage
-          onContentScroll={
-            handleContentScroll
-          }
+          onContentScroll={handleContentScroll}
           onChangePasswordPress={() =>
-            openPage(
-              'changePassword',
-              'profile',
-            )
+            openPage('changePassword', 'profile')
           }
           onHelpPress={() =>
-            openPage(
-              'helpSupport',
-              'profile',
-            )
+            openPage('helpSupport', 'profile')
           }
+          onLogout={handleLogout}
         />
 
         {renderBottomNav()}
@@ -821,6 +828,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 35,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0EDF5',

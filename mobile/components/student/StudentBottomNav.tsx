@@ -135,6 +135,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 10,
     paddingBottom: 8,
+    marginBottom: 30,
     backgroundColor: 'transparent',
   },
 
@@ -151,10 +152,10 @@ const styles = StyleSheet.create({
       width: 0,
       height: -2,
     },
-    shadowOpacity: 0.08,
+    shadowOpacity: 1,
     shadowRadius: 8,
 
-    elevation: 8,
+    elevation: 10,
   },
 
   navItem: {
@@ -174,6 +175,7 @@ const styles = StyleSheet.create({
 
   activeIconContainer: {
     backgroundColor: '#EEE7FF',
+    borderRadius: 10,
   },
 
   label: {

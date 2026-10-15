@@ -1320,6 +1320,10 @@ const styles = StyleSheet.create({
 
     paddingBottom: 15,
 
+    borderBottomLeftRadius: 30,
+
+    borderBottomRightRadius: 30,
+
   },
 
 

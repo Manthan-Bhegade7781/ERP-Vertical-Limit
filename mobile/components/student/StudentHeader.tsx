@@ -101,9 +101,9 @@ const styles = StyleSheet.create({
   header: {
     width: '100%',
     backgroundColor: '#6630D7',
-
-    paddingHorizontal: 14,
-    paddingBottom: 17,
+     marginTop: 17,
+    paddingHorizontal: 17,
+    paddingVertical: 20,
 
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   greeting: {
     fontFamily: 'PoppinsRegular',
 
-    fontSize: 11,
+    fontSize: 15,
 
     color: '#E9DDFF',
 
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   studentName: {
     fontFamily: 'PoppinsBold',
 
-    fontSize: 20,
+    fontSize: 21,
 
     color: '#FFFFFF',
 
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   studentDetails: {
     fontFamily: 'PoppinsMedium',
 
-    fontSize: 8.5,
+    fontSize: 10,
 
     color: '#DCCBFF',
 

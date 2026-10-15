@@ -21,10 +21,12 @@ router.post(
   createStudent
 );
 
+
 // Get all students
 router.get(
   "/",
   protect,
+  authorizeRoles("super_admin", "admin"),
   getStudents
 );
 
@@ -32,8 +34,10 @@ router.get(
 router.get(
   "/:id",
   protect,
+  authorizeRoles("super_admin", "admin"),
   getStudentById
 );
+
 
 // Update student
 router.put(

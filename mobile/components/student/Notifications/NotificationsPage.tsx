@@ -432,6 +432,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     paddingBottom: 105,
+    marginTop: 2,
   },
 
   summaryCard: {

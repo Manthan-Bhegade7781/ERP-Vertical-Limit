@@ -107,20 +107,18 @@ export default function MyClassesPage({
         scrollEventThrottle={16}
       >
         {/* Header */}
-        <View style={styles.pageHeader}>
-          <View>
-            <Text style={styles.pageTitle}>
-              My Classes
-            </Text>
+    
+      <View style={styles.pageHeader}>
+        <View>
+          <Text style={styles.pageTitle}>
+            My Classes
+          </Text>
 
-            <Text style={styles.pageSubtitle}>
-              Your batch and subjects
-            </Text>
-          </View>
-
-          <View style={styles.headerIcon}>
-          </View>
+          <Text style={styles.pageSubtitle}>
+            Your batch and subjects
+          </Text>
         </View>
+      </View>
 
         {/* Batch Selector */}
         <View style={styles.section}>
