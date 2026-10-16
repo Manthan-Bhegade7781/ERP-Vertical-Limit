@@ -277,24 +277,6 @@ export default function AddStudentPage() {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Add Student</Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.headerEditButton}
-          activeOpacity={0.8}
-          onPress={() =>
-            Alert.alert(
-              "Edit",
-              "You are currently editing the student information form."
-            )
-          }
-        >
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={17}
-            color="#7040D5"
-          />
-          <Text style={styles.headerEditText}>Edit</Text>
-        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView

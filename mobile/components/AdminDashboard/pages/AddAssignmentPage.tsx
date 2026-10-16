@@ -250,23 +250,7 @@ export default function AddAssignmentPage() {
           </View>
 
           {/* EDIT BUTTON - SAME AS PREVIOUS ADD PAGES */}
-          <TouchableOpacity
-            style={styles.headerEditButton}
-            activeOpacity={0.8}
-            onPress={() =>
-              Alert.alert(
-                "Edit",
-                "You are currently editing the assignment information form.",
-              )
-            }
-          >
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={20}
-              color="#7040D5"
-            />
-            <Text style={styles.headerEditText}>Edit</Text>
-          </TouchableOpacity>
+          
         </View>
 
         <ScrollView

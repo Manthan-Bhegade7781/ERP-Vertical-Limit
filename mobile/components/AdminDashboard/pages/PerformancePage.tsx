@@ -500,9 +500,9 @@ const s = StyleSheet.create({
   },
   headerTitle: { fontFamily: "PoppinsSemiBold", fontSize: 22, color: "#FFF" },
   add: {
-    width: 50,
-    height: 50,
-    borderRadius: 13,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     backgroundColor: "#FFF",
     alignItems: "center",
     justifyContent: "center",

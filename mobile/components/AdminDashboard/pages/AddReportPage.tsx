@@ -110,14 +110,7 @@ export default function AddReportPage() {
             <Text style={styles.headerTitle}>Add Report</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.headerEditButton}
-            activeOpacity={0.8}
-            onPress={() => Alert.alert("Edit", "You are currently editing the report information form.")}
-          >
-            <MaterialCommunityIcons name="pencil-outline" size={20} color="#7040D5" />
-            <Text style={styles.headerEditText}>Edit</Text>
-          </TouchableOpacity>
+         
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>

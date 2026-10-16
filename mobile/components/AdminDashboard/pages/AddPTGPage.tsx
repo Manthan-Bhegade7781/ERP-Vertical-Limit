@@ -87,19 +87,7 @@ export default function AddPTGPage() {
           <View style={styles.headerTitleBox}>
             <Text style={styles.headerTitle}>Add PTG</Text>
           </View>
-          <TouchableOpacity
-            style={styles.editHeader}
-            onPress={() =>
-              Alert.alert("Edit", "You are currently editing the PTG form.")
-            }
-          >
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={19}
-              color="#7040D5"
-            />
-            <Text style={styles.editHeaderText}>Edit</Text>
-          </TouchableOpacity>
+          
         </View>
         <ScrollView
           contentContainerStyle={styles.content}

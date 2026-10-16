@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -59,7 +60,7 @@ export default function AdminSidebar({ collapsed = false, onClose }: Props) {
         <View style={styles.logo}>
           <MaterialCommunityIcons
             name="school-outline"
-            size={23}
+            size={27}
             color="#FFF"
           />
         </View>
@@ -97,7 +98,7 @@ export default function AdminSidebar({ collapsed = false, onClose }: Props) {
                     typeof MaterialCommunityIcons
                   >['name']
                 }
-                size={20}
+                size={25}
                 color={isActive ? '#7040D5' : '#7B8498'}
               />
 
@@ -120,7 +121,7 @@ export default function AdminSidebar({ collapsed = false, onClose }: Props) {
         <View style={styles.accessBox}>
           <MaterialCommunityIcons
             name="shield-check-outline"
-            size={18}
+            size={22}
             color="#7040D5"
           />
 
@@ -138,7 +139,7 @@ export default function AdminSidebar({ collapsed = false, onClose }: Props) {
 
 const styles = StyleSheet.create({
   sidebar: {
-    width: 250,
+    width: 270,
     height: '100%',
     backgroundColor: '#FFFFFF',
     borderRightWidth: 1,
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   },
 
   sidebarCollapsed: {
-    width: 72,
+    width: 80,
     alignItems: 'center',
   },
 
@@ -196,7 +197,7 @@ const styles = StyleSheet.create({
   },
 
   menuItem: {
-    minHeight: 43,
+    minHeight: 48,
     borderRadius: 10,
     paddingHorizontal: 11,
     marginBottom: 3,

@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 import {
@@ -38,22 +39,18 @@ const colors = {
     background: '#F1EAFF',
     icon: '#7040D5',
   },
-
   blue: {
     background: '#EAF2FF',
     icon: '#2675E8',
   },
-
   green: {
     background: '#E7F8EF',
     icon: '#35B878',
   },
-
   orange: {
     background: '#FFF1E2',
     icon: '#F7941D',
   },
-
   pink: {
     background: '#FFE9F0',
     icon: '#E95386',
@@ -74,27 +71,27 @@ export default function StatCard({
 }: StatCardProps) {
   const color = colors[type];
 
+  // Preserve compatibility with the existing dashboard.
+  void change;
+
   return (
     <TouchableOpacity
       style={styles.statCard}
       onPress={onPress}
       activeOpacity={onPress ? 0.8 : 1}
       disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={`${title}: ${value}`}
     >
-      {/* =================================================
-          TOP
-      ================================================== */}
+      {/* TOP ROW */}
 
       <View style={styles.statTopRow}>
-
-        {/* ICON */}
+        {/* STATISTIC ICON */}
 
         <View
           style={[
             styles.statIconBox,
-            {
-              backgroundColor: color.background,
-            },
+            { backgroundColor: color.background },
           ]}
         >
           <MaterialCommunityIcons
@@ -104,38 +101,23 @@ export default function StatCard({
           />
         </View>
 
-        {/* CHANGE */}
+        {/* MATCHING COLOR ARROW BUTTON */}
 
         <View
           style={[
-            styles.changeBadge,
-            {
-              backgroundColor: color.background,
-            },
+            styles.arrowButton,
+            { backgroundColor: color.icon },
           ]}
         >
           <MaterialCommunityIcons
-            name="trending-up"
-            size={12}
-            color={color.icon}
+            name="arrow-right"
+            size={18}
+            color="#FFFFFF"
           />
-
-          <Text
-            style={[
-              styles.changeText,
-              {
-                color: color.icon,
-              },
-            ]}
-          >
-            {change}
-          </Text>
         </View>
       </View>
 
-      {/* =================================================
-          VALUE
-      ================================================== */}
+      {/* STATISTIC DETAILS */}
 
       <View>
         <Text style={styles.statTitle}>
@@ -171,15 +153,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
 
     shadowColor: '#000000',
-
     shadowOffset: {
       width: 0,
       height: 3,
     },
-
     shadowOpacity: 0.06,
     shadowRadius: 8,
-
     elevation: 3,
   },
 
@@ -197,18 +176,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  changeBadge: {
-    minHeight: 27,
-    borderRadius: 8,
-    paddingHorizontal: 7,
-    flexDirection: 'row',
+  arrowButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
-  },
-
-  changeText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9,
-    marginLeft: 3,
+    justifyContent: 'center',
   },
 
   statTitle: {

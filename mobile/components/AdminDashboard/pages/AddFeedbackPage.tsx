@@ -88,22 +88,7 @@ export default function AddFeedbackPage() {
           <View style={styles.headerTitleBox}>
             <Text style={styles.headerTitle}>Add Feedback</Text>
           </View>
-          <TouchableOpacity
-            style={styles.editHeader}
-            onPress={() =>
-              Alert.alert(
-                "Edit",
-                "You are currently editing the feedback form.",
-              )
-            }
-          >
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={19}
-              color="#7040D5"
-            />
-            <Text style={styles.editHeaderText}>Edit</Text>
-          </TouchableOpacity>
+          
         </View>
         <ScrollView
           contentContainerStyle={styles.content}

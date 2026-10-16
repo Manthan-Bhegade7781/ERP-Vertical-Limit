@@ -13,7 +13,7 @@ import {
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView , useSafeAreaInsets} from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
 
@@ -82,6 +82,7 @@ const initialStudents: Student[] = [
 
 export default function StudentsPage() {
   const { width } = useWindowDimensions();
+  const insets= useSafeAreaInsets();
 
   const isMobile = width < 700;
   const isTablet = width >= 700 && width < 1100;
@@ -244,6 +245,10 @@ export default function StudentsPage() {
         <View
           style={[
             styles.header,
+            {
+              paddingTop: insets.top+8,
+              minHeight: insets.top+66,
+            },
             isMobile && styles.headerMobile,
             isTablet && styles.headerTablet,
           ]}
@@ -990,19 +995,20 @@ const styles = StyleSheet.create({
   ====================================================== */
 
   header: {
-    height: 64,
+    width: "100%",
 
     backgroundColor: '#6D35D8',
 
-    paddingHorizontal: 28,
-
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     flexDirection: 'row',
 
     alignItems: 'center',
+
   },
 
   headerMobile: {
-    height: 64,
+    height:80,
     paddingHorizontal: 14,
   },
 

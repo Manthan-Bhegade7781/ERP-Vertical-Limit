@@ -195,24 +195,7 @@ export default function AddBatchPage() {
             <Text style={styles.headerTitle}>Add Batch</Text>
           </View>
 
-          {/* Same small Edit button used on Add Teacher/Add Subject */}
-          <TouchableOpacity
-            style={styles.headerEditButton}
-            activeOpacity={0.8}
-            onPress={() =>
-              Alert.alert(
-                "Edit",
-                "You are currently editing the batch information form.",
-              )
-            }
-          >
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={17}
-              color="#7040D5"
-            />
-            <Text style={styles.headerEditText}>Edit</Text>
-          </TouchableOpacity>
+          
         </View>
 
         <ScrollView

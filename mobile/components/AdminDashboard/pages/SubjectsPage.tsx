@@ -7,14 +7,13 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-
 type SubjectStatus = "Active" | "Inactive";
-
 type Subject = {
   id: string;
   name: string;
@@ -25,7 +24,6 @@ type Subject = {
   type: string;
   status: SubjectStatus;
 };
-
 const initialSubjects: Subject[] = [
   {
     id: "SUB801",
@@ -88,7 +86,6 @@ const initialSubjects: Subject[] = [
     status: "Active",
   },
 ];
-
 const filters = [
   "All",
   "8th",
@@ -101,23 +98,25 @@ const filters = [
   "JEE",
   "Foundation",
 ];
-
 export default function SubjectsPage() {
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  const isMobile = width < 700;
+  const isTablet = width >= 700 && width < 1100;
+
   const [subjects, setSubjects] = useState<Subject[]>(initialSubjects);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [viewVisible, setViewVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
-
   const [editName, setEditName] = useState("");
   const [editTeacher, setEditTeacher] = useState("");
   const [editBranch, setEditBranch] = useState("");
   const [editStatus, setEditStatus] = useState<SubjectStatus>("Active");
-
   const filteredSubjects = useMemo(() => {
     const query = search.trim().toLowerCase();
-
     return subjects.filter((subject) => {
       const matchesSearch =
         !query ||
@@ -128,23 +127,18 @@ export default function SubjectsPage() {
         subject.branch.toLowerCase().includes(query) ||
         subject.teacher.toLowerCase().includes(query) ||
         subject.type.toLowerCase().includes(query);
-
       const matchesFilter =
         filter === "All" || subject.standard === filter;
-
       return matchesSearch && matchesFilter;
     });
   }, [subjects, search, filter]);
-
   const handleAddSubject = () => {
     router.push("/(admin)/add-subject" as never);
   };
-
   const handleView = (subject: Subject) => {
     setSelectedSubject(subject);
     setViewVisible(true);
   };
-
   const handleEdit = (subject: Subject) => {
     setSelectedSubject(subject);
     setEditName(subject.name);
@@ -153,10 +147,8 @@ export default function SubjectsPage() {
     setEditStatus(subject.status);
     setEditVisible(true);
   };
-
   const saveEdit = () => {
     if (!selectedSubject) return;
-
     const updated: Subject = {
       ...selectedSubject,
       name: editName.trim() || selectedSubject.name,
@@ -164,15 +156,12 @@ export default function SubjectsPage() {
       branch: editBranch.trim() || selectedSubject.branch,
       status: editStatus,
     };
-
     setSubjects((current) =>
       current.map((item) => (item.id === updated.id ? updated : item)),
     );
-
     setSelectedSubject(updated);
     setEditVisible(false);
   };
-
   return (
     <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
       <StatusBar
@@ -180,11 +169,23 @@ export default function SubjectsPage() {
         backgroundColor="#6D35D8"
         translucent={false}
       />
-
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + 8,
+              minHeight: insets.top + 66,
+            },
+            isMobile && styles.headerMobile,
+            isTablet && styles.headerTablet,
+          ]}
+        >
           <TouchableOpacity
-            style={styles.backButton}
+            style={[
+              styles.backButton,
+              isMobile && styles.backButtonMobile,
+            ]}
             activeOpacity={0.8}
             onPress={() => router.back()}
           >
@@ -195,21 +196,31 @@ export default function SubjectsPage() {
             />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Subjects</Text>
+          <Text
+            style={[
+              styles.headerTitle,
+              isMobile && styles.headerTitleMobile,
+            ]}
+            numberOfLines={1}
+          >
+            Subjects
+          </Text>
 
           <TouchableOpacity
-            style={styles.addButton}
+            style={[
+              styles.addButton,
+              isMobile && styles.addButtonMobile,
+            ]}
             activeOpacity={0.85}
             onPress={handleAddSubject}
           >
             <MaterialCommunityIcons
               name="plus"
-              size={25}
+              size={24}
               color="#7040D5"
             />
           </TouchableOpacity>
         </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.content}
@@ -221,7 +232,6 @@ export default function SubjectsPage() {
               Manage subjects, classes, teachers and branches.
             </Text>
           </View>
-
           <View style={styles.searchCard}>
             <View style={styles.searchBox}>
               <MaterialCommunityIcons
@@ -239,7 +249,6 @@ export default function SubjectsPage() {
                 autoCorrect={false}
               />
             </View>
-
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -270,14 +279,12 @@ export default function SubjectsPage() {
               })}
             </ScrollView>
           </View>
-
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Subjects</Text>
             <Text style={styles.sectionCount}>
               {filteredSubjects.length} Subjects
             </Text>
           </View>
-
           <View style={styles.subjectList}>
             {filteredSubjects.map((subject) => (
               <View key={subject.id} style={styles.subjectCard}>
@@ -290,7 +297,6 @@ export default function SubjectsPage() {
                         color="#7040D5"
                       />
                     </View>
-
                     <View style={styles.subjectNameBlock}>
                       <Text style={styles.subjectName}>
                         {subject.name}
@@ -300,7 +306,6 @@ export default function SubjectsPage() {
                       </Text>
                     </View>
                   </View>
-
                   <View
                     style={[
                       styles.statusBadge,
@@ -321,7 +326,6 @@ export default function SubjectsPage() {
                     </Text>
                   </View>
                 </View>
-
                 <View style={styles.detailsGrid}>
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>STANDARD</Text>
@@ -329,21 +333,18 @@ export default function SubjectsPage() {
                       {subject.standard}
                     </Text>
                   </View>
-
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>BRANCH</Text>
                     <Text style={styles.detailValue}>
                       {subject.branch}
                     </Text>
                   </View>
-
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>TEACHER</Text>
                     <Text style={styles.detailValue}>
                       {subject.teacher}
                     </Text>
                   </View>
-
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>TYPE</Text>
                     <Text style={styles.detailValue}>
@@ -351,7 +352,6 @@ export default function SubjectsPage() {
                     </Text>
                   </View>
                 </View>
-
                 <View style={styles.actionRow}>
                   <TouchableOpacity
                     style={styles.actionButton}
@@ -365,7 +365,6 @@ export default function SubjectsPage() {
                     />
                     <Text style={styles.actionText}>View</Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={styles.actionButton}
                     activeOpacity={0.8}
@@ -381,7 +380,6 @@ export default function SubjectsPage() {
                 </View>
               </View>
             ))}
-
             {filteredSubjects.length === 0 && (
               <View style={styles.emptyCard}>
                 <MaterialCommunityIcons
@@ -395,7 +393,6 @@ export default function SubjectsPage() {
           </View>
         </ScrollView>
       </View>
-
       <Modal
         visible={viewVisible}
         transparent
@@ -423,7 +420,6 @@ export default function SubjectsPage() {
                 />
               </TouchableOpacity>
             </View>
-
             {selectedSubject && (
               <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -446,7 +442,6 @@ export default function SubjectsPage() {
                     </Text>
                   </View>
                 </View>
-
                 <View style={styles.modalGrid}>
                   <View style={styles.modalDetailBox}>
                     <Text style={styles.modalLabel}>Standard</Text>
@@ -478,7 +473,6 @@ export default function SubjectsPage() {
           </View>
         </View>
       </Modal>
-
       <Modal
         visible={editVisible}
         transparent
@@ -506,7 +500,6 @@ export default function SubjectsPage() {
                 />
               </TouchableOpacity>
             </View>
-
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.modalScroll}
@@ -519,7 +512,6 @@ export default function SubjectsPage() {
                 placeholder="Subject name"
                 placeholderTextColor="#A0AABB"
               />
-
               <Text style={styles.inputLabel}>Teacher</Text>
               <TextInput
                 value={editTeacher}
@@ -528,7 +520,6 @@ export default function SubjectsPage() {
                 placeholder="Teacher"
                 placeholderTextColor="#A0AABB"
               />
-
               <Text style={styles.inputLabel}>Branch</Text>
               <TextInput
                 value={editBranch}
@@ -537,7 +528,6 @@ export default function SubjectsPage() {
                 placeholder="Branch"
                 placeholderTextColor="#A0AABB"
               />
-
               <Text style={styles.inputLabel}>Status</Text>
               <View style={styles.statusPickerRow}>
                 {(["Active", "Inactive"] as const).map((status) => (
@@ -563,7 +553,6 @@ export default function SubjectsPage() {
                   </TouchableOpacity>
                 ))}
               </View>
-
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={styles.modalCancelButton}
@@ -572,7 +561,6 @@ export default function SubjectsPage() {
                 >
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
                   style={styles.modalSaveButton}
                   activeOpacity={0.85}
@@ -593,16 +581,24 @@ export default function SubjectsPage() {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#F7F8FC" },
   container: { flex: 1, backgroundColor: "#F7F8FC" },
   header: {
-    height: 64,
+    width: "100%",
     backgroundColor: "#6D35D8",
-    paddingHorizontal: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
+  },
+  headerMobile: {
+    height: 80,
+    paddingHorizontal: 14,
+  },
+  headerTablet: {
+    height: 64,
+    paddingHorizontal: 20,
   },
   backButton: {
     width: 36,
@@ -611,22 +607,38 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.16)",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 12,
+  },
+  backButtonMobile: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    marginRight: 12,
   },
   headerTitle: {
     flex: 1,
     fontFamily: "PoppinsSemiBold",
     fontSize: 20,
+    lineHeight: 26,
     color: "#FFFFFF",
-    marginLeft: 12,
+    textAlign: "left",
+  },
+  headerTitleMobile: {
+    fontSize: 20,
   },
   addButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 13,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 8,
+  },
+  addButtonMobile: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
   },
   scrollView: { flex: 1 },
   content: {

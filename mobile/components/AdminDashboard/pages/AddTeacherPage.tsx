@@ -186,17 +186,7 @@ export default function AddTeacherPage() {
           <Text style={styles.headerTitle}>Add Teacher</Text>
          </View>
 
-        <TouchableOpacity
-          style={styles.editButton}
-          activeOpacity={0.85}
-        >
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={17}
-            color="#7040D5"
-          />
-          <Text style={styles.editButtonText}>Edit</Text>
-        </TouchableOpacity>
+       
       </View>
 
       <KeyboardAvoidingView

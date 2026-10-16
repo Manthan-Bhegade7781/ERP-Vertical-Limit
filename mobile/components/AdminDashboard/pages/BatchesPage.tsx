@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  useWindowDimensions,
   Modal,
   ScrollView,
   StyleSheet,
@@ -10,11 +11,9 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-
 type BatchStatus = "Active" | "Inactive";
-
 type Batch = {
   id: string;
   name: string;
@@ -29,7 +28,6 @@ type Batch = {
   endDate: string;
   status: BatchStatus;
 };
-
 const initialBatches: Batch[] = [
   {
     id: "BAT001",
@@ -144,7 +142,6 @@ const initialBatches: Batch[] = [
     status: "Active",
   },
 ];
-
 const filters = [
   "All",
   "8th",
@@ -157,23 +154,23 @@ const filters = [
   "MHT-CET",
   "Foundation",
 ];
-
 export default function BatchesPage() {
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isMobile = width < 700;
+  const isTablet = width >= 700 && width < 1100;
   const [batches, setBatches] = useState<Batch[]>(initialBatches);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [viewVisible, setViewVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
-
   const [editName, setEditName] = useState("");
   const [editFaculty, setEditFaculty] = useState("");
   const [editBranch, setEditBranch] = useState("");
   const [editStatus, setEditStatus] = useState<BatchStatus>("Active");
-
   const filteredBatches = useMemo(() => {
     const query = search.trim().toLowerCase();
-
     return batches.filter((batch) => {
       const matchesSearch =
         !query ||
@@ -184,25 +181,20 @@ export default function BatchesPage() {
         batch.course.toLowerCase().includes(query) ||
         batch.faculty.toLowerCase().includes(query) ||
         batch.branch.toLowerCase().includes(query);
-
       const matchesFilter =
         filter === "All" ||
         batch.standard === filter ||
         batch.course === filter;
-
       return matchesSearch && matchesFilter;
     });
   }, [batches, search, filter]);
-
   const handleAddBatch = () => {
     router.push("/(admin)/add-batch" as never);
   };
-
   const handleView = (batch: Batch) => {
     setSelectedBatch(batch);
     setViewVisible(true);
   };
-
   const handleEdit = (batch: Batch) => {
     setSelectedBatch(batch);
     setEditName(batch.name);
@@ -211,10 +203,8 @@ export default function BatchesPage() {
     setEditStatus(batch.status);
     setEditVisible(true);
   };
-
   const saveEdit = () => {
     if (!selectedBatch) return;
-
     const updatedBatch: Batch = {
       ...selectedBatch,
       name: editName.trim() || selectedBatch.name,
@@ -222,17 +212,14 @@ export default function BatchesPage() {
       branch: editBranch.trim() || selectedBatch.branch,
       status: editStatus,
     };
-
     setBatches((current) =>
       current.map((item) =>
         item.id === updatedBatch.id ? updatedBatch : item,
       ),
     );
-
     setSelectedBatch(updatedBatch);
     setEditVisible(false);
   };
-
   return (
     <SafeAreaView
       style={styles.safeArea}
@@ -243,11 +230,20 @@ export default function BatchesPage() {
         backgroundColor="#6D35D8"
         translucent={false}
       />
-
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + 8,
+              minHeight: insets.top + 66,
+            },
+            isMobile && styles.headerMobile,
+            isTablet && styles.headerTablet,
+          ]}
+        >
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.backButton, isMobile && styles.backButtonMobile]}
             activeOpacity={0.8}
             onPress={() => router.back()}
           >
@@ -257,22 +253,24 @@ export default function BatchesPage() {
               color="#FFFFFF"
             />
           </TouchableOpacity>
-
-          <Text style={styles.headerTitle}>Batches</Text>
-
+          <Text
+            style={[styles.headerTitle, isMobile && styles.headerTitleMobile]}
+            numberOfLines={1}
+          >
+            Batches
+          </Text>
           <TouchableOpacity
-            style={styles.addButton}
+            style={[styles.addButton, isMobile && styles.addButtonMobile]}
             activeOpacity={0.85}
             onPress={handleAddBatch}
           >
             <MaterialCommunityIcons
               name="plus"
-              size={25}
+              size={24}
               color="#7040D5"
             />
           </TouchableOpacity>
         </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.content}
@@ -284,7 +282,6 @@ export default function BatchesPage() {
               Manage batches, academic years, courses, faculty and branches.
             </Text>
           </View>
-
           <View style={styles.searchCard}>
             <View style={styles.searchBox}>
               <MaterialCommunityIcons
@@ -302,7 +299,6 @@ export default function BatchesPage() {
                 autoCorrect={false}
               />
             </View>
-
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -310,7 +306,6 @@ export default function BatchesPage() {
             >
               {filters.map((item) => {
                 const active = filter === item;
-
                 return (
                   <TouchableOpacity
                     key={item}
@@ -334,14 +329,12 @@ export default function BatchesPage() {
               })}
             </ScrollView>
           </View>
-
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Batches</Text>
             <Text style={styles.sectionCount}>
               {filteredBatches.length} Batches
             </Text>
           </View>
-
           <View style={styles.batchList}>
             {filteredBatches.map((batch) => (
               <View key={batch.id} style={styles.batchCard}>
@@ -354,7 +347,6 @@ export default function BatchesPage() {
                         color="#7040D5"
                       />
                     </View>
-
                     <View style={styles.batchNameBlock}>
                       <Text style={styles.batchName}>{batch.name}</Text>
                       <Text style={styles.batchCode}>
@@ -362,7 +354,6 @@ export default function BatchesPage() {
                       </Text>
                     </View>
                   </View>
-
                   <View
                     style={[
                       styles.statusBadge,
@@ -383,7 +374,6 @@ export default function BatchesPage() {
                     </Text>
                   </View>
                 </View>
-
                 <View style={styles.detailsGrid}>
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>STD / SUB</Text>
@@ -391,35 +381,30 @@ export default function BatchesPage() {
                       {batch.standard} / {batch.course}
                     </Text>
                   </View>
-
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>STUDENTS</Text>
                     <Text style={styles.detailValue}>
                       {batch.students}
                     </Text>
                   </View>
-
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>FACULTY</Text>
                     <Text style={styles.detailValue}>
                       {batch.faculty}
                     </Text>
                   </View>
-
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>BRANCH</Text>
                     <Text style={styles.detailValue}>
                       {batch.branch}
                     </Text>
                   </View>
-
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>START DATE</Text>
                     <Text style={styles.detailValue}>
                       {batch.startDate}
                     </Text>
                   </View>
-
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>END DATE</Text>
                     <Text style={styles.detailValue}>
@@ -427,7 +412,6 @@ export default function BatchesPage() {
                     </Text>
                   </View>
                 </View>
-
                 <View style={styles.actionRow}>
                   <TouchableOpacity
                     style={styles.actionButton}
@@ -441,7 +425,6 @@ export default function BatchesPage() {
                     />
                     <Text style={styles.actionText}>View</Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={styles.actionButton}
                     activeOpacity={0.8}
@@ -457,7 +440,6 @@ export default function BatchesPage() {
                 </View>
               </View>
             ))}
-
             {filteredBatches.length === 0 && (
               <View style={styles.emptyCard}>
                 <MaterialCommunityIcons
@@ -471,7 +453,6 @@ export default function BatchesPage() {
           </View>
         </ScrollView>
       </View>
-
       {/* VIEW BATCH */}
       <Modal
         visible={viewVisible}
@@ -488,7 +469,6 @@ export default function BatchesPage() {
                   Complete batch information
                 </Text>
               </View>
-
               <TouchableOpacity
                 style={styles.modalClose}
                 activeOpacity={0.8}
@@ -501,7 +481,6 @@ export default function BatchesPage() {
                 />
               </TouchableOpacity>
             </View>
-
             {selectedBatch && (
               <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -515,7 +494,6 @@ export default function BatchesPage() {
                       color="#7040D5"
                     />
                   </View>
-
                   <View>
                     <Text style={styles.modalBatchName}>
                       {selectedBatch.name}
@@ -525,7 +503,6 @@ export default function BatchesPage() {
                     </Text>
                   </View>
                 </View>
-
                 <View style={styles.modalGrid}>
                   <View style={styles.modalDetailBox}>
                     <Text style={styles.modalLabel}>Standard</Text>
@@ -533,35 +510,30 @@ export default function BatchesPage() {
                       {selectedBatch.standard}
                     </Text>
                   </View>
-
                   <View style={styles.modalDetailBox}>
                     <Text style={styles.modalLabel}>Course</Text>
                     <Text style={styles.modalValue}>
                       {selectedBatch.course}
                     </Text>
                   </View>
-
                   <View style={styles.modalDetailBox}>
                     <Text style={styles.modalLabel}>Faculty</Text>
                     <Text style={styles.modalValue}>
                       {selectedBatch.faculty}
                     </Text>
                   </View>
-
                   <View style={styles.modalDetailBox}>
                     <Text style={styles.modalLabel}>Branch</Text>
                     <Text style={styles.modalValue}>
                       {selectedBatch.branch}
                     </Text>
                   </View>
-
                   <View style={styles.modalDetailBox}>
                     <Text style={styles.modalLabel}>Students</Text>
                     <Text style={styles.modalValue}>
                       {selectedBatch.students}
                     </Text>
                   </View>
-
                   <View style={styles.modalDetailBox}>
                     <Text style={styles.modalLabel}>Status</Text>
                     <Text style={styles.modalValue}>
@@ -574,7 +546,6 @@ export default function BatchesPage() {
           </View>
         </View>
       </Modal>
-
       {/* EDIT BATCH */}
       <Modal
         visible={editVisible}
@@ -591,7 +562,6 @@ export default function BatchesPage() {
                   Update batch information
                 </Text>
               </View>
-
               <TouchableOpacity
                 style={styles.modalClose}
                 activeOpacity={0.8}
@@ -604,7 +574,6 @@ export default function BatchesPage() {
                 />
               </TouchableOpacity>
             </View>
-
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.modalScroll}
@@ -617,7 +586,6 @@ export default function BatchesPage() {
                 placeholder="Batch name"
                 placeholderTextColor="#A0AABB"
               />
-
               <Text style={styles.inputLabel}>Faculty</Text>
               <TextInput
                 value={editFaculty}
@@ -626,7 +594,6 @@ export default function BatchesPage() {
                 placeholder="Faculty"
                 placeholderTextColor="#A0AABB"
               />
-
               <Text style={styles.inputLabel}>Branch</Text>
               <TextInput
                 value={editBranch}
@@ -635,9 +602,7 @@ export default function BatchesPage() {
                 placeholder="Branch"
                 placeholderTextColor="#A0AABB"
               />
-
               <Text style={styles.inputLabel}>Status</Text>
-
               <View style={styles.statusPickerRow}>
                 {(["Active", "Inactive"] as const).map((status) => (
                   <TouchableOpacity
@@ -662,7 +627,6 @@ export default function BatchesPage() {
                   </TouchableOpacity>
                 ))}
               </View>
-
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={styles.modalCancelButton}
@@ -671,7 +635,6 @@ export default function BatchesPage() {
                 >
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
                   style={styles.modalSaveButton}
                   activeOpacity={0.85}
@@ -692,7 +655,6 @@ export default function BatchesPage() {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -703,11 +665,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#F7F8FC",
   },
   header: {
-    height: 64,
+    width: "100%",
     backgroundColor: "#6D35D8",
-    paddingHorizontal: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
+  },
+  headerMobile: {
+    height: 80,
+    paddingHorizontal: 14,
+  },
+  headerTablet: {
+    height: 64,
+    paddingHorizontal: 20,
   },
   backButton: {
     width: 36,
@@ -716,22 +687,38 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.16)",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 12,
+  },
+  backButtonMobile: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    marginRight: 12,
   },
   headerTitle: {
     flex: 1,
     fontFamily: "PoppinsSemiBold",
     fontSize: 20,
+    lineHeight: 26,
     color: "#FFFFFF",
-    marginLeft: 12,
+    textAlign: "left",
+  },
+  headerTitleMobile: {
+    fontSize: 20,
   },
   addButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 13,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 8,
+  },
+  addButtonMobile: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
   },
   scrollView: {
     flex: 1,

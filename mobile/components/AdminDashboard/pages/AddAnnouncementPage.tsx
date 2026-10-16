@@ -174,23 +174,7 @@ export default function AddAnnouncementPage() {
           </View>
 
           {/* SAME EDIT BUTTON AS PREVIOUS ADD PAGES */}
-          <TouchableOpacity
-            style={styles.headerEditButton}
-            activeOpacity={0.8}
-            onPress={() =>
-              Alert.alert(
-                "Edit",
-                "You are currently editing the announcement information form."
-              )
-            }
-          >
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={20}
-              color="#7040D5"
-            />
-            <Text style={styles.headerEditText}>Edit</Text>
-          </TouchableOpacity>
+          
         </View>
 
         <ScrollView
