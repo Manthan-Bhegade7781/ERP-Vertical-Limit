@@ -106,14 +106,10 @@ export default function StatCard({
         <View
           style={[
             styles.arrowButton,
-            { backgroundColor: color.icon },
+            { backgroundColor: color.background },
           ]}
         >
-          <MaterialCommunityIcons
-            name="arrow-right"
-            size={18}
-            color="#FFFFFF"
-          />
+          <MaterialCommunityIcons name="chevron-right" size={25} color="#A0A9B8" />
         </View>
       </View>
 
@@ -177,16 +173,16 @@ const styles = StyleSheet.create({
   },
 
   arrowButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    minHeight: 28,
+    borderRadius: 16,
+    paddingHorizontal: 4,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
 
   statTitle: {
     fontFamily: 'PoppinsMedium',
-    fontSize: 10.5,
+    fontSize: 13,
     color: '#748096',
     marginBottom: 3,
   },

@@ -61,7 +61,7 @@ function RootNavigator() {
     // Map each role to its dashboard route.
     const dashboardRoutes: Record<string, string> = {
       super_admin: '/(super_admin)',
-      admin: '/admin',
+      admin: '/(admin)',
       teacher: '/(tabs)',
       student: '/(student)',
     };
@@ -93,7 +93,7 @@ function RootNavigator() {
       (role === 'student' && firstSegment === '(student)') ||
       (role === 'teacher' && firstSegment === '(tabs)') ||
       (role === 'super_admin' && firstSegment === '(super_admin)') ||
-      (role === 'admin' && firstSegment === 'admin');
+      (role === 'admin' && firstSegment === '(admin)');
 
     if (!isCorrectRoute) {
       router.replace(expectedRoute as any);
@@ -131,7 +131,7 @@ function RootNavigator() {
       />
 
       <Stack.Screen
-        name="admin"
+        name="(admin)"
         options={{ headerShown: false }}
       />
 

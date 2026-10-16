@@ -19,6 +19,10 @@ import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
 import StatCard from './StatCard';
 
+import { Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
+
 /* =========================================================
    NAVIGATION
 ========================================================= */
@@ -241,6 +245,18 @@ function DashboardFooter() {
 
 export default function AdminDashboard() {
   const { width } = useWindowDimensions();
+
+  const { logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.replace('/(auth)');
+    } catch (error) {
+      Alert.alert('Logout failed', 'Please try again.');
+    }
+  };
 
   const isDesktop = width >= 900;
 

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
 
 /* =========================================================
    NAVIGATION
@@ -51,6 +52,19 @@ export default function AdminHeader({
 
   const [profileVisible, setProfileVisible] =
     useState(false);
+
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    closeAll();
+
+    try {
+      await logout();
+      router.replace('/(auth)');
+    } catch {
+      Alert.alert('Logout failed', 'Please try again.');
+    }
+  };
 
   /* =======================================================
      NOTIFICATIONS
@@ -96,11 +110,8 @@ export default function AdminHeader({
       return;
     }
 
-    if (option === 'logout') {
-      Alert.alert(
-        'Logout',
-        'Logout functionality will be connected here.',
-      );
+   if (option === 'logout') {
+      void handleLogout();
     }
   };
 
@@ -534,6 +545,8 @@ const styles = StyleSheet.create({
 
     paddingHorizontal: 20,
 
+    marginTop: 10,
+
     flexDirection: 'row',
 
     alignItems: 'center',
@@ -541,6 +554,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
 
     zIndex: 20,
+
+    borderBottomLeftRadius: 28,
+
+    borderBottomRightRadius: 28,
   },
 
   /* =====================================================
@@ -551,6 +568,8 @@ const styles = StyleSheet.create({
     height: 82,
 
     paddingHorizontal: 16,
+
+    paddingVertical: 5,
 
     flexDirection: 'row',
 
@@ -584,7 +603,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: 'PoppinsBold',
 
-    fontSize: 21,
+    fontSize: 23,
 
     lineHeight: 27,
 
@@ -645,9 +664,9 @@ const styles = StyleSheet.create({
   ====================================================== */
 
   headerIconButton: {
-    width: 48,
+    width: 40,
 
-    height: 48,
+    height: 40,
 
     borderRadius: 14,
 
