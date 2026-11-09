@@ -1,1228 +1,2903 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from 'react';
 
 import {
+
+  ActivityIndicator,
   Alert,
-  Modal,
+
   ScrollView,
+
   StyleSheet,
+
   Text,
+
   TextInput,
+
   TouchableOpacity,
+
   View,
+
   useWindowDimensions,
-} from "react-native";
 
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
+} from 'react-native';
 
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type LeaveStatus = "Approved" | "Pending" | "Rejected";
+import { router, useFocusEffect } from 'expo-router';
 
-type Leave = {
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
+import { useAuth } from '@/context/AuthContext';
+
+type LeaveStatus = 'Approved' | 'Pending' | 'Rejected';
+
+type LeaveRecord = {
   id: string;
-
   name: string;
-
   role: string;
-
   department: string;
-
   leaveType: string;
-
   fromDate: string;
-
   toDate: string;
-
-  days: string;
-
+  days: number;
   reason: string;
-
   status: LeaveStatus;
 };
 
-const initialData: Leave[] = [
-  {
-    id: "LV001",
-
-    name: "Rahul Sharma",
-
-    role: "Physics Faculty",
-
-    department: "Science",
-
-    leaveType: "Casual Leave",
-
-    fromDate: "20 Sep 2026",
-
-    toDate: "21 Sep 2026",
-
-    days: "2",
-
-    reason: "Personal work",
-
-    status: "Approved",
-  },
-
-  {
-    id: "LV002",
-
-    name: "Priya Patil",
-
-    role: "Mathematics Faculty",
-
-    department: "Mathematics",
-
-    leaveType: "Medical Leave",
-
-    fromDate: "22 Sep 2026",
-
-    toDate: "23 Sep 2026",
-
-    days: "2",
-
-    reason: "Health appointment",
-
-    status: "Pending",
-  },
-
-  {
-    id: "LV003",
-
-    name: "Amit Joshi",
-
-    role: "Chemistry Faculty",
-
-    department: "Science",
-
-    leaveType: "Casual Leave",
-
-    fromDate: "24 Sep 2026",
-
-    toDate: "24 Sep 2026",
-
-    days: "1",
-
-    reason: "Personal work",
-
-    status: "Approved",
-  },
-
-  {
-    id: "LV004",
-
-    name: "Sneha Kulkarni",
-
-    role: "Biology Faculty",
-
-    department: "Biology",
-
-    leaveType: "Emergency Leave",
-
-    fromDate: "25 Sep 2026",
-
-    toDate: "26 Sep 2026",
-
-    days: "2",
-
-    reason: "Family emergency",
-
-    status: "Rejected",
-  },
-
-  {
-    id: "LV005",
-
-    name: "Neha Deshmukh",
-
-    role: "English Faculty",
-
-    department: "English",
-
-    leaveType: "Casual Leave",
-
-    fromDate: "28 Sep 2026",
-
-    toDate: "29 Sep 2026",
-
-    days: "2",
-
-    reason: "Personal work",
-
-    status: "Pending",
-  },
-];
-
-const statusStyle: Record<LeaveStatus, { bg: string; text: string }> = {
-  Approved: { bg: "#E7F8F0", text: "#13A968" },
-
-  Pending: { bg: "#FFF0DF", text: "#F28A17" },
-
-  Rejected: { bg: "#FFE9ED", text: "#E84D61" },
+type ApiLeave = {
+  _id?: string;
+  id?: string;
+  staffId?: any;
+  staff?: any;
+  staffName?: string;
+  branchId?: any;
+  branch?: any;
+  leaveType?: string;
+  fromDate?: string;
+  toDate?: string;
+  days?: number;
+  totalDays?: number;
+  reason?: string;
+  status?: string;
 };
 
+function formatDisplayDate(value?: string): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function normalizeStatus(value?: string): LeaveStatus {
+  const status = (value || 'pending').toLowerCase();
+  if (status === 'approved') return 'Approved';
+  if (status === 'rejected') return 'Rejected';
+  return 'Pending';
+}
+
+function normalizeLeaveRecord(item: ApiLeave): LeaveRecord {
+  const staff = item.staffId && typeof item.staffId === 'object'
+    ? item.staffId
+    : item.staff && typeof item.staff === 'object'
+      ? item.staff
+      : {};
+  const branch = item.branchId && typeof item.branchId === 'object'
+    ? item.branchId
+    : item.branch && typeof item.branch === 'object'
+      ? item.branch
+      : {};
+  const roles = Array.isArray(staff.roles) ? staff.roles : [];
+  const role = roles.length
+    ? roles.map((value: string) => value.replace(/_/g, ' ')
+        .replace(/\b\w/g, (letter: string) => letter.toUpperCase())).join(', ')
+    : (staff.role || 'Staff');
+  const from = item.fromDate || '';
+  const to = item.toDate || '';
+  const calculatedDays = from && to
+    ? Math.max(1, Math.floor((Date.parse(to) - Date.parse(from)) / 86400000) + 1)
+    : 1;
+
+  return {
+    id: String(item._id || item.id || ''),
+    name: staff.fullName || item.staffName || staff.name || 'Staff member',
+    role,
+    department: branch.name || branch.branchName || '—',
+    leaveType: item.leaveType || 'Leave',
+    fromDate: formatDisplayDate(from),
+    toDate: formatDisplayDate(to),
+    days: Number(item.days ?? item.totalDays ?? calculatedDays),
+    reason: item.reason || '—',
+    status: normalizeStatus(item.status),
+  };
+}
+
+function extractLeaveArray(result: any): ApiLeave[] {
+  const candidates = [
+    result?.data,
+    result?.data?.leaves,
+    result?.data?.requests,
+    result?.data?.items,
+    result?.data?.records,
+    result?.leaves,
+    result?.requests,
+  ];
+  return candidates.find(Array.isArray) || [];
+}
+
 export default function StaffOnLeavePage() {
-  const router = useRouter();
-  const { width } = useWindowDimensions();
+
   const insets = useSafeAreaInsets();
-  const isMobile = width < 700;
-  const isTablet = width >= 700 && width < 1100;
+  const { width } = useWindowDimensions();
+  const { user } = useAuth();
+  const roles = user?.roles ?? [];
+  const canManageLeaves = roles.includes('super_admin') || roles.includes('admin');
+  const isDesktop = width >= 900;
 
-  const [data, setData] = useState(initialData);
+  const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] =
+    useState<'All' | LeaveStatus>('All');
+  const [selectedRecord, setSelectedRecord] =
+    useState<LeaveRecord | null>(null);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [updatingRecordId, setUpdatingRecordId] = useState<string | null>(null);
 
-  const [search, setSearch] = useState("");
+  // Refetch every time this list screen becomes active, including after
+  // returning from Add/Edit Leave or after changing a leave status.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
 
-  const [filter, setFilter] = useState<"All" | LeaveStatus>("All");
+      const loadLeaves = async () => {
+        setLoading(true);
+        try {
+          const token = await getToken();
+          if (!token) throw new Error('Your session has expired. Please log in again.');
 
-  const [selected, setSelected] = useState<Leave | null>(null);
+          const response = await fetch(`${API_BASE_URL}/leaves`, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const result = await response.json();
+          if (!response.ok || result?.success === false) {
+            throw new Error(result?.message || 'Unable to load leave requests.');
+          }
 
-  const [viewVisible, setViewVisible] = useState(false);
+          const records = extractLeaveArray(result).map(normalizeLeaveRecord);
+          if (!cancelled) setLeaveRecords(records);
+        } catch (error) {
+          if (!cancelled) {
+            const message = error instanceof Error
+              ? error.message
+              : 'Unable to load leave requests.';
+            Alert.alert('Leave Loading Error', message);
+          }
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      };
 
-  const [editVisible, setEditVisible] = useState(false);
+      void loadLeaves();
+      return () => { cancelled = true; };
+    }, [])
+  );
 
-  const [name, setName] = useState("");
+  const totalStaffOnLeave = leaveRecords.filter(
+    (record) => record.status === 'Approved'
+  ).length;
+  const approvedCount = leaveRecords.filter(
+    (record) => record.status === 'Approved'
+  ).length;
+  const pendingCount = leaveRecords.filter(
+    (record) => record.status === 'Pending'
+  ).length;
+  const rejectedCount = leaveRecords.filter(
+    (record) => record.status === 'Rejected'
+  ).length;
 
-  const [role, setRole] = useState("");
+  const filteredRecords = useMemo(() => {
+    const search = searchText.trim().toLowerCase();
+    return leaveRecords.filter((record) => {
+      const matchesSearch =
+        !search ||
+        record.name.toLowerCase().includes(search) ||
+        record.role.toLowerCase().includes(search) ||
+        record.department.toLowerCase().includes(search) ||
+        record.leaveType.toLowerCase().includes(search);
+      const matchesStatus = statusFilter === 'All' || record.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [leaveRecords, searchText, statusFilter]);
 
-  const [department, setDepartment] = useState("");
-
-  const [leaveType, setLeaveType] = useState("");
-
-  const [fromDate, setFromDate] = useState("");
-
-  const [toDate, setToDate] = useState("");
-
-  const [days, setDays] = useState("");
-
-  const [reason, setReason] = useState("");
-
-  const [status, setStatus] = useState<LeaveStatus>("Pending");
-
-  const openAdd = () => router.push("/(admin)/add-staff-on-leave" as never);
-
-  const openEdit = (x: Leave) => {
-    setSelected(x);
-
-    setName(x.name);
-
-    setRole(x.role);
-
-    setDepartment(x.department);
-
-    setLeaveType(x.leaveType);
-
-    setFromDate(x.fromDate);
-
-    setToDate(x.toDate);
-
-    setDays(x.days);
-
-    setReason(x.reason);
-
-    setStatus(x.status);
-
-    setEditVisible(true);
+  const openDetails = (record: LeaveRecord) => {
+    setSelectedRecord(record);
+    setDetailsVisible(true);
   };
 
-  const saveEdit = () => {
-    if (
-      !selected ||
-      !name.trim() ||
-      !role.trim() ||
-      !department.trim() ||
-      !leaveType.trim() ||
-      !fromDate.trim() ||
-      !toDate.trim() ||
-      !days.trim() ||
-      !reason.trim()
-    ) {
-      Alert.alert("Required Fields", "Please fill all staff leave details.");
+  const closeDetails = () => {
+    setDetailsVisible(false);
+    setSelectedRecord(null);
+  };
 
-      return;
+  const updateLeaveStatus = async (record: LeaveRecord, nextStatus: 'approved' | 'rejected') => {
+    if (!canManageLeaves || updatingRecordId) return;
+    setUpdatingRecordId(record.id);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please log in again.');
+
+      const response = await fetch(`${API_BASE_URL}/leaves/${record.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const result = await response.json();
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.message || `Unable to ${nextStatus} leave request.`);
+      }
+
+      const displayStatus = normalizeStatus(nextStatus);
+      setLeaveRecords((current) => current.map((item) =>
+        item.id === record.id ? { ...item, status: displayStatus } : item
+      ));
+      setSelectedRecord((current) => current?.id === record.id
+        ? { ...current, status: displayStatus }
+        : current
+      );
+      Alert.alert(
+        nextStatus === 'approved' ? 'Leave Approved' : 'Leave Rejected',
+        `${record.name}'s leave request has been ${nextStatus}.`
+      );
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : `Unable to ${nextStatus} leave request.`;
+      Alert.alert('Update Failed', message);
+    } finally {
+      setUpdatingRecordId(null);
+    }
+  };
+
+  const handleApprove = (record: LeaveRecord) => {
+    Alert.alert('Approve Leave', `Approve leave request for ${record.name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Approve', onPress: () => { void updateLeaveStatus(record, 'approved'); } },
+    ]);
+  };
+
+  const handleReject = (record: LeaveRecord) => {
+    Alert.alert('Reject Leave', `Reject leave request for ${record.name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Reject', style: 'destructive', onPress: () => { void updateLeaveStatus(record, 'rejected'); } },
+    ]);
+  };
+
+  const handleAddLeave = () => {
+    router.push('/(admin)/add-staff-on-leave' as never);
+  };
+
+  const getStatusStyle = (status: LeaveStatus) => {
+
+    switch (status) {
+
+      case 'Approved':
+
+        return {
+
+          backgroundColor: '#E7F8EF',
+
+          color: '#35B878',
+
+        };
+
+      case 'Pending':
+
+        return {
+
+          backgroundColor: '#FFF1E2',
+
+          color: '#F7941D',
+
+        };
+
+      case 'Rejected':
+
+        return {
+
+          backgroundColor: '#FFE9F0',
+
+          color: '#E95386',
+
+        };
+
     }
 
-    const updated = {
-      ...selected,
-
-      name: name.trim(),
-
-      role: role.trim(),
-
-      department: department.trim(),
-
-      leaveType: leaveType.trim(),
-
-      fromDate: fromDate.trim(),
-
-      toDate: toDate.trim(),
-
-      days: days.trim(),
-
-      reason: reason.trim(),
-
-      status,
-    };
-
-    setData((a) => a.map((x) => (x.id === updated.id ? updated : x)));
-
-    setSelected(updated);
-
-    setEditVisible(false);
   };
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    return data.filter(
-      (x) =>
-        (!q ||
-          x.id.toLowerCase().includes(q) ||
-          x.name.toLowerCase().includes(q) ||
-          x.role.toLowerCase().includes(q) ||
-          x.department.toLowerCase().includes(q)) &&
-        (filter === "All" || x.status === filter),
-    );
-  }, [data, search, filter]);
-
   return (
-    <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      <View style={styles.container}>
-        <StatusBar
-          style="light"
-          backgroundColor="#6D35D8"
-          translucent={false}
-        />
-        <View
-          style={[
-            styles.header,
-            { paddingTop: insets.top + 8, minHeight: insets.top + 66 },
-            isMobile && styles.headerMobile,
-            isTablet && styles.headerTablet,
-          ]}
+
+    <View
+
+      style={[
+
+        styles.container,
+
+        {
+
+          paddingTop: insets.top,
+
+        },
+
+      ]}
+
+    >
+
+      {/* =====================================================
+
+          HEADER
+
+      ===================================================== */}
+
+      <View style={styles.header}>
+
+        <TouchableOpacity
+
+          style={styles.backButton}
+
+          activeOpacity={0.8}
+
+          onPress={() => router.back()}
+
         >
-          <View style={styles.headerLeft}>
-            <TouchableOpacity
-              style={[styles.back, isMobile && styles.backMobile]}
-              onPress={() => router.back()}
-            >
-              <MaterialCommunityIcons
-                name="arrow-left"
-                size={22}
-                color="#FFF"
-              />
-            </TouchableOpacity>
 
-            <Text
-              style={[styles.headerTitle, isMobile && styles.headerTitleMobile]}
-              numberOfLines={1}
-            >
-              Staff on Leave
-            </Text>
-          </View>
+          <MaterialCommunityIcons
 
-          <TouchableOpacity
-            style={[styles.plus, isMobile && styles.plusMobile]}
-            onPress={openAdd}
-          >
-            <MaterialCommunityIcons name="plus" size={24} color="#7040D5" />
-          </TouchableOpacity>
-        </View>
+            name="arrow-left"
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
+            size={22}
+
+            color="#FFFFFF"
+
+          />
+
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>
+
+          Staff on Leave
+
+        </Text>
+
+        <TouchableOpacity
+
+          style={styles.addButton}
+
+          activeOpacity={0.85}
+
+          onPress={handleAddLeave}
+
         >
-          <Text style={styles.pageTitle}>Staff on Leave</Text>
 
-          <Text style={styles.subtitle}>
-            View staff on leave records for your assigned branch
+          <MaterialCommunityIcons
+
+            name="plus"
+
+            size={18}
+
+            color="#7040D5"
+
+          />
+
+          <Text style={styles.addButtonText}>
+
+            Add Leave
+
           </Text>
 
-          <View style={styles.searchCard}>
-            <View style={styles.searchBox}>
-              <MaterialCommunityIcons
-                name="magnify"
-                size={21}
-                color="#8491A6"
-              />
+        </TouchableOpacity>
 
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search staff leave..."
-                placeholderTextColor="#A0A9B8"
-                style={styles.searchInput}
-              />
+      </View>
+
+      <ScrollView
+
+        style={styles.scrollView}
+
+        contentContainerStyle={[
+
+          styles.scrollContent,
+
+          {
+
+            paddingBottom: Math.max(insets.bottom, 24),
+
+          },
+
+        ]}
+
+        showsVerticalScrollIndicator={false}
+
+      >
+
+        {/* =====================================================
+
+            TITLE
+
+        ===================================================== */}
+
+        <Text style={styles.managementTitle}>
+
+          Staff Leave Management
+
+        </Text>
+
+        <Text style={styles.managementSubtitle}>
+
+          View, track and manage staff leave requests.
+
+        </Text>
+
+        {/* =====================================================
+
+            SUMMARY CARDS
+
+        ===================================================== */}
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.summaryGrid}
+        >
+
+          {/* Total */}
+
+          <View
+
+            style={styles.summaryWrapper}
+
+          >
+
+            <View style={styles.summaryCard}>
+
+              <View style={styles.summaryIconPurple}>
+
+                <MaterialCommunityIcons
+
+                  name="account-clock-outline"
+
+                  size={22}
+
+                  color="#7040D5"
+
+                />
+
+              </View>
+
+              <View style={styles.summaryInfo}>
+
+                <Text style={styles.summaryLabel}>
+
+                  Staff on Leave
+
+                </Text>
+
+                <Text style={styles.summaryValue}>
+
+                  {totalStaffOnLeave}
+
+                </Text>
+
+              </View>
+
             </View>
+
+          </View>
+
+          {/* Approved */}
+
+          <View
+
+            style={styles.summaryWrapper}
+
+          >
+
+            <View style={styles.summaryCard}>
+
+              <View style={styles.summaryIconGreen}>
+
+                <MaterialCommunityIcons
+
+                  name="check-circle-outline"
+
+                  size={22}
+
+                  color="#35B878"
+
+                />
+
+              </View>
+
+              <View style={styles.summaryInfo}>
+
+                <Text style={styles.summaryLabel}>
+
+                  Approved
+
+                </Text>
+
+                <Text style={styles.summaryValue}>
+
+                  {approvedCount}
+
+                </Text>
+
+              </View>
+
+            </View>
+
+          </View>
+
+          {/* Pending */}
+
+          <View
+
+            style={styles.summaryWrapper}
+
+          >
+
+            <View style={styles.summaryCard}>
+
+              <View style={styles.summaryIconOrange}>
+
+                <MaterialCommunityIcons
+
+                  name="clock-alert-outline"
+
+                  size={22}
+
+                  color="#F7941D"
+
+                />
+
+              </View>
+
+              <View style={styles.summaryInfo}>
+
+                <Text style={styles.summaryLabel}>
+
+                  Pending Requests
+
+                </Text>
+
+                <Text style={styles.summaryValue}>
+
+                  {pendingCount}
+
+                </Text>
+
+              </View>
+
+            </View>
+
+          </View>
+
+          {/* Rejected */}
+
+          <View
+
+            style={styles.summaryWrapper}
+
+          >
+
+            <View style={styles.summaryCard}>
+
+              <View style={styles.summaryIconPink}>
+
+                <MaterialCommunityIcons
+
+                  name="close-circle-outline"
+
+                  size={22}
+
+                  color="#E95386"
+
+                />
+
+              </View>
+
+              <View style={styles.summaryInfo}>
+
+                <Text style={styles.summaryLabel}>
+
+                  Rejected
+
+                </Text>
+
+                <Text style={styles.summaryValue}>
+
+                  {rejectedCount}
+
+                </Text>
+
+              </View>
+
+            </View>
+
+          </View>
+
+        </ScrollView>
+
+        {/* =====================================================
+
+            SEARCH + FILTER
+
+        ===================================================== */}
+
+        <View style={styles.filterCard}>
+
+          <View style={styles.searchBox}>
+
+            <MaterialCommunityIcons
+
+              name="magnify"
+
+              size={20}
+
+              color="#9AA5B5"
+
+            />
+
+            <TextInput
+
+              value={searchText}
+
+              onChangeText={setSearchText}
+
+              placeholder="Search staff, department or leave type..."
+
+              placeholderTextColor="#A5AFBC"
+
+              style={styles.searchInput}
+
+            />
+
+            {searchText.length > 0 && (
+
+              <TouchableOpacity
+
+                activeOpacity={0.8}
+
+                onPress={() => setSearchText('')}
+
+              >
+
+                <MaterialCommunityIcons
+
+                  name="close-circle"
+
+                  size={18}
+
+                  color="#A5AFBC"
+
+                />
+
+              </TouchableOpacity>
+
+            )}
+
           </View>
 
           <ScrollView
+
             horizontal
+
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filters}
+
+            contentContainerStyle={styles.filterContainer}
+
           >
-            {(["All", "Approved", "Pending", "Rejected"] as const).map((x) => (
-              <TouchableOpacity
-                key={x}
-                style={[
-                  styles.filterButton,
 
-                  filter === x && styles.filterActive,
-                ]}
-                onPress={() => setFilter(x)}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
+            {(
 
-                    filter === x && styles.filterTextActive,
-                  ]}
-                >
-                  {x}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+              [
 
-          {filtered.map((x) => {
-            const c = statusStyle[x.status];
+                'All',
 
-            return (
-              <View style={styles.card} key={x.id}>
-                <View style={styles.cardTop}>
-                  <View style={styles.identity}>
-                    <View style={styles.iconBox}>
-                      <MaterialCommunityIcons
-                        name="account-clock-outline"
-                        size={25}
-                        color="#7040D5"
-                      />
-                    </View>
+                'Approved',
 
-                    <View style={styles.titleBox}>
-                      <Text style={styles.name}>{x.name}</Text>
+                'Pending',
 
-                      <Text style={styles.id}>
-                        {x.id} • {x.role}
-                      </Text>
-                    </View>
-                  </View>
+                'Rejected',
 
-                  <View style={[styles.badge, { backgroundColor: c.bg }]}>
-                    <Text style={[styles.badgeText, { color: c.text }]}>
-                      {x.status}
-                    </Text>
-                  </View>
-                </View>
+              ] as const
 
-                <View style={styles.divider} />
+            ).map((filter) => {
 
-                <View style={styles.grid}>
-                  <View style={styles.detail}>
-                    <Text style={styles.label}>Role</Text>
+              const active = statusFilter === filter;
 
-                    <Text style={styles.value}>{x.role}</Text>
-                  </View>
-
-                  <View style={styles.detail}>
-                    <Text style={styles.label}>Department</Text>
-
-                    <Text style={styles.value}>{x.department}</Text>
-                  </View>
-
-                  <View style={styles.detail}>
-                    <Text style={styles.label}>Leave Type</Text>
-
-                    <Text style={styles.value}>{x.leaveType}</Text>
-                  </View>
-
-                  <View style={styles.detail}>
-                    <Text style={styles.label}>From Date</Text>
-
-                    <Text style={styles.value}>{x.fromDate}</Text>
-                  </View>
-
-                  <View style={styles.detail}>
-                    <Text style={styles.label}>To Date</Text>
-
-                    <Text style={styles.value}>{x.toDate}</Text>
-                  </View>
-
-                  <View style={styles.detail}>
-                    <Text style={styles.label}>Number of Days</Text>
-
-                    <Text style={styles.value}>{x.days}</Text>
-                  </View>
-
-                  <View style={styles.detail}>
-                    <Text style={styles.label}>Reason</Text>
-
-                    <Text style={styles.value}>{x.reason}</Text>
-                  </View>
-
-                  <View style={styles.detail}>
-                    <Text style={styles.label}>Status</Text>
-
-                    <Text style={styles.value}>{x.status}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    style={styles.editButton}
-                    onPress={() => openEdit(x)}
-                  >
-                    <MaterialCommunityIcons
-                      name="pencil-outline"
-                      size={17}
-                      color="#FFF"
-                    />
-
-                    <Text style={styles.editText}>Edit</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.viewButton}
-                    onPress={() => {
-                      setSelected(x);
-
-                      setViewVisible(true);
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name="eye-outline"
-                      size={18}
-                      color="#7040D5"
-                    />
-
-                    <Text style={styles.viewText}>View</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
-
-          {filtered.length === 0 && (
-            <View style={styles.empty}>
-              <MaterialCommunityIcons
-                name="account-off-outline"
-                size={38}
-                color="#A1A9B7"
-              />
-
-              <Text style={styles.emptyTitle}>
-                No staff leave records found
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-
-        <Modal
-          visible={viewVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setViewVisible(false)}
-        >
-          <View style={styles.overlay}>
-            <View style={styles.modal}>
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>Leave Details</Text>
-
-                  <Text style={styles.modalSub}>{selected?.id}</Text>
-                </View>
+              return (
 
                 <TouchableOpacity
-                  style={styles.close}
-                  onPress={() => setViewVisible(false)}
+
+                  key={filter}
+
+                  style={[
+
+                    styles.filterButton,
+
+                    active && styles.filterButtonActive,
+
+                  ]}
+
+                  activeOpacity={0.8}
+
+                  onPress={() =>
+
+                    setStatusFilter(filter)
+
+                  }
+
                 >
-                  <MaterialCommunityIcons
-                    name="close"
-                    size={20}
-                    color="#66768A"
-                  />
-                </TouchableOpacity>
-              </View>
 
-              {selected && (
-                <>
-                  <Text style={styles.modalName}>{selected.name}</Text>
+                  <Text
 
-                  <Text style={styles.modalSub}>
-                    {selected.role} • {selected.department}
+                    style={[
+
+                      styles.filterButtonText,
+
+                      active &&
+
+                        styles.filterButtonTextActive,
+
+                    ]}
+
+                  >
+
+                    {filter}
+
                   </Text>
 
-                  <View style={styles.modalGrid}>
-                    {[
-                      ["Leave Type", selected.leaveType],
+                </TouchableOpacity>
 
-                      ["From Date", selected.fromDate],
+              );
 
-                      ["To Date", selected.toDate],
+            })}
 
-                      ["Number of Days", selected.days],
+          </ScrollView>
 
-                      ["Reason", selected.reason],
+        </View>
 
-                      ["Status", selected.status],
-                    ].map(([l, v]) => (
-                      <View style={styles.modalDetail} key={l}>
-                        <Text style={styles.label}>{l}</Text>
+        {/* =====================================================
 
-                        <Text style={styles.value}>{v}</Text>
-                      </View>
-                    ))}
-                  </View>
+            LIST HEADER
 
-                  <TouchableOpacity
-                    style={styles.modalEdit}
-                    onPress={() => {
-                      setViewVisible(false);
+        ===================================================== */}
 
-                      openEdit(selected);
-                    }}
-                  >
+        <View style={styles.listHeader}>
+
+          <View>
+
+            <Text style={styles.listTitle}>
+
+              Leave Records
+
+            </Text>
+
+            <Text style={styles.listSubtitle}>
+
+              {filteredRecords.length}{' '}
+
+              {filteredRecords.length === 1
+
+                ? 'record'
+
+                : 'records'}{' '}
+
+              found
+
+            </Text>
+
+          </View>
+
+          <View style={styles.dateBadge}>
+
+            <MaterialCommunityIcons
+
+              name="calendar-month-outline"
+
+              size={15}
+
+              color="#7040D5"
+
+            />
+
+            <Text style={styles.dateBadgeText}>
+
+              Leave Overview
+
+            </Text>
+
+          </View>
+
+        </View>
+
+        {/* =====================================================
+
+            LEAVE CARDS
+
+        ===================================================== */}
+
+        {loading ? (
+          <View style={styles.emptyCard}>
+            <ActivityIndicator size="large" color="#7040D5" />
+            <Text style={styles.emptySubtitle}>Loading leave requests...</Text>
+          </View>
+        ) : filteredRecords.length > 0 ? (
+          filteredRecords.map((record) => {
+
+            const statusStyle =
+
+              getStatusStyle(record.status);
+
+            return (
+
+              <View
+
+                key={record.id}
+
+                style={styles.leaveCard}
+
+              >
+
+                {/* TOP */}
+
+                <View style={styles.leaveTopRow}>
+
+                  <View style={styles.staffAvatar}>
+
                     <MaterialCommunityIcons
-                      name="pencil-outline"
-                      size={18}
-                      color="#FFF"
+
+                      name="account"
+
+                      size={23}
+
+                      color="#7040D5"
+
                     />
 
-                    <Text style={styles.modalEditText}>Edit Leave</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-        </Modal>
+                  </View>
 
-        <Modal
-          visible={editVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setEditVisible(false)}
-        >
-          <View style={styles.overlay}>
-            <View style={styles.editModal}>
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>Edit Staff Leave</Text>
+                  <View style={styles.staffInfo}>
 
-                  <Text style={styles.modalSub}>Update leave information</Text>
+                    <Text
+
+                      style={styles.staffName}
+
+                      numberOfLines={1}
+
+                    >
+
+                      {record.name}
+
+                    </Text>
+
+                    <Text
+
+                      style={styles.staffRole}
+
+                      numberOfLines={1}
+
+                    >
+
+                      {record.role}
+
+                    </Text>
+
+                    <View style={styles.departmentRow}>
+
+                      <MaterialCommunityIcons
+
+                        name="domain"
+
+                        size={13}
+
+                        color="#9AA5B5"
+
+                      />
+
+                      <Text style={styles.departmentText}>
+
+                        {record.department}
+
+                      </Text>
+
+                    </View>
+
+                  </View>
+
+                  <View
+
+                    style={[
+
+                      styles.statusBadge,
+
+                      {
+
+                        backgroundColor:
+
+                          statusStyle.backgroundColor,
+
+                      },
+
+                    ]}
+
+                  >
+
+                    <View
+
+                      style={[
+
+                        styles.statusDot,
+
+                        {
+
+                          backgroundColor:
+
+                            statusStyle.color,
+
+                        },
+
+                      ]}
+
+                    />
+
+                    <Text
+
+                      style={[
+
+                        styles.statusText,
+
+                        {
+
+                          color: statusStyle.color,
+
+                        },
+
+                      ]}
+
+                    >
+
+                      {record.status}
+
+                    </Text>
+
+                  </View>
+
                 </View>
 
-                <TouchableOpacity
-                  style={styles.close}
-                  onPress={() => setEditVisible(false)}
-                >
+                {/* DETAILS */}
+
+                <View style={styles.leaveDetails}>
+
+                  <View style={styles.detailBox}>
+
+                    <Text style={styles.detailLabel}>
+
+                      Leave Type
+
+                    </Text>
+
+                    <View style={styles.detailValueRow}>
+
+                      <MaterialCommunityIcons
+
+                        name="calendar-edit-outline"
+
+                        size={15}
+
+                        color="#7040D5"
+
+                      />
+
+                      <Text style={styles.detailValue}>
+
+                        {record.leaveType}
+
+                      </Text>
+
+                    </View>
+
+                  </View>
+
+                  <View style={styles.detailBox}>
+
+                    <Text style={styles.detailLabel}>
+
+                      Duration
+
+                    </Text>
+
+                    <View style={styles.detailValueRow}>
+
+                      <MaterialCommunityIcons
+
+                        name="calendar-range-outline"
+
+                        size={15}
+
+                        color="#2675E8"
+
+                      />
+
+                      <Text style={styles.detailValue}>
+
+                        {record.fromDate} - {record.toDate}
+
+                      </Text>
+
+                    </View>
+
+                  </View>
+
+                  <View style={styles.detailBoxSmall}>
+
+                    <Text style={styles.detailLabel}>
+
+                      Days
+
+                    </Text>
+
+                    <Text style={styles.daysValue}>
+
+                      {record.days}
+
+                    </Text>
+
+                  </View>
+
+                </View>
+
+                {/* REASON */}
+
+                <View style={styles.reasonRow}>
+
                   <MaterialCommunityIcons
-                    name="close"
-                    size={20}
-                    color="#66768A"
+
+                    name="text-box-outline"
+
+                    size={15}
+
+                    color="#8D98A8"
+
                   />
-                </TouchableOpacity>
+
+                  <Text
+
+                    style={styles.reasonText}
+
+                    numberOfLines={1}
+
+                  >
+
+                    {record.reason}
+
+                  </Text>
+
+                </View>
+
+                {/* ACTIONS */}
+
+                <View style={styles.actionRow}>
+
+                  <TouchableOpacity
+
+                    style={styles.viewButton}
+
+                    activeOpacity={0.8}
+
+                    onPress={() => openDetails(record)}
+
+                  >
+
+                    <MaterialCommunityIcons
+
+                      name="eye-outline"
+
+                      size={16}
+
+                      color="#7040D5"
+
+                    />
+
+                    <Text style={styles.viewButtonText}>
+
+                      View
+
+                    </Text>
+
+                  </TouchableOpacity>
+
+                  {canManageLeaves && record.status === 'Pending' && (
+
+                    <>
+
+                      <TouchableOpacity
+
+                        style={styles.approveButton}
+
+                        activeOpacity={0.8}
+
+                        onPress={() =>
+
+                          handleApprove(record)
+
+                        }
+
+                      >
+
+                        <MaterialCommunityIcons
+
+                          name="check"
+
+                          size={16}
+
+                          color="#35B878"
+
+                        />
+
+                        <Text
+
+                          style={styles.approveButtonText}
+
+                        >
+
+                          Approve
+
+                        </Text>
+
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+
+                        style={styles.rejectButton}
+
+                        activeOpacity={0.8}
+
+                        onPress={() =>
+
+                          handleReject(record)
+
+                        }
+
+                      >
+
+                        <MaterialCommunityIcons
+
+                          name="close"
+
+                          size={16}
+
+                          color="#E95386"
+
+                        />
+
+                        <Text
+
+                          style={styles.rejectButtonText}
+
+                        >
+
+                          Reject
+
+                        </Text>
+
+                      </TouchableOpacity>
+
+                    </>
+
+                  )}
+
+                </View>
+
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {[
-                  ["Name", name, setName],
+            );
 
-                  ["Role", role, setRole],
+          })
 
-                  ["Department", department, setDepartment],
+        ) : (
 
-                  ["Leave Type", leaveType, setLeaveType],
+          <View style={styles.emptyCard}>
 
-                  ["From Date", fromDate, setFromDate],
+            <View style={styles.emptyIcon}>
 
-                  ["To Date", toDate, setToDate],
+              <MaterialCommunityIcons
 
-                  ["Number of Days", days, setDays],
+                name="account-search-outline"
 
-                  ["Reason", reason, setReason],
-                ].map(([l, v, s]) => (
-                  <View key={l as string}>
-                    <Text style={styles.inputLabel}>{l as string}</Text>
+                size={36}
 
-                    <TextInput
-                      value={v as string}
-                      onChangeText={s as (v: string) => void}
-                      style={styles.input}
-                      placeholder={`Enter ${(l as string).toLowerCase()}`}
-                      placeholderTextColor="#A0A9B8"
-                    />
-                  </View>
-                ))}
+                color="#7040D5"
 
-                <Text style={styles.inputLabel}>Status</Text>
+              />
 
-                <View style={styles.options}>
-                  {(["Approved", "Pending", "Rejected"] as LeaveStatus[]).map(
-                    (s) => (
-                      <TouchableOpacity
-                        key={s}
-                        style={[
-                          styles.option,
-
-                          status === s && styles.optionActive,
-                        ]}
-                        onPress={() => setStatus(s)}
-                      >
-                        <Text
-                          style={[
-                            styles.optionText,
-
-                            status === s && styles.optionTextActive,
-                          ]}
-                        >
-                          {s}
-                        </Text>
-                      </TouchableOpacity>
-                    ),
-                  )}
-                </View>
-
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.cancel}
-                    onPress={() => setEditVisible(false)}
-                  >
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.save} onPress={saveEdit}>
-                    <Text style={styles.saveText}>Save Changes</Text>
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
             </View>
+
+            <Text style={styles.emptyTitle}>
+
+              No Leave Records Found
+
+            </Text>
+
+            <Text style={styles.emptySubtitle}>
+
+              Try changing your search or filter.
+
+            </Text>
+
           </View>
-        </Modal>
-      </View>
-    </SafeAreaView>
+
+        )}
+
+      </ScrollView>
+
+      {/* =====================================================
+
+          DETAILS MODAL
+
+      ===================================================== */}
+
+      {detailsVisible && selectedRecord && (
+
+        <View style={styles.modalOverlay}>
+
+          <TouchableOpacity
+
+            style={styles.modalBackdrop}
+
+            activeOpacity={1}
+
+            onPress={closeDetails}
+
+          />
+
+          <View
+
+            style={[
+
+              styles.detailsModal,
+
+              isDesktop && styles.detailsModalDesktop,
+
+            ]}
+
+          >
+
+            <View style={styles.modalHeader}>
+
+              <View>
+
+                <Text style={styles.modalTitle}>
+
+                  Leave Details
+
+                </Text>
+
+                <Text style={styles.modalSubtitle}>
+
+                  Staff leave request information
+
+                </Text>
+
+              </View>
+
+              <TouchableOpacity
+
+                style={styles.closeButton}
+
+                activeOpacity={0.8}
+
+                onPress={closeDetails}
+
+              >
+
+                <MaterialCommunityIcons
+
+                  name="close"
+
+                  size={20}
+
+                  color="#66768A"
+
+                />
+
+              </TouchableOpacity>
+
+            </View>
+
+            <View style={styles.modalProfile}>
+
+              <View style={styles.modalAvatar}>
+
+                <MaterialCommunityIcons
+
+                  name="account"
+
+                  size={30}
+
+                  color="#7040D5"
+
+                />
+
+              </View>
+
+              <View style={styles.modalProfileInfo}>
+
+                <Text style={styles.modalStaffName}>
+
+                  {selectedRecord.name}
+
+                </Text>
+
+                <Text style={styles.modalStaffRole}>
+
+                  {selectedRecord.role}
+
+                </Text>
+
+              </View>
+
+            </View>
+
+            <View style={styles.modalDetailsGrid}>
+
+              <View style={styles.modalDetailItem}>
+
+                <Text style={styles.modalDetailLabel}>
+
+                  Department
+
+                </Text>
+
+                <Text style={styles.modalDetailValue}>
+
+                  {selectedRecord.department}
+
+                </Text>
+
+              </View>
+
+              <View style={styles.modalDetailItem}>
+
+                <Text style={styles.modalDetailLabel}>
+
+                  Leave Type
+
+                </Text>
+
+                <Text style={styles.modalDetailValue}>
+
+                  {selectedRecord.leaveType}
+
+                </Text>
+
+              </View>
+
+              <View style={styles.modalDetailItem}>
+
+                <Text style={styles.modalDetailLabel}>
+
+                  From Date
+
+                </Text>
+
+                <Text style={styles.modalDetailValue}>
+
+                  {selectedRecord.fromDate}
+
+                </Text>
+
+              </View>
+
+              <View style={styles.modalDetailItem}>
+
+                <Text style={styles.modalDetailLabel}>
+
+                  To Date
+
+                </Text>
+
+                <Text style={styles.modalDetailValue}>
+
+                  {selectedRecord.toDate}
+
+                </Text>
+
+              </View>
+
+              <View style={styles.modalDetailItem}>
+
+                <Text style={styles.modalDetailLabel}>
+
+                  Total Days
+
+                </Text>
+
+                <Text style={styles.modalDetailValue}>
+
+                  {selectedRecord.days}
+
+                </Text>
+
+              </View>
+
+              <View style={styles.modalDetailItem}>
+
+                <Text style={styles.modalDetailLabel}>
+
+                  Status
+
+                </Text>
+
+                <Text
+
+                  style={[
+
+                    styles.modalDetailValue,
+
+                    {
+
+                      color:
+
+                        getStatusStyle(
+
+                          selectedRecord.status
+
+                        ).color,
+
+                    },
+
+                  ]}
+
+                >
+
+                  {selectedRecord.status}
+
+                </Text>
+
+              </View>
+
+            </View>
+
+            <View style={styles.reasonBox}>
+
+              <Text style={styles.modalDetailLabel}>
+
+                Reason
+
+              </Text>
+
+              <Text style={styles.reasonModalText}>
+
+                {selectedRecord.reason}
+
+              </Text>
+
+            </View>
+
+            {canManageLeaves && selectedRecord.status === 'Pending' && (
+
+              <View style={styles.modalActions}>
+
+                <TouchableOpacity
+
+                  style={styles.modalRejectButton}
+
+                  activeOpacity={0.8}
+
+                  onPress={() => {
+
+                    closeDetails();
+
+                    handleReject(selectedRecord);
+
+                  }}
+
+                >
+
+                  <Text style={styles.modalRejectText}>
+
+                    Reject
+
+                  </Text>
+
+                </TouchableOpacity>
+
+                <TouchableOpacity
+
+                  style={styles.modalApproveButton}
+
+                  activeOpacity={0.8}
+
+                  onPress={() => {
+
+                    closeDetails();
+
+                    handleApprove(selectedRecord);
+
+                  }}
+
+                >
+
+                  <Text style={styles.modalApproveText}>
+
+                    Approve Leave
+
+                  </Text>
+
+                </TouchableOpacity>
+
+              </View>
+
+            )}
+
+          </View>
+
+        </View>
+
+      )}
+
+    </View>
+
   );
+
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F7F8FC" },
 
-  container: { flex: 1, backgroundColor: "#F7F8FC" },
+  /* =====================================================
+
+     CONTAINER
+
+  ===================================================== */
+
+  container: {
+
+    flex: 1,
+
+    backgroundColor: '#F7F8FC',
+
+  },
+
+  scrollView: {
+
+    flex: 1,
+
+  },
+
+  scrollContent: {
+
+    paddingHorizontal: 16,
+
+    paddingTop: 18,
+
+  },
+
+  /* =====================================================
+
+     HEADER
+
+  ===================================================== */
 
   header: {
-    width: "100%",
-    backgroundColor: "#6D35D8",
-    paddingHorizontal: 18,
+
+    minHeight: 64,
+
+    backgroundColor: '#7040D5',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    paddingHorizontal: 14,
+
     paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
+
+    gap: 9,
+
   },
-  headerMobile: { height: 80, paddingHorizontal: 14 },
-  headerTablet: { height: 64, paddingHorizontal: 20 },
-  headerLeft: { flex: 1, flexDirection: "row", alignItems: "center" },
-  back: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  backMobile: { width: 36, height: 36, borderRadius: 10, marginRight: 12 },
-  headerTitle: {
-    flex: 1,
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 20,
-    lineHeight: 26,
-    color: "#FFFFFF",
-  },
-  headerTitleMobile: { fontSize: 20 },
-  plus: {
+
+  backButton: {
+
     width: 40,
+
     height: 40,
+
     borderRadius: 11,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
+
+    backgroundColor: 'rgba(255,255,255,0.16)',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
   },
-  plusMobile: { width: 40, height: 40, borderRadius: 11 },
-  content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 22 },
 
-  pageTitle: { fontFamily: "PoppinsSemiBold", fontSize: 19, color: "#172033" },
+  headerTextContainer: {
 
-  subtitle: {
-    fontFamily: "PoppinsRegular",
+    flex: 1,
+
+    minWidth: 0,
+
+    marginLeft: 13,
+
+  },
+
+  headerTitle: {
+
+    flex: 1,
+
+    minWidth: 0,
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 17,
+
+    lineHeight: 22,
+
+    color: '#FFFFFF',
+
+  },
+
+  headerSubtitle: {
+
+    fontFamily: 'PoppinsRegular',
 
     fontSize: 10,
 
-    color: "#7C879A",
+    lineHeight: 15,
+
+    color: '#EDE6FF',
+
+    marginTop: 1,
+
+  },
+
+  addButton: {
+
+    minHeight: 38,
+
+    minWidth: 132,
+
+    borderRadius: 10,
+
+    backgroundColor: '#FFFFFF',
+
+    paddingHorizontal: 10,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    flexShrink: 0,
+
+  },
+
+  addButtonText: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 10,
+
+    color: '#7040D5',
+
+    marginLeft: 5,
+
+  },
+
+  /* =====================================================
+
+     TITLE
+
+  ===================================================== */
+
+  managementTitle: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 19,
+
+    lineHeight: 27,
+
+    color: '#172033',
+
+  },
+
+  managementSubtitle: {
+
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 10.5,
+
+    lineHeight: 17,
+
+    color: '#8490A2',
 
     marginTop: 2,
 
-    marginBottom: 14,
+    marginBottom: 15,
+
   },
 
-  searchCard: {
-    backgroundColor: "#FFF",
+  /* =====================================================
+
+     SUMMARY
+
+  ===================================================== */
+
+  summaryGrid: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingRight: 2,
+  },
+
+  summaryWrapper: {
+    width: 220,
+    marginRight: 10,
+  },
+
+  summaryCard: {
+
+    minHeight: 82,
+
+    backgroundColor: '#FFFFFF',
 
     borderRadius: 14,
 
-    padding: 12,
-
     borderWidth: 1,
 
-    borderColor: "#E8EAF0",
-
-    marginBottom: 16,
-  },
-
-  searchBox: {
-    height: 46,
-
-    borderWidth: 1,
-
-    borderColor: "#E3E6ED",
-
-    borderRadius: 11,
-
-    paddingHorizontal: 12,
-
-    flexDirection: "row",
-
-    alignItems: "center",
-  },
-
-  searchInput: {
-    flex: 1,
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 11,
-
-    color: "#263047",
-
-    marginLeft: 9,
-  },
-
-  filters: { paddingBottom: 10 },
-
-  filterButton: {
-    height: 38,
-
-    paddingHorizontal: 13,
-
-    borderRadius: 9,
-
-    backgroundColor: "#FFF",
-
-    borderWidth: 1,
-
-    borderColor: "#E3E6ED",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    marginRight: 7,
-  },
-
-  filterActive: { backgroundColor: "#7040D5", borderColor: "#7040D5" },
-
-  filterText: { fontFamily: "PoppinsSemiBold", fontSize: 10, color: "#788397" },
-
-  filterTextActive: { color: "#FFF" },
-
-  card: {
-    backgroundColor: "#FFF",
-
-    borderRadius: 14,
+    borderColor: '#EEF0F5',
 
     padding: 13,
 
-    borderWidth: 1,
+    flexDirection: 'row',
 
-    borderColor: "#ECEEF4",
+    alignItems: 'center',
 
-    marginBottom: 9,
+    marginBottom: 11,
+
+    shadowColor: '#000000',
+
+    shadowOffset: {
+
+      width: 0,
+
+      height: 3,
+
+    },
+
+    shadowOpacity: 0.04,
+
+    shadowRadius: 8,
 
     elevation: 2,
+
   },
 
-  cardTop: {
-    flexDirection: "row",
+  summaryIconPurple: {
 
-    alignItems: "center",
+    width: 43,
 
-    justifyContent: "space-between",
+    height: 43,
+
+    borderRadius: 12,
+
+    backgroundColor: '#F1EAFF',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
   },
 
-  identity: { flex: 1, flexDirection: "row", alignItems: "center" },
+  summaryIconGreen: {
 
-  iconBox: {
-    width: 44,
+    width: 43,
 
-    height: 44,
+    height: 43,
 
-    borderRadius: 11,
+    borderRadius: 12,
 
-    backgroundColor: "#F0E8FF",
+    backgroundColor: '#E7F8EF',
 
-    alignItems: "center",
+    alignItems: 'center',
 
-    justifyContent: "center",
+    justifyContent: 'center',
 
-    marginRight: 9,
   },
 
-  titleBox: { flex: 1 },
+  summaryIconOrange: {
 
-  name: { fontFamily: "PoppinsSemiBold", fontSize: 13, color: "#202A3D" },
+    width: 43,
 
-  id: {
-    fontFamily: "PoppinsRegular",
+    height: 43,
 
-    fontSize: 9.5,
+    borderRadius: 12,
 
-    color: "#8D98AA",
+    backgroundColor: '#FFF1E2',
 
-    marginTop: 2,
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
   },
 
-  badge: {
-    paddingHorizontal: 10,
+  summaryIconPink: {
 
-    paddingVertical: 7,
+    width: 43,
 
-    borderRadius: 8,
+    height: 43,
 
-    marginLeft: 8,
+    borderRadius: 12,
+
+    backgroundColor: '#FFE9F0',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
   },
 
-  badgeText: { fontFamily: "PoppinsSemiBold", fontSize: 9.5 },
+  summaryInfo: {
 
-  divider: {
-    height: 1,
-
-    backgroundColor: "#EEF0F4",
-
-    marginTop: 11,
-
-    marginBottom: 10,
-  },
-
-  grid: { flexDirection: "row", flexWrap: "wrap" },
-
-  detail: { width: "50%", marginBottom: 9 },
-
-  label: {
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 9.5,
-
-    color: "#8290A5",
-
-    marginBottom: 3,
-  },
-
-  value: { fontFamily: "PoppinsRegular", fontSize: 11.5, color: "#263047" },
-
-  actions: { flexDirection: "row", marginTop: 1 },
-
-  editButton: {
     flex: 1,
 
-    height: 34,
+    minWidth: 0,
 
-    borderRadius: 8,
+    marginLeft: 11,
 
-    backgroundColor: "#7040D5",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    marginRight: 5,
   },
 
-  editText: {
-    fontFamily: "PoppinsSemiBold",
+  summaryLabel: {
 
-    fontSize: 10,
+    fontFamily: 'PoppinsMedium',
 
-    color: "#FFF",
+    fontSize: 8.5,
 
-    marginLeft: 6,
+    lineHeight: 14,
+
+    color: '#8994A4',
+
   },
 
-  viewButton: {
-    flex: 1,
+  summaryValue: {
 
-    height: 34,
+    fontFamily: 'PoppinsBold',
 
-    borderRadius: 8,
+    fontSize: 17,
 
-    backgroundColor: "#FFF",
+    lineHeight: 24,
+
+    color: '#202A3A',
+
+    marginTop: 1,
+
+  },
+
+  /* =====================================================
+
+     FILTER
+
+  ===================================================== */
+
+  filterCard: {
+
+    width: '100%',
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 15,
 
     borderWidth: 1,
 
-    borderColor: "#7040D5",
+    borderColor: '#EEF0F5',
 
-    flexDirection: "row",
+    padding: 13,
 
-    alignItems: "center",
+    marginTop: 4,
 
-    justifyContent: "center",
+    marginBottom: 17,
 
-    marginLeft: 5,
+    shadowColor: '#000000',
+
+    shadowOffset: {
+
+      width: 0,
+
+      height: 3,
+
+    },
+
+    shadowOpacity: 0.04,
+
+    shadowRadius: 8,
+
+    elevation: 2,
+
   },
 
-  viewText: {
-    fontFamily: "PoppinsSemiBold",
+  searchBox: {
 
-    fontSize: 10,
+    minHeight: 44,
 
-    color: "#7040D5",
+    width: '100%',
 
-    marginLeft: 6,
+    borderWidth: 1,
+
+    borderColor: '#E3E7ED',
+
+    borderRadius: 10,
+
+    backgroundColor: '#FAFBFD',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    paddingHorizontal: 11,
+
   },
 
-  empty: {
-    backgroundColor: "#FFF",
+  searchInput: {
 
-    borderRadius: 14,
+    flex: 1,
 
-    padding: 32,
+    minWidth: 0,
 
-    alignItems: "center",
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 9.5,
+
+    color: '#344054',
+
+    marginLeft: 7,
+
+    paddingVertical: 8,
+
   },
 
-  emptyTitle: {
-    fontFamily: "PoppinsSemiBold",
+  filterContainer: {
+
+    paddingTop: 11,
+
+  },
+
+  filterButton: {
+
+    minHeight: 31,
+
+    borderRadius: 8,
+
+    borderWidth: 1,
+
+    borderColor: '#E2E6EC',
+
+    backgroundColor: '#FFFFFF',
+
+    paddingHorizontal: 12,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    marginRight: 7,
+
+  },
+
+  filterButtonActive: {
+
+    backgroundColor: '#7040D5',
+
+    borderColor: '#7040D5',
+
+  },
+
+  filterButtonText: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 8.5,
+
+    color: '#748096',
+
+  },
+
+  filterButtonTextActive: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    color: '#FFFFFF',
+
+  },
+
+  /* =====================================================
+
+     LIST HEADER
+
+  ===================================================== */
+
+  listHeader: {
+
+    width: '100%',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+
+    marginBottom: 10,
+
+  },
+
+  listTitle: {
+
+    fontFamily: 'PoppinsSemiBold',
 
     fontSize: 14,
 
-    color: "#202A3D",
+    lineHeight: 20,
 
-    marginTop: 10,
+    color: '#202A3A',
+
   },
 
-  overlay: {
+  listSubtitle: {
+
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 8.5,
+
+    color: '#929CAB',
+
+    marginTop: 1,
+
+  },
+
+  dateBadge: {
+
+    minHeight: 30,
+
+    borderRadius: 8,
+
+    backgroundColor: '#F1EAFF',
+
+    paddingHorizontal: 9,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+  },
+
+  dateBadgeText: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 8,
+
+    color: '#7040D5',
+
+    marginLeft: 5,
+
+  },
+
+  /* =====================================================
+
+     LEAVE CARD
+
+  ===================================================== */
+
+  leaveCard: {
+
+    width: '100%',
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 15,
+
+    borderWidth: 1,
+
+    borderColor: '#EEF0F5',
+
+    padding: 14,
+
+    marginBottom: 11,
+
+    shadowColor: '#000000',
+
+    shadowOffset: {
+
+      width: 0,
+
+      height: 3,
+
+    },
+
+    shadowOpacity: 0.04,
+
+    shadowRadius: 8,
+
+    elevation: 2,
+
+  },
+
+  leaveTopRow: {
+
+    width: '100%',
+
+    flexDirection: 'row',
+
+    alignItems: 'flex-start',
+
+  },
+
+  staffAvatar: {
+
+    width: 45,
+
+    height: 45,
+
+    borderRadius: 13,
+
+    backgroundColor: '#F1EAFF',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+  },
+
+  staffInfo: {
+
     flex: 1,
 
-    backgroundColor: "rgba(15,20,32,.48)",
+    minWidth: 0,
 
-    justifyContent: "center",
+    marginLeft: 11,
 
-    padding: 20,
   },
 
-  modal: {
-    maxHeight: "80%",
+  staffName: {
 
-    backgroundColor: "#FFF",
+    fontFamily: 'PoppinsSemiBold',
 
-    borderRadius: 14,
+    fontSize: 11.5,
 
-    padding: 14,
+    lineHeight: 17,
+
+    color: '#263247',
+
   },
 
-  editModal: {
-    maxHeight: "90%",
+  staffRole: {
 
-    backgroundColor: "#FFF",
+    fontFamily: 'PoppinsRegular',
 
-    borderRadius: 14,
+    fontSize: 8.5,
 
-    padding: 14,
+    lineHeight: 14,
+
+    color: '#7D899A',
+
+  },
+
+  departmentRow: {
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    marginTop: 2,
+
+  },
+
+  departmentText: {
+
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 7.5,
+
+    color: '#9AA5B5',
+
+    marginLeft: 4,
+
+  },
+
+  statusBadge: {
+
+    minHeight: 26,
+
+    borderRadius: 7,
+
+    paddingHorizontal: 8,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    alignSelf: 'flex-start',
+
+  },
+
+  statusDot: {
+
+    width: 6,
+
+    height: 6,
+
+    borderRadius: 3,
+
+  },
+
+  statusText: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 7.5,
+
+    marginLeft: 5,
+
+  },
+
+  /* =====================================================
+
+     DETAILS
+
+  ===================================================== */
+
+  leaveDetails: {
+
+    width: '100%',
+
+    marginTop: 14,
+
+    paddingTop: 12,
+
+    borderTopWidth: 1,
+
+    borderTopColor: '#F0F2F5',
+
+    flexDirection: 'row',
+
+    flexWrap: 'wrap',
+
+  },
+
+  detailBox: {
+
+    flex: 1,
+
+    minWidth: 145,
+
+    marginBottom: 7,
+
+  },
+
+  detailBoxSmall: {
+
+    width: 60,
+
+    marginBottom: 7,
+
+  },
+
+  detailLabel: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 7.5,
+
+    lineHeight: 12,
+
+    color: '#9AA4B2',
+
+    marginBottom: 3,
+
+  },
+
+  detailValueRow: {
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+  },
+
+  detailValue: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 8.5,
+
+    lineHeight: 14,
+
+    color: '#536176',
+
+    marginLeft: 5,
+
+  },
+
+  daysValue: {
+
+    fontFamily: 'PoppinsBold',
+
+    fontSize: 12,
+
+    color: '#202A3A',
+
+  },
+
+  reasonRow: {
+
+    width: '100%',
+
+    minHeight: 28,
+
+    backgroundColor: '#FAFBFD',
+
+    borderRadius: 7,
+
+    paddingHorizontal: 8,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+  },
+
+  reasonText: {
+
+    flex: 1,
+
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 8,
+
+    color: '#758195',
+
+    marginLeft: 5,
+
+  },
+
+  /* =====================================================
+
+     ACTIONS
+
+  ===================================================== */
+
+  actionRow: {
+
+    width: '100%',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    marginTop: 11,
+
+    paddingTop: 10,
+
+    borderTopWidth: 1,
+
+    borderTopColor: '#F0F2F5',
+
+  },
+
+  viewButton: {
+
+    minHeight: 31,
+
+    borderRadius: 8,
+
+    backgroundColor: '#F1EAFF',
+
+    paddingHorizontal: 10,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    marginRight: 7,
+
+  },
+
+  viewButtonText: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 8,
+
+    color: '#7040D5',
+
+    marginLeft: 5,
+
+  },
+
+  approveButton: {
+
+    minHeight: 31,
+
+    borderRadius: 8,
+
+    backgroundColor: '#E7F8EF',
+
+    paddingHorizontal: 10,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    marginRight: 7,
+
+  },
+
+  approveButtonText: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 8,
+
+    color: '#35B878',
+
+    marginLeft: 5,
+
+  },
+
+  rejectButton: {
+
+    minHeight: 31,
+
+    borderRadius: 8,
+
+    backgroundColor: '#FFE9F0',
+
+    paddingHorizontal: 10,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+  },
+
+  rejectButtonText: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 8,
+
+    color: '#E95386',
+
+    marginLeft: 5,
+
+  },
+
+  /* =====================================================
+
+     EMPTY
+
+  ===================================================== */
+
+  emptyCard: {
+
+    width: '100%',
+
+    minHeight: 220,
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 15,
+
+    borderWidth: 1,
+
+    borderColor: '#EEF0F5',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    paddingHorizontal: 25,
+
+    marginBottom: 15,
+
+  },
+
+  emptyIcon: {
+
+    width: 65,
+
+    height: 65,
+
+    borderRadius: 20,
+
+    backgroundColor: '#F1EAFF',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    marginBottom: 12,
+
+  },
+
+  emptyTitle: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 13,
+
+    color: '#273246',
+
+  },
+
+  emptySubtitle: {
+
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 9,
+
+    color: '#929CAB',
+
+    textAlign: 'center',
+
+    marginTop: 4,
+
+  },
+
+  /* =====================================================
+
+     MODAL
+
+  ===================================================== */
+
+  modalOverlay: {
+
+    position: 'absolute',
+
+    top: 0,
+
+    left: 0,
+
+    right: 0,
+
+    bottom: 0,
+
+    justifyContent: 'center',
+
+    alignItems: 'center',
+
+  },
+
+  modalBackdrop: {
+
+    position: 'absolute',
+
+    top: 0,
+
+    left: 0,
+
+    right: 0,
+
+    bottom: 0,
+
+    backgroundColor: 'rgba(23,32,51,0.45)',
+
+  },
+
+  detailsModal: {
+
+    width: '91%',
+
+    maxHeight: '88%',
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 18,
+
+    padding: 18,
+
+    shadowColor: '#000000',
+
+    shadowOffset: {
+
+      width: 0,
+
+      height: 8,
+
+    },
+
+    shadowOpacity: 0.16,
+
+    shadowRadius: 18,
+
+    elevation: 8,
+
+  },
+
+  detailsModalDesktop: {
+
+    width: 520,
+
   },
 
   modalHeader: {
-    flexDirection: "row",
 
-    alignItems: "center",
+    flexDirection: 'row',
 
-    justifyContent: "space-between",
+    alignItems: 'flex-start',
 
-    marginBottom: 12,
+    justifyContent: 'space-between',
+
   },
 
-  modalTitle: { fontFamily: "PoppinsSemiBold", fontSize: 17, color: "#202A3D" },
+  modalTitle: {
 
-  modalSub: {
-    fontFamily: "PoppinsRegular",
+    fontFamily: 'PoppinsSemiBold',
 
-    fontSize: 10,
+    fontSize: 15,
 
-    color: "#8B96A8",
+    lineHeight: 21,
+
+    color: '#202A3A',
+
+  },
+
+  modalSubtitle: {
+
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 8.5,
+
+    color: '#929CAB',
 
     marginTop: 2,
+
   },
 
-  close: {
+  closeButton: {
+
     width: 34,
 
     height: 34,
 
     borderRadius: 9,
 
-    backgroundColor: "#F5F6FA",
+    backgroundColor: '#F6F7F9',
 
-    alignItems: "center",
+    alignItems: 'center',
 
-    justifyContent: "center",
+    justifyContent: 'center',
+
   },
 
-  modalName: { fontFamily: "PoppinsSemiBold", fontSize: 17, color: "#202A3D" },
+  modalProfile: {
 
-  modalGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 10 },
+    flexDirection: 'row',
 
-  modalDetail: { width: "50%", paddingVertical: 7 },
+    alignItems: 'center',
 
-  modalEdit: {
-    height: 36,
+    marginTop: 18,
+
+    padding: 12,
+
+    borderRadius: 11,
+
+    backgroundColor: '#F8F9FC',
+
+  },
+
+  modalAvatar: {
+
+    width: 52,
+
+    height: 52,
+
+    borderRadius: 15,
+
+    backgroundColor: '#F1EAFF',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+  },
+
+  modalProfileInfo: {
+
+    marginLeft: 11,
+
+  },
+
+  modalStaffName: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 12,
+
+    color: '#273246',
+
+  },
+
+  modalStaffRole: {
+
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 8.5,
+
+    color: '#8C97A7',
+
+    marginTop: 2,
+
+  },
+
+  modalDetailsGrid: {
+
+    marginTop: 15,
+
+    flexDirection: 'row',
+
+    flexWrap: 'wrap',
+
+    justifyContent: 'space-between',
+
+  },
+
+  modalDetailItem: {
+
+    width: '48%',
+
+    minHeight: 58,
+
+    marginBottom: 8,
 
     borderRadius: 9,
 
-    backgroundColor: "#7040D5",
+    backgroundColor: '#FAFBFD',
 
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    marginTop: 11,
-  },
-
-  modalEditText: {
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 11,
-
-    color: "#FFF",
-
-    marginLeft: 7,
-  },
-
-  inputLabel: {
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 10,
-
-    color: "#58657A",
-
-    marginBottom: 6,
-
-    marginTop: 5,
-  },
-
-  input: {
-    minHeight: 42,
-
-    borderWidth: 1,
-
-    borderColor: "#E1E4EB",
-
-    borderRadius: 10,
-
-    paddingHorizontal: 12,
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 11,
-
-    color: "#263047",
-
-    marginBottom: 10,
-  },
-
-  options: { flexDirection: "row", flexWrap: "wrap", marginBottom: 9 },
-
-  option: {
     paddingHorizontal: 10,
 
-    paddingVertical: 7,
+    paddingVertical: 8,
+
+    justifyContent: 'center',
+
+  },
+
+  modalDetailLabel: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 7.5,
+
+    color: '#9AA4B2',
+
+    marginBottom: 3,
+
+  },
+
+  modalDetailValue: {
+
+    fontFamily: 'PoppinsMedium',
+
+    fontSize: 9,
+
+    color: '#46546A',
+
+  },
+
+  reasonBox: {
+
+    marginTop: 4,
 
     borderRadius: 9,
 
-    backgroundColor: "#F7F8FC",
+    backgroundColor: '#FAFBFD',
 
-    borderWidth: 1,
+    padding: 11,
 
-    borderColor: "#E5E7EE",
-
-    marginRight: 7,
-
-    marginBottom: 7,
   },
 
-  optionActive: { backgroundColor: "#F0E8FF", borderColor: "#7040D5" },
+  reasonModalText: {
 
-  optionText: {
-    fontFamily: "PoppinsSemiBold",
+    fontFamily: 'PoppinsRegular',
 
-    fontSize: 9.5,
+    fontSize: 9,
 
-    color: "#788397",
+    lineHeight: 15,
+
+    color: '#59677A',
+
   },
-
-  optionTextActive: { color: "#7040D5" },
 
   modalActions: {
-    flexDirection: "row",
 
-    justifyContent: "flex-end",
+    flexDirection: 'row',
 
-    paddingTop: 6,
+    justifyContent: 'flex-end',
+
+    marginTop: 15,
+
   },
 
-  cancel: {
-    minHeight: 38,
+  modalRejectButton: {
 
-    paddingHorizontal: 16,
+    minHeight: 40,
 
     borderRadius: 9,
 
-    borderWidth: 1,
+    backgroundColor: '#FFE9F0',
 
-    borderColor: "#DDDDE5",
+    paddingHorizontal: 15,
 
-    alignItems: "center",
+    alignItems: 'center',
 
-    justifyContent: "center",
+    justifyContent: 'center',
 
-    marginRight: 9,
+    marginRight: 8,
+
   },
 
-  cancelText: {
-    fontFamily: "PoppinsSemiBold",
+  modalRejectText: {
 
-    fontSize: 10.5,
+    fontFamily: 'PoppinsSemiBold',
 
-    color: "#687388",
+    fontSize: 9,
+
+    color: '#E95386',
+
   },
 
-  save: {
-    minHeight: 38,
+  modalApproveButton: {
 
-    paddingHorizontal: 16,
+    minHeight: 40,
 
     borderRadius: 9,
 
-    backgroundColor: "#7040D5",
+    backgroundColor: '#7040D5',
 
-    alignItems: "center",
+    paddingHorizontal: 15,
 
-    justifyContent: "center",
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
   },
 
-  saveText: { fontFamily: "PoppinsSemiBold", fontSize: 10.5, color: "#FFF" },
+  modalApproveText: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 9,
+
+    color: '#FFFFFF',
+
+  },
+
 });

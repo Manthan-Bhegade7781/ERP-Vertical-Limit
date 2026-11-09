@@ -17,7 +17,7 @@ const { authorizeRoles } = require("../middleware/role.middleware");
 
 // All PTG routes require authentication and Super Admin access.
 router.use(protect);
-router.use(authorizeRoles("super_admin"));
+router.use(authorizeRoles("super_admin","admin"));
 
 // Create a PTG meeting.
 router.post("/", createPTG);

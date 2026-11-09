@@ -31,3 +31,5 @@ Thumbs.db
 build/
 
 .doc.txt
+# Backend uploaded files
+backend/uploads/

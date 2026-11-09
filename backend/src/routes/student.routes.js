@@ -1,3 +1,4 @@
+
 const express = require("express");
 
 const {
@@ -17,10 +18,9 @@ const router = express.Router();
 router.post(
   "/",
   protect,
-  authorizeRoles("super_admin"),
+  authorizeRoles("super_admin", "admin"),
   createStudent
 );
-
 
 // Get all students
 router.get(
@@ -38,12 +38,11 @@ router.get(
   getStudentById
 );
 
-
 // Update student
 router.put(
   "/:id",
   protect,
-  authorizeRoles("super_admin"),
+  authorizeRoles("super_admin", "admin"),
   updateStudent
 );
 
@@ -51,7 +50,7 @@ router.put(
 router.patch(
   "/:id/status",
   protect,
-  authorizeRoles("super_admin"),
+  authorizeRoles("super_admin", "admin"),
   updateStudentStatus
 );
 

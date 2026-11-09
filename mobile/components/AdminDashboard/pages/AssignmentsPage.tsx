@@ -1,2053 +1,488 @@
-import React, { useMemo, useState } from "react";
-
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-
+  ActivityIndicator,
   Alert,
-
+  Linking,
   Modal,
-
+  Pressable,
+  RefreshControl,
   ScrollView,
-
   StyleSheet,
-
   Text,
-
   TextInput,
-
   TouchableOpacity,
-
-  View,
-
   useWindowDimensions,
-
+  View,
 } from "react-native";
-
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
-
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { API_BASE_URL } from "@/config/api";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import { getToken } from "@/services/auth";
 
-import { useRouter } from "expo-router";
-
-
-
-type AssignmentStatus = "Assigned" | "Pending" | "Submitted" | "Overdue";
-
-
-
+type ApiRecord = Record<string, any>;
+type Status = "Active" | "Upcoming" | "Due Today" | "Completed";
 type Assignment = {
-
   id: string;
-
   title: string;
-
+  code: string;
   subject: string;
-
-  chapter: string;
-
-  standard: string;
-
-  dueDate: string;
-
-  attachment: string;
-
-  status: AssignmentStatus;
-
   batch: string;
-
-  branch: string;
-
+  assignedDate: string;
+  dueDate: string;
+  maxMarks: number;
+  description: string;
+  instructions: string;
+  type: string;
+  status: Status;
+  attachmentName: string;
+  hasAttachment: boolean;
+  raw: ApiRecord;
 };
 
-
-
-const initialAssignments: Assignment[] = [
-
-  {
-
-    id: "ASM001",
-
-    title: "Newton Laws Practice",
-
-    subject: "Physics",
-
-    chapter: "Laws of Motion",
-
-    standard: "JEE 12th",
-
-    dueDate: "23 Sep 2026",
-
-    attachment: "Newton_Laws.pdf",
-
-    status: "Assigned",
-
-    batch: "JEE 12th",
-
-    branch: "Pune Branch",
-
-  },
-
-  {
-
-    id: "ASM002",
-
-    title: "Organic Chemistry Questions",
-
-    subject: "Chemistry",
-
-    chapter: "Organic Chemistry",
-
-    standard: "NEET 12th",
-
-    dueDate: "25 Sep 2026",
-
-    attachment: "Organic_Chemistry.pdf",
-
-    status: "Pending",
-
-    batch: "NEET 12th",
-
-    branch: "Mumbai Branch",
-
-  },
-
-  {
-
-    id: "ASM003",
-
-    title: "Integration Worksheet",
-
-    subject: "Mathematics",
-
-    chapter: "Integration",
-
-    standard: "JEE 12th",
-
-    dueDate: "26 Sep 2026",
-
-    attachment: "Integration.pdf",
-
-    status: "Submitted",
-
-    batch: "JEE 12th",
-
-    branch: "Pune Branch",
-
-  },
-
-  {
-
-    id: "ASM004",
-
-    title: "Genetics Assignment",
-
-    subject: "Biology",
-
-    chapter: "Genetics",
-
-    standard: "NEET 12th",
-
-    dueDate: "21 Sep 2026",
-
-    attachment: "Genetics.pdf",
-
-    status: "Overdue",
-
-    batch: "NEET 12th",
-
-    branch: "Nashik Branch",
-
-  },
-
-  {
-
-    id: "ASM005",
-
-    title: "Electrostatics Problems",
-
-    subject: "Physics",
-
-    chapter: "Electrostatics",
-
-    standard: "JEE 12th",
-
-    dueDate: "28 Sep 2026",
-
-    attachment: "Electrostatics.pdf",
-
-    status: "Assigned",
-
-    batch: "JEE 12th",
-
-    branch: "Pune Branch",
-
-  },
-
-  {
-
-    id: "ASM006",
-
-    title: "Chemical Bonding Worksheet",
-
-    subject: "Chemistry",
-
-    chapter: "Chemical Bonding",
-
-    standard: "NEET 12th",
-
-    dueDate: "30 Sep 2026",
-
-    attachment: "Chemical_Bonding.pdf",
-
-    status: "Pending",
-
-    batch: "NEET 12th",
-
-    branch: "Main Branch",
-
-  },
-
-];
-
-
-
-const filters = ["All", "Assigned", "Pending", "Submitted", "Overdue"];
-
-
-
-export default function AssignmentPage() {
-  const router = useRouter();
-  const { width } = useWindowDimensions();
+const PURPLE = "#7040D5";
+const TYPES: Record<string, string> = {
+  homework: "Homework",
+  practice_set: "Practice Set",
+  worksheet: "Worksheet",
+  project: "Project",
+  revision: "Revision",
+};
+
+function firstString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number") return String(value);
+  }
+  return "";
+}
+
+function unwrapList(payload: any): ApiRecord[] {
+  if (Array.isArray(payload)) return payload;
+  for (const key of ["assignments", "results", "items", "data"]) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+    if (Array.isArray(payload?.data?.[key])) return payload.data[key];
+    if (Array.isArray(payload?.data?.data?.[key])) return payload.data.data[key];
+  }
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+function objectName(value: any, fallback = "—"): string {
+  if (typeof value === "string") return value || fallback;
+  if (value && typeof value === "object") {
+    return firstString(value.name, value.title, value.batchName, value.subjectName, value.code, value._id) || fallback;
+  }
+  return fallback;
+}
+
+function formatDate(value: any): string {
+  if (!value) return "—";
+  const raw = String(value);
+  // Preserve date-only values to avoid timezone shifts.
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateOnly) return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function getStatus(item: ApiRecord): Status {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const assigned = item.assignedDate ? new Date(item.assignedDate) : null;
+  const due = item.submissionDate ? new Date(item.submissionDate) : null;
+  if (due && !Number.isNaN(due.getTime())) {
+    const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+    if (dueDay.getTime() < today.getTime()) return "Completed";
+    if (dueDay.getTime() === today.getTime()) return "Due Today";
+  }
+  if (assigned && !Number.isNaN(assigned.getTime())) {
+    const assignedDay = new Date(assigned.getFullYear(), assigned.getMonth(), assigned.getDate());
+    if (assignedDay.getTime() > today.getTime()) return "Upcoming";
+  }
+  return "Active";
+}
+
+function mapAssignment(item: ApiRecord): Assignment {
+  const attachment = item.attachment ?? item.pdf ?? item.file ?? null;
+  const attachmentName = firstString(
+    item.attachmentName,
+    item.attachmentOriginalName,
+    item.originalName,
+    attachment?.originalName,
+    attachment?.filename,
+    attachment?.name,
+    item.pdfName
+  );
+  return {
+    id: firstString(item._id, item.id, item.assignmentId),
+    title: firstString(item.assignmentTitle, item.title, "Untitled Assignment"),
+    code: firstString(item.assignmentCode, item.code, "—"),
+    subject: objectName(item.subjectId ?? item.subject, "Subject not specified"),
+    batch: objectName(item.batchId ?? item.batch, "Batch not specified"),
+    assignedDate: formatDate(item.assignedDate),
+    dueDate: formatDate(item.submissionDate ?? item.dueDate),
+    maxMarks: Number(item.totalMarks ?? item.maxMarks ?? 0) || 0,
+    description: firstString(item.description, "No description provided."),
+    instructions: firstString(item.instructions),
+    type: firstString(item.assignmentType, item.type, "homework"),
+    status: getStatus(item),
+    attachmentName: attachmentName || (item.attachmentUrl ? "Attached PDF" : ""),
+    hasAttachment: Boolean(attachment || item.attachmentUrl || item.attachmentPath || item.pdfUri || item.fileUrl),
+    raw: item,
+  };
+}
+
+async function apiRequest(path: string, options: RequestInit = {}) {
+  const token = await getToken();
+  const headers = new Headers(options.headers || {});
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.success === false) {
+    throw new Error(firstString(payload?.message, payload?.error, `Request failed (${response.status})`));
+  }
+  return payload;
+}
+
+const statusStyle: Record<Status, { bg: string; text: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }> = {
+  Active: { bg: "#E7F8EF", text: "#259B64", icon: "check-circle-outline" },
+  Upcoming: { bg: "#F1EAFF", text: PURPLE, icon: "calendar-clock" },
+  "Due Today": { bg: "#FFF1E2", text: "#D97706", icon: "clock-alert-outline" },
+  Completed: { bg: "#EAF2FF", text: "#2675E8", icon: "check-all" },
+};
+
+export default function AdminAssignmentsPage() {
   const insets = useSafeAreaInsets();
-  const isMobile = width < 700;
-  const isTablet = width >= 700 && width < 1100;
-  const isWide = width >= 900;
-
-
-
-  const [assignments, setAssignments] =
-
-    useState<Assignment[]>(initialAssignments);
-
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 900;
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
-
-  const [filter, setFilter] = useState("All");
-
+  const [filter, setFilter] = useState<"All" | Status>("All");
   const [selected, setSelected] = useState<Assignment | null>(null);
-
+  const [actionVisible, setActionVisible] = useState(false);
   const [viewVisible, setViewVisible] = useState(false);
-
   const [editVisible, setEditVisible] = useState(false);
-
-
-
+  const [saving, setSaving] = useState(false);
   const [editTitle, setEditTitle] = useState("");
-
-  const [editChapter, setEditChapter] = useState("");
-
+  const [editDescription, setEditDescription] = useState("");
+  const [editInstructions, setEditInstructions] = useState("");
+  const [editAssignedDate, setEditAssignedDate] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+  const [editMarks, setEditMarks] = useState("");
 
-  const [editAttachment, setEditAttachment] = useState("");
+  const loadAssignments = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    setLoadError("");
+    try {
+      const payload = await apiRequest("/assignments");
+      const rows = unwrapList(payload).map(mapAssignment).filter((item) => item.id);
+      setAssignments(rows);
+    } catch (error: any) {
+      setLoadError(error?.message || "Unable to load assignments.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const [editStatus, setEditStatus] =
-
-    useState<AssignmentStatus>("Assigned");
-
-
-
-  const openAddAssignment = () => {
-
-    router.push("/(admin)/add-assignment" as never);
-
-  };
-
-
-
-  const handleView = (assignment: Assignment) => {
-
-    setSelected(assignment);
-
-    setViewVisible(true);
-
-  };
-
-
-
-  const handleEdit = (assignment: Assignment) => {
-
-    setSelected(assignment);
-
-    setEditTitle(assignment.title);
-
-    setEditChapter(assignment.chapter);
-
-    setEditDueDate(assignment.dueDate);
-
-    setEditAttachment(assignment.attachment);
-
-    setEditStatus(assignment.status);
-
-    setEditVisible(true);
-
-  };
-
-
-
-  const saveEdit = () => {
-
-    if (!selected) return;
-
-
-
-    const updated: Assignment = {
-
-      ...selected,
-
-      title: editTitle.trim() || selected.title,
-
-      chapter: editChapter.trim() || selected.chapter,
-
-      dueDate: editDueDate.trim() || selected.dueDate,
-
-      attachment: editAttachment.trim() || selected.attachment,
-
-      status: editStatus,
-
-    };
-
-
-
-    setAssignments((current) =>
-
-      current.map((item) => (item.id === updated.id ? updated : item)),
-
-    );
-
-    setSelected(updated);
-
-    setEditVisible(false);
-
-  };
-
-
+  useEffect(() => { void loadAssignments(); }, [loadAssignments]);
 
   const filteredAssignments = useMemo(() => {
-
     const query = search.trim().toLowerCase();
-
-
-
-    return assignments.filter((assignment) => {
-
-      const matchesSearch =
-
-        !query ||
-
-        assignment.id.toLowerCase().includes(query) ||
-
-        assignment.title.toLowerCase().includes(query) ||
-
-        assignment.subject.toLowerCase().includes(query) ||
-
-        assignment.chapter.toLowerCase().includes(query) ||
-
-        assignment.standard.toLowerCase().includes(query) ||
-
-        assignment.batch.toLowerCase().includes(query);
-
-
-
-      const matchesFilter = filter === "All" || assignment.status === filter;
-
-
-
-      return matchesSearch && matchesFilter;
-
+    return assignments.filter((item) => {
+      const matchesQuery = !query || [item.title, item.code, item.subject, item.batch, item.description, TYPES[item.type] || item.type]
+        .some((value) => value.toLowerCase().includes(query));
+      return matchesQuery && (filter === "All" || item.status === filter);
     });
-
   }, [assignments, search, filter]);
 
+  const activeCount = assignments.filter((item) => item.status === "Active").length;
+  const upcomingCount = assignments.filter((item) => item.status === "Upcoming").length;
+  const dueTodayCount = assignments.filter((item) => item.status === "Due Today").length;
 
-
-  const statusStyle = (status: AssignmentStatus) => {
-
-    switch (status) {
-
-      case "Pending":
-
-        return styles.statusPending;
-
-      case "Submitted":
-
-        return styles.statusSubmitted;
-
-      case "Overdue":
-
-        return styles.statusOverdue;
-
-      default:
-
-        return styles.statusAssigned;
-
-    }
-
+  const openEdit = (item: Assignment) => {
+    setSelected(item);
+    setEditTitle(item.title);
+    setEditDescription(item.description === "No description provided." ? "" : item.description);
+    setEditInstructions(item.instructions);
+    setEditAssignedDate(item.raw.assignedDate ? String(item.raw.assignedDate).slice(0, 10) : "");
+    setEditDueDate(item.raw.submissionDate ? String(item.raw.submissionDate).slice(0, 10) : item.raw.dueDate ? String(item.raw.dueDate).slice(0, 10) : "");
+    setEditMarks(String(item.maxMarks || ""));
+    setActionVisible(false);
+    setEditVisible(true);
   };
 
-
-
-  const statusTextStyle = (status: AssignmentStatus) => {
-
-    switch (status) {
-
-      case "Pending":
-
-        return styles.statusPendingText;
-
-      case "Submitted":
-
-        return styles.statusSubmittedText;
-
-      case "Overdue":
-
-        return styles.statusOverdueText;
-
-      default:
-
-        return styles.statusAssignedText;
-
+  const saveEdit = async () => {
+    if (!selected) return;
+    if (!editTitle.trim()) return Alert.alert("Validation", "Assignment title is required.");
+    const marks = Number(editMarks);
+    if (!editMarks.trim() || !Number.isFinite(marks) || marks < 0) return Alert.alert("Validation", "Enter valid total marks.");
+    setSaving(true);
+    try {
+      const body = {
+        assignmentTitle: editTitle.trim(),
+        description: editDescription.trim(),
+        instructions: editInstructions.trim(),
+        assignedDate: editAssignedDate,
+        submissionDate: editDueDate,
+        totalMarks: marks,
+      };
+      await apiRequest(`/assignments/${encodeURIComponent(selected.id)}`, { method: "PUT", body: JSON.stringify(body) });
+      setEditVisible(false);
+      await loadAssignments(true);
+      Alert.alert("Updated", "Assignment details updated successfully.");
+    } catch (error: any) {
+      Alert.alert("Update failed", error?.message || "Unable to update this assignment.");
+    } finally {
+      setSaving(false);
     }
-
   };
 
+  const deleteAssignment = (item: Assignment) => {
+    setActionVisible(false);
+    Alert.alert("Delete Assignment", `Are you sure you want to delete “${item.title}”?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          await apiRequest(`/assignments/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+          setAssignments((current) => current.filter((row) => row.id !== item.id));
+          Alert.alert("Deleted", "Assignment deleted successfully.");
+        } catch (error: any) {
+          Alert.alert("Delete failed", error?.message || "Unable to delete this assignment. Check your Admin permissions.");
+        }
+      } },
+    ]);
+  };
 
+  const openAttachment = async (item: Assignment) => {
+    try {
+      const url = `${API_BASE_URL}/assignments/${encodeURIComponent(item.id)}/attachment`;
+      const token = await getToken();
+      const filename = (item.attachmentName || `${item.code || "assignment"}.pdf`).replace(/[^a-zA-Z0-9._-]/g, "_");
+      const destination = `${FileSystem.cacheDirectory || ""}${filename.endsWith(".pdf") ? filename : `${filename}.pdf`}`;
+      const result = await FileSystem.downloadAsync(url, destination, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`PDF download failed (${result.status}).`);
+      }
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(result.uri, { mimeType: "application/pdf", dialogTitle: item.title, UTI: "com.adobe.pdf" });
+      } else {
+        Alert.alert("PDF downloaded", `Saved temporarily to: ${result.uri}`);
+      }
+    } catch (error: any) {
+      Alert.alert("PDF unavailable", error?.message || "Unable to download the attachment. Check the attachment route and permissions.");
+    }
+  };
+
+  const summaryCard = (label: string, value: number, icon: keyof typeof MaterialCommunityIcons.glyphMap, tint: string, bg: string) => (
+    <View key={label} style={[styles.summaryCard, { width: isDesktop ? "23.5%" : "48%" }]}>
+      <View style={[styles.summaryIcon, { backgroundColor: bg }]}><MaterialCommunityIcons name={icon} size={21} color={tint} /></View>
+      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+
+  const renderAssignment = (item: Assignment) => {
+    const badge = statusStyle[item.status];
+    return (
+      <View key={item.id} style={[styles.assignmentCard, { width: isDesktop ? "48.8%" : "100%" }]}>
+        <View style={styles.cardTop}>
+          <View style={styles.assignmentIcon}><MaterialCommunityIcons name="clipboard-text-outline" size={24} color={PURPLE} /></View>
+          <TouchableOpacity style={styles.moreButton} onPress={() => { setSelected(item); setActionVisible(true); }}>
+            <MaterialCommunityIcons name="dots-vertical" size={21} color="#748096" />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.assignmentTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.assignmentCode}>{item.code}</Text>
+        {item.hasAttachment && <View style={styles.attachmentRow}>
+          <MaterialCommunityIcons name="file-pdf-box" size={20} color="#D84343" />
+          <Text style={styles.attachmentName} numberOfLines={1}>{item.attachmentName || "Attached PDF"}</Text>
+          <TouchableOpacity onPress={() => void openAttachment(item)}><MaterialCommunityIcons name="download-outline" size={20} color={PURPLE} /></TouchableOpacity>
+        </View>}
+        <View style={styles.infoRow}><MaterialCommunityIcons name="book-open-outline" size={15} color="#748096" /><Text style={styles.infoText}>{item.subject}</Text></View>
+        <View style={styles.infoRow}><MaterialCommunityIcons name="account-group-outline" size={15} color="#748096" /><Text style={styles.infoText}>{item.batch}</Text></View>
+        <View style={styles.infoRow}><MaterialCommunityIcons name="shape-outline" size={15} color="#748096" /><Text style={styles.infoText}>{TYPES[item.type] || item.type}</Text></View>
+        <View style={styles.dateRow}>
+          <View style={styles.dateItem}><MaterialCommunityIcons name="calendar-arrow-right" size={15} color={PURPLE} /><Text style={styles.dateText}>{item.assignedDate}</Text></View>
+          <View style={styles.dateItem}><MaterialCommunityIcons name="calendar-alert" size={15} color="#E95386" /><Text style={styles.dateText}>{item.dueDate}</Text></View>
+        </View>
+        <View style={styles.cardBottom}>
+          <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}><MaterialCommunityIcons name={badge.icon} size={13} color={badge.text} /><Text style={[styles.statusText, { color: badge.text }]}>{item.status}</Text></View>
+          <Text style={styles.marksText}>{item.maxMarks} Marks</Text>
+        </View>
+        <TouchableOpacity style={styles.viewButton} onPress={() => { setSelected(item); setViewVisible(true); }}>
+          <MaterialCommunityIcons name="eye-outline" size={17} color={PURPLE} /><Text style={styles.viewButtonText}>View Assignment</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
-    <>
-      <StatusBar style="light" backgroundColor="#6D35D8" translucent={false} />
-      <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
-      <View style={styles.container}>
-        <View
-          style={[
-            styles.header,
-            { paddingTop: insets.top + 8, minHeight: insets.top + 66 },
-            isMobile && styles.headerMobile,
-            isTablet && styles.headerTablet,
-          ]}
-        >
-
-          <TouchableOpacity
-
-            style={[styles.backButton, isMobile && styles.backButtonMobile]}
-
-            activeOpacity={0.8}
-
-            onPress={() => router.back()}
-
-          >
-
-            <MaterialCommunityIcons
-
-              name="arrow-left"
-
-              size={22}
-
-              color="#FFFFFF"
-
-            />
-
-          </TouchableOpacity>
-
-
-
-          <Text
-            style={[styles.headerTitle, isMobile && styles.headerTitleMobile]}
-            numberOfLines={1}
-          >
-            Assignments
-          </Text>
-
-
-
-          <TouchableOpacity
-
-            style={[styles.addButton, isMobile && styles.addButtonMobile]}
-
-            activeOpacity={0.85}
-
-            onPress={openAddAssignment}
-
-          >
-
-            <Text style={styles.addPlus}>+</Text>
-
-          </TouchableOpacity>
-
-        </View>
-
-
-
-        <ScrollView
-
-          showsVerticalScrollIndicator={false}
-
-          contentContainerStyle={styles.content}
-
-        >
-
-          <View style={styles.searchCard}>
-
-            <View style={styles.searchWrapper}>
-
-              <MaterialCommunityIcons
-
-                name="magnify"
-
-                size={22}
-
-                color="#71819A"
-
-              />
-
-              <TextInput
-
-                value={search}
-
-                onChangeText={setSearch}
-
-                placeholder="Search assignment, subject or batch..."
-
-                placeholderTextColor="#9AA6B8"
-
-                style={styles.searchInput}
-
-              />
-
-            </View>
-
-
-
-            <ScrollView
-
-              horizontal
-
-              showsHorizontalScrollIndicator={false}
-
-              contentContainerStyle={styles.filterRow}
-
-            >
-
-              {filters.map((item) => (
-
-                <TouchableOpacity
-
-                  key={item}
-
-                  style={[
-
-                    styles.filterButton,
-
-                    filter === item && styles.filterButtonActive,
-
-                  ]}
-
-                  activeOpacity={0.8}
-
-                  onPress={() => setFilter(item)}
-
-                >
-
-                  <Text
-
-                    style={[
-
-                      styles.filterText,
-
-                      filter === item && styles.filterTextActive,
-
-                    ]}
-
-                  >
-
-                    {item}
-
-                  </Text>
-
-                </TouchableOpacity>
-
-              ))}
-
-            </ScrollView>
-
-          </View>
-
-
-
-          <View style={styles.listHeader}>
-
-            <Text style={styles.listTitle}>Assignment List</Text>
-
-            <Text style={styles.listSubtitle}>
-
-              {filteredAssignments.length} assignments found
-
-            </Text>
-
-          </View>
-
-
-
-          <View
-
-            style={[
-
-              styles.assignmentGrid,
-
-              isWide && styles.assignmentGridWide,
-
-            ]}
-
-          >
-
-            {filteredAssignments.map((assignment) => (
-
-              <View
-
-                key={assignment.id}
-
-                style={[
-
-                  styles.assignmentCard,
-
-                  isWide && styles.assignmentCardWide,
-
-                ]}
-
-              >
-
-                <View style={styles.cardTop}>
-
-                  <View style={styles.assignmentIcon}>
-
-                    <MaterialCommunityIcons
-
-                      name="clipboard-text-outline"
-
-                      size={25}
-
-                      color="#7040D5"
-
-                    />
-
-                  </View>
-
-
-
-                  <View style={styles.assignmentHeading}>
-
-                    <Text style={styles.assignmentTitle} numberOfLines={1}>
-
-                      {assignment.title}
-
-                    </Text>
-
-                    <Text style={styles.assignmentId}>{assignment.id}</Text>
-
-                  </View>
-
-
-
-                  <View style={[styles.statusBadge, statusStyle(assignment.status)]}>
-
-                    <Text
-
-                      style={[
-
-                        styles.statusText,
-
-                        statusTextStyle(assignment.status),
-
-                      ]}
-
-                    >
-
-                      {assignment.status}
-
-                    </Text>
-
-                  </View>
-
-                </View>
-
-
-
-                <View style={styles.divider} />
-
-
-
-                <View style={styles.detailsGrid}>
-
-                  <View style={styles.detailItem}>
-
-                    <Text style={styles.detailLabel}>Subject</Text>
-
-                    <Text style={styles.detailValue}>{assignment.subject}</Text>
-
-                  </View>
-
-
-
-                  <View style={styles.detailItem}>
-
-                    <Text style={styles.detailLabel}>Chapter</Text>
-
-                    <Text style={styles.detailValue}>{assignment.chapter}</Text>
-
-                  </View>
-
-
-
-                  <View style={styles.detailItem}>
-
-                    <Text style={styles.detailLabel}>STD</Text>
-
-                    <Text style={styles.detailValue}>{assignment.standard}</Text>
-
-                  </View>
-
-
-
-                  <View style={styles.detailItem}>
-
-                    <Text style={styles.detailLabel}>Due Date</Text>
-
-                    <Text style={styles.detailValue}>{assignment.dueDate}</Text>
-
-                  </View>
-
-
-
-                  <View style={styles.detailItemFull}>
-
-                    <Text style={styles.detailLabel}>Attachment / PDF</Text>
-
-                    <Text style={styles.detailValue} numberOfLines={1}>
-
-                      {assignment.attachment || "No attachment"}
-
-                    </Text>
-
-                  </View>
-
-                </View>
-
-
-
-                <View style={styles.cardActions}>
-
-                  <TouchableOpacity
-
-                    style={styles.editButton}
-
-                    activeOpacity={0.8}
-
-                    onPress={() => handleEdit(assignment)}
-
-                  >
-
-                    <MaterialCommunityIcons
-
-                      name="pencil-outline"
-
-                      size={17}
-
-                      color="#7040D5"
-
-                    />
-
-                    <Text style={styles.editButtonText}>Edit</Text>
-
-                  </TouchableOpacity>
-
-
-
-                  <TouchableOpacity
-
-                    style={styles.viewButton}
-
-                    activeOpacity={0.85}
-
-                    onPress={() => handleView(assignment)}
-
-                  >
-
-                    <MaterialCommunityIcons
-
-                      name="eye-outline"
-
-                      size={18}
-
-                      color="#FFFFFF"
-
-                    />
-
-                    <Text style={styles.viewButtonText}>View</Text>
-
-                  </TouchableOpacity>
-
-                </View>
-
-              </View>
-
-            ))}
-
-          </View>
-
-
-
-          {filteredAssignments.length === 0 && (
-
-            <View style={styles.emptyState}>
-
-              <MaterialCommunityIcons
-
-                name="clipboard-text-off-outline"
-
-                size={44}
-
-                color="#A5AEC0"
-
-              />
-
-              <Text style={styles.emptyTitle}>No assignments found</Text>
-
-              <Text style={styles.emptyText}>
-
-                Try changing the search or selected status.
-
-              </Text>
-
-            </View>
-
-          )}
-
-        </ScrollView>
-
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}><MaterialCommunityIcons name="arrow-left" size={22} color="#FFFFFF" /></TouchableOpacity>
+        <View style={{ flex: 1 }}><Text style={styles.headerTitle}>Assignments</Text></View>
+        <TouchableOpacity style={styles.addButton} onPress={() => router.push({ pathname: "/(admin)/add-assignment", params: { feature: "Add Assignment" } } as any)}>
+          <MaterialCommunityIcons name="plus" size={17} color={PURPLE} /><Text style={styles.addButtonText}>Add Assignment</Text>
+        </TouchableOpacity>
       </View>
 
-
-
-      {/* VIEW MODAL */}
-
-      <Modal
-
-        visible={viewVisible}
-
-        transparent
-
-        animationType="fade"
-
-        onRequestClose={() => setViewVisible(false)}
-
-      >
-
-        <View style={styles.modalOverlay}>
-
-          <View style={styles.modalCard}>
-
-            <View style={styles.modalHeader}>
-
-              <View>
-
-                <Text style={styles.modalTitle}>Assignment Details</Text>
-
-                <Text style={styles.modalSubtitle}>
-
-                  Complete assignment information
-
-                </Text>
-
-              </View>
-
-              <TouchableOpacity
-
-                style={styles.modalClose}
-
-                onPress={() => setViewVisible(false)}
-
-              >
-
-                <MaterialCommunityIcons
-
-                  name="close"
-
-                  size={20}
-
-                  color="#66768A"
-
-                />
-
-              </TouchableOpacity>
-
-            </View>
-
-
-
-            {selected && (
-
-              <ScrollView showsVerticalScrollIndicator={false}>
-
-                <View style={styles.modalProfile}>
-
-                  <View style={styles.modalIcon}>
-
-                    <MaterialCommunityIcons
-
-                      name="clipboard-text-outline"
-
-                      size={28}
-
-                      color="#7040D5"
-
-                    />
-
-                  </View>
-
-                  <View style={styles.modalProfileText}>
-
-                    <Text style={styles.modalAssignmentTitle}>
-
-                      {selected.title}
-
-                    </Text>
-
-                    <Text style={styles.modalId}>{selected.id}</Text>
-
-                  </View>
-
-                </View>
-
-
-
-                <View style={styles.modalGrid}>
-
-                  <View style={styles.modalDetailBox}>
-
-                    <Text style={styles.modalLabel}>Subject</Text>
-
-                    <Text style={styles.modalValue}>{selected.subject}</Text>
-
-                  </View>
-
-                  <View style={styles.modalDetailBox}>
-
-                    <Text style={styles.modalLabel}>Chapter</Text>
-
-                    <Text style={styles.modalValue}>{selected.chapter}</Text>
-
-                  </View>
-
-                  <View style={styles.modalDetailBox}>
-
-                    <Text style={styles.modalLabel}>STD</Text>
-
-                    <Text style={styles.modalValue}>{selected.standard}</Text>
-
-                  </View>
-
-                  <View style={styles.modalDetailBox}>
-
-                    <Text style={styles.modalLabel}>Due Date</Text>
-
-                    <Text style={styles.modalValue}>{selected.dueDate}</Text>
-
-                  </View>
-
-                  <View style={styles.modalDetailBox}>
-
-                    <Text style={styles.modalLabel}>Batch</Text>
-
-                    <Text style={styles.modalValue}>{selected.batch}</Text>
-
-                  </View>
-
-                  <View style={styles.modalDetailBox}>
-
-                    <Text style={styles.modalLabel}>Branch</Text>
-
-                    <Text style={styles.modalValue}>{selected.branch}</Text>
-
-                  </View>
-
-                  <View style={styles.modalDetailBox}>
-
-                    <Text style={styles.modalLabel}>Status</Text>
-
-                    <Text style={styles.modalValue}>{selected.status}</Text>
-
-                  </View>
-
-                  <View style={styles.modalDetailBox}>
-
-                    <Text style={styles.modalLabel}>Attachment</Text>
-
-                    <Text style={styles.modalValue}>
-
-                      {selected.attachment || "No attachment"}
-
-                    </Text>
-
-                  </View>
-
-                </View>
-
-              </ScrollView>
-
-            )}
-
-          </View>
-
+      <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadAssignments(true)} tintColor={PURPLE} />} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 30 }]}>
+        <Text style={styles.managementTitle}>Assignment Management</Text>
+        <Text style={styles.managementSubtitle}>Create, organize and manage assignments and homework.</Text>
+        <View style={styles.summaryGrid}>
+          {summaryCard("Total Assignments", assignments.length, "clipboard-text-multiple-outline", PURPLE, "#F1EAFF")}
+          {summaryCard("Active", activeCount, "clipboard-check-outline", "#259B64", "#E7F8EF")}
+          {summaryCard("Upcoming", upcomingCount, "calendar-clock", "#2675E8", "#EAF2FF")}
+          {summaryCard("Due Today", dueTodayCount, "clock-alert-outline", "#D97706", "#FFF1E2")}
         </View>
+        <View style={styles.searchBox}>
+          <MaterialCommunityIcons name="magnify" size={20} color="#9AA3B2" />
+          <TextInput value={search} onChangeText={setSearch} placeholder="Search assignment, subject or batch..." placeholderTextColor="#A0A8B5" style={styles.searchInput} />
+          {!!search && <TouchableOpacity onPress={() => setSearch("")}><MaterialCommunityIcons name="close-circle" size={18} color="#9AA3B2" /></TouchableOpacity>}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+          {(["All", "Active", "Upcoming", "Due Today", "Completed"] as const).map((value) => {
+            const active = filter === value;
+            return <TouchableOpacity key={value} onPress={() => setFilter(value)} style={[styles.filterButton, active && styles.filterButtonActive]}><Text style={[styles.filterText, active && styles.filterTextActive]}>{value}</Text></TouchableOpacity>;
+          })}
+        </ScrollView>
 
+        {loading ? <View style={styles.centerState}><ActivityIndicator size="large" color={PURPLE} /><Text style={styles.stateText}>Loading assignments...</Text></View> : loadError ? <View style={styles.centerState}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={42} color="#E95386" /><Text style={styles.emptyTitle}>Unable to load assignments</Text><Text style={styles.stateText}>{loadError}</Text><TouchableOpacity style={styles.retryButton} onPress={() => void loadAssignments()}><Text style={styles.retryText}>Try Again</Text></TouchableOpacity>
+        </View> : filteredAssignments.length === 0 ? <View style={styles.centerState}>
+          <MaterialCommunityIcons name="clipboard-search-outline" size={48} color="#B1B8C5" /><Text style={styles.emptyTitle}>No assignments found</Text><Text style={styles.stateText}>{assignments.length === 0 ? "Assignments created for your branch will appear here." : "Try changing your search or filter."}</Text>
+        </View> : <View style={styles.assignmentGrid}>{filteredAssignments.map(renderAssignment)}</View>}
+      </ScrollView>
+
+      <Modal visible={actionVisible} transparent animationType="fade" onRequestClose={() => setActionVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setActionVisible(false)}><Pressable style={styles.actionModal} onPress={(event) => event.stopPropagation()}>
+          <View style={styles.modalHandle} /><Text style={styles.modalTitle}>Assignment Actions</Text><Text style={styles.modalSubtitle} numberOfLines={2}>{selected?.title}</Text>
+          <TouchableOpacity style={styles.actionItem} onPress={() => { setActionVisible(false); setViewVisible(true); }}><View style={styles.actionIcon}><MaterialCommunityIcons name="eye-outline" size={20} color={PURPLE} /></View><Text style={styles.actionText}>View Assignment</Text><MaterialCommunityIcons name="chevron-right" size={20} color="#A0A8B5" /></TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem} onPress={() => selected && openEdit(selected)}><View style={styles.actionIcon}><MaterialCommunityIcons name="pencil-outline" size={20} color="#2675E8" /></View><Text style={styles.actionText}>Edit Assignment</Text><MaterialCommunityIcons name="chevron-right" size={20} color="#A0A8B5" /></TouchableOpacity>
+          {selected?.hasAttachment && <TouchableOpacity style={styles.actionItem} onPress={() => { setActionVisible(false); if (selected) void openAttachment(selected); }}><View style={styles.actionIcon}><MaterialCommunityIcons name="file-pdf-box" size={20} color={PURPLE} /></View><Text style={styles.actionText}>Open Attachment PDF</Text><MaterialCommunityIcons name="chevron-right" size={20} color="#A0A8B5" /></TouchableOpacity>}
+          <TouchableOpacity style={styles.actionItem} onPress={() => selected && deleteAssignment(selected)}><View style={[styles.actionIcon, { backgroundColor: "#FFE9F0" }]}><MaterialCommunityIcons name="delete-outline" size={20} color="#E95386" /></View><Text style={[styles.actionText, { color: "#E95386" }]}>Delete Assignment</Text><MaterialCommunityIcons name="chevron-right" size={20} color="#A0A8B5" /></TouchableOpacity>
+        </Pressable></Pressable>
       </Modal>
 
-
-
-      {/* EDIT MODAL */}
-
-      <Modal
-
-        visible={editVisible}
-
-        transparent
-
-        animationType="fade"
-
-        onRequestClose={() => setEditVisible(false)}
-
-      >
-
-        <View style={styles.modalOverlay}>
-
-          <View style={styles.modalCard}>
-
-            <View style={styles.modalHeader}>
-
-              <View>
-
-                <Text style={styles.modalTitle}>Edit Assignment</Text>
-
-                <Text style={styles.modalSubtitle}>
-
-                  Update assignment information
-
-                </Text>
-
-              </View>
-
-              <TouchableOpacity
-
-                style={styles.modalClose}
-
-                onPress={() => setEditVisible(false)}
-
-              >
-
-                <MaterialCommunityIcons
-
-                  name="close"
-
-                  size={20}
-
-                  color="#66768A"
-
-                />
-
-              </TouchableOpacity>
-
+      <Modal visible={viewVisible} transparent animationType="slide" onRequestClose={() => setViewVisible(false)}>
+        <View style={styles.modalOverlay}><View style={[styles.largeModal, { width: isDesktop ? 650 : "94%", maxHeight: "88%" }]}>
+          <View style={styles.modalHeader}><View style={{ flex: 1 }}><Text style={styles.modalTitle}>Assignment Details</Text><Text style={styles.modalSubtitle}>{selected?.code}</Text></View><TouchableOpacity onPress={() => setViewVisible(false)}><MaterialCommunityIcons name="close" size={24} color="#748096" /></TouchableOpacity></View>
+          {selected && <ScrollView showsVerticalScrollIndicator={false}>
+            <View style={styles.detailHeader}><View style={styles.assignmentIcon}><MaterialCommunityIcons name="clipboard-text-outline" size={24} color={PURPLE} /></View><View style={{ flex: 1 }}><Text style={styles.detailTitle}>{selected.title}</Text><Text style={styles.assignmentCode}>{selected.code}</Text></View></View>
+            <View style={styles.detailGrid}>
+              {[ ["Subject", selected.subject], ["Batch", selected.batch], ["Type", TYPES[selected.type] || selected.type], ["Maximum Marks", String(selected.maxMarks)], ["Assigned Date", selected.assignedDate], ["Submission Date", selected.dueDate] ].map(([label, value]) => <View key={label} style={styles.detailBox}><Text style={styles.detailLabel}>{label}</Text><Text style={styles.detailValue}>{value}</Text></View>)}
             </View>
-
-
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-
-              <Text style={styles.modalFieldLabel}>Assignment Title</Text>
-
-              <TextInput
-
-                value={editTitle}
-
-                onChangeText={setEditTitle}
-
-                style={styles.modalInput}
-
-                placeholder="Assignment title"
-
-                placeholderTextColor="#9AA2B1"
-
-              />
-
-
-
-              <Text style={styles.modalFieldLabel}>Chapter</Text>
-
-              <TextInput
-
-                value={editChapter}
-
-                onChangeText={setEditChapter}
-
-                style={styles.modalInput}
-
-                placeholder="Chapter"
-
-                placeholderTextColor="#9AA2B1"
-
-              />
-
-
-
-              <Text style={styles.modalFieldLabel}>Due Date</Text>
-
-              <TextInput
-
-                value={editDueDate}
-
-                onChangeText={setEditDueDate}
-
-                style={styles.modalInput}
-
-                placeholder="Due date"
-
-                placeholderTextColor="#9AA2B1"
-
-              />
-
-
-
-              <Text style={styles.modalFieldLabel}>Attachment / PDF</Text>
-
-              <TextInput
-
-                value={editAttachment}
-
-                onChangeText={setEditAttachment}
-
-                style={styles.modalInput}
-
-                placeholder="Attachment"
-
-                placeholderTextColor="#9AA2B1"
-
-              />
-
-
-
-              <Text style={styles.modalFieldLabel}>Status</Text>
-
-              <View style={styles.modalStatusRow}>
-
-                {(["Assigned", "Pending", "Submitted", "Overdue"] as AssignmentStatus[]).map(
-
-                  (status) => (
-
-                    <TouchableOpacity
-
-                      key={status}
-
-                      style={[
-
-                        styles.modalStatusButton,
-
-                        editStatus === status && styles.modalStatusButtonActive,
-
-                      ]}
-
-                      onPress={() => setEditStatus(status)}
-
-                    >
-
-                      <Text
-
-                        style={[
-
-                          styles.modalStatusText,
-
-                          editStatus === status &&
-
-                            styles.modalStatusTextActive,
-
-                        ]}
-
-                      >
-
-                        {status}
-
-                      </Text>
-
-                    </TouchableOpacity>
-
-                  ),
-
-                )}
-
-              </View>
-
-
-
-              <TouchableOpacity
-
-                style={styles.saveEditButton}
-
-                activeOpacity={0.85}
-
-                onPress={saveEdit}
-
-              >
-
-                <MaterialCommunityIcons
-
-                  name="content-save-outline"
-
-                  size={18}
-
-                  color="#FFFFFF"
-
-                />
-
-                <Text style={styles.saveEditText}>Save Changes</Text>
-
-              </TouchableOpacity>
-
-            </ScrollView>
-
-          </View>
-
-        </View>
-
+            <Text style={styles.sectionTitle}>Description</Text><View style={styles.descriptionBox}><Text style={styles.descriptionText}>{selected.description}</Text></View>
+            {!!selected.instructions && <><Text style={styles.sectionTitle}>Instructions</Text><View style={styles.descriptionBox}><Text style={styles.descriptionText}>{selected.instructions}</Text></View></>}
+            {selected.hasAttachment && <TouchableOpacity style={styles.primaryButton} onPress={() => void openAttachment(selected)}><MaterialCommunityIcons name="file-pdf-box" size={20} color="#FFFFFF" /><Text style={styles.primaryButtonText}>Open Attachment PDF</Text></TouchableOpacity>}
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => openEdit(selected)}><MaterialCommunityIcons name="pencil-outline" size={18} color={PURPLE} /><Text style={styles.secondaryButtonText}>Edit Assignment</Text></TouchableOpacity>
+          </ScrollView>}
+        </View></View>
       </Modal>
 
-      </SafeAreaView>
-    </>
+      <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => setEditVisible(false)}>
+        <View style={styles.modalOverlay}><View style={[styles.largeModal, { width: isDesktop ? 600 : "94%", maxHeight: "90%" }]}>
+          <View style={styles.modalHeader}><View><Text style={styles.modalTitle}>Edit Assignment</Text><Text style={styles.modalSubtitle}>Update assignment information</Text></View><TouchableOpacity onPress={() => setEditVisible(false)}><MaterialCommunityIcons name="close" size={24} color="#748096" /></TouchableOpacity></View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.inputLabel}>Assignment Title *</Text><TextInput value={editTitle} onChangeText={setEditTitle} style={styles.input} placeholder="Assignment title" placeholderTextColor="#A0A8B5" />
+            <Text style={styles.inputLabel}>Description</Text><TextInput value={editDescription} onChangeText={setEditDescription} multiline textAlignVertical="top" style={[styles.input, styles.multilineInput]} placeholder="Description" placeholderTextColor="#A0A8B5" />
+            <Text style={styles.inputLabel}>Instructions</Text><TextInput value={editInstructions} onChangeText={setEditInstructions} multiline textAlignVertical="top" style={[styles.input, styles.multilineInput]} placeholder="Instructions" placeholderTextColor="#A0A8B5" />
+            <Text style={styles.inputLabel}>Assigned Date (YYYY-MM-DD)</Text><TextInput value={editAssignedDate} onChangeText={setEditAssignedDate} style={styles.input} placeholder="2026-10-28" placeholderTextColor="#A0A8B5" />
+            <Text style={styles.inputLabel}>Submission Date (YYYY-MM-DD)</Text><TextInput value={editDueDate} onChangeText={setEditDueDate} style={styles.input} placeholder="2026-11-04" placeholderTextColor="#A0A8B5" />
+            <Text style={styles.inputLabel}>Total Marks</Text><TextInput value={editMarks} onChangeText={setEditMarks} keyboardType="numeric" style={styles.input} placeholder="100" placeholderTextColor="#A0A8B5" />
+            <TouchableOpacity style={[styles.primaryButton, saving && { opacity: 0.65 }]} disabled={saving} onPress={() => void saveEdit()}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Save Changes</Text>}</TouchableOpacity>
+          </ScrollView>
+        </View></View>
+      </Modal>
+    </View>
   );
 }
 
-
-
 const styles = StyleSheet.create({
-
-  safeArea: { flex: 1, backgroundColor: "#F7F8FC" },
-
   container: { flex: 1, backgroundColor: "#F7F8FC" },
-
-  header: {
-    width: "100%",
-    backgroundColor: "#6D35D8",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerMobile: { height: 80, paddingHorizontal: 14 },
-  headerTablet: { height: 64, paddingHorizontal: 20 },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  backButtonMobile: { width: 36, height: 36, borderRadius: 10, marginRight: 12 },
-  headerTitle: {
-    flex: 1,
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 20,
-    lineHeight: 26,
-    color: "#FFFFFF",
-    textAlign: "left",
-  },
-  headerTitleMobile: { fontSize: 20 },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 11,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-  },
-  addButtonMobile: { width: 40, height: 40, borderRadius: 11 },
-  addPlus: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 27,
-
-    lineHeight: 30,
-
-    color: "#7040D5",
-
-    marginTop: -1,
-
-  },
-
-  content: {
-
-    paddingHorizontal: 16,
-
-    paddingTop: 14,
-
-    paddingBottom: 22,
-
-  },
-
-  searchCard: {
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 14,
-
-    padding: 12,
-
-    borderWidth: 1,
-
-    borderColor: "#ECEEF4",
-
-    marginBottom: 16,
-
-  },
-
-  searchWrapper: {
-
-    height: 46,
-
-    borderWidth: 1,
-
-    borderColor: "#E4E7EF",
-
-    borderRadius: 12,
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    paddingHorizontal: 12,
-
-  },
-
-  searchInput: {
-
-    flex: 1,
-
-    marginLeft: 10,
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 12,
-
-    color: "#263047",
-
-  },
-
-  filterRow: {
-
-    gap: 7,
-
-    paddingTop: 9,
-
-  },
-
-  filterButton: {
-
-    minWidth: 68,
-
-    height: 38,
-
-    paddingHorizontal: 13,
-
-    borderRadius: 10,
-
-    backgroundColor: "#F7F8FC",
-
-    borderWidth: 1,
-
-    borderColor: "#E8EAF1",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  filterButtonActive: {
-
-    backgroundColor: "#7040D5",
-
-    borderColor: "#7040D5",
-
-  },
-
-  filterText: {
-
-    fontFamily: "PoppinsMedium",
-
-    fontSize: 10.5,
-
-    color: "#718099",
-
-  },
-
+  header: { minHeight: 72, backgroundColor: PURPLE, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center" },
+  backButton: { width: 36, height: 36, borderRadius: 9, alignItems: "center", justifyContent: "center", marginRight: 8 },
+  headerTitle: { fontFamily: "PoppinsBold", fontSize: 20, color: "#FFFFFF" },
+  addButton: { minHeight: 36, borderRadius: 9, backgroundColor: "#FFFFFF", flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 10, marginLeft: 8 },
+  addButtonText: { fontFamily: "PoppinsSemiBold", fontSize: 10, color: PURPLE, marginLeft: 4 },
+  content: { paddingHorizontal: 20, paddingTop: 20 },
+  managementTitle: { fontFamily: "PoppinsBold", fontSize: 20, color: "#172033" },
+  managementSubtitle: { fontFamily: "PoppinsRegular", fontSize: 10, color: "#748096", marginTop: 3, marginBottom: 17 },
+  summaryGrid: { width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between" },
+  summaryCard: { minHeight: 105, backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: "#EEF0F5", padding: 13, marginBottom: 2, elevation: 2 },
+  summaryIcon: { width: 39, height: 39, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  summaryValue: { fontFamily: "PoppinsBold", fontSize: 19, color: "#172033", marginTop: 7 },
+  summaryLabel: { fontFamily: "PoppinsMedium", fontSize: 8.5, color: "#748096", marginTop: 1 },
+  searchBox: { minHeight: 45, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E7EAF0", borderRadius: 11, paddingHorizontal: 13, flexDirection: "row", alignItems: "center", marginTop: 18 },
+  searchInput: { flex: 1, fontFamily: "PoppinsRegular", fontSize: 10, color: "#172033", marginLeft: 8, paddingVertical: 8 },
+  filters: { paddingVertical: 14, gap: 8 },
+  filterButton: { paddingHorizontal: 14, minHeight: 34, borderRadius: 9, borderWidth: 1, borderColor: "#E3E6ED", backgroundColor: "#FFFFFF", justifyContent: "center" },
+  filterButtonActive: { backgroundColor: PURPLE, borderColor: PURPLE },
+  filterText: { fontFamily: "PoppinsMedium", fontSize: 9, color: "#748096" },
   filterTextActive: { color: "#FFFFFF" },
-
-  listHeader: { marginBottom: 11 },
-
-  listTitle: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 18,
-
-    color: "#202A3D",
-
-  },
-
-  listSubtitle: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 10,
-
-    color: "#8994A7",
-
-    marginTop: 2,
-
-  },
-
-  assignmentGrid: {
-
-    width: "100%",
-
-  },
-
-  assignmentGridWide: {
-
-    flexDirection: "row",
-
-    flexWrap: "wrap",
-
-    justifyContent: "space-between",
-
-  },
-
-  assignmentCard: {
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 14,
-
-    padding: 13,
-
-    marginBottom: 9,
-
-    borderWidth: 1,
-
-    borderColor: "#ECEEF4",
-
-  },
-
-  assignmentCardWide: {
-
-    width: "48.8%",
-
-  },
-
-  cardTop: {
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-  },
-
-  assignmentIcon: {
-
-    width: 44,
-
-    height: 44,
-
-    borderRadius: 12,
-
-    backgroundColor: "#F0E8FF",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  assignmentHeading: {
-
-    flex: 1,
-
-    marginLeft: 9,
-
-    minWidth: 0,
-
-  },
-
-  assignmentTitle: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 13,
-
-    color: "#202A3D",
-
-  },
-
-  assignmentId: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 10,
-
-    color: "#8994A7",
-
-    marginTop: 2,
-
-  },
-
-  statusBadge: {
-
-    minWidth: 68,
-
-    height: 28,
-
-    paddingHorizontal: 9,
-
-    borderRadius: 10,
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    marginLeft: 7,
-
-  },
-
-  statusText: {
-
-    fontFamily: "PoppinsMedium",
-
-    fontSize: 10,
-
-  },
-
-  statusAssigned: { backgroundColor: "#F0E8FF" },
-
-  statusAssignedText: { color: "#7040D5" },
-
-  statusPending: { backgroundColor: "#FFF1E2" },
-
-  statusPendingText: { color: "#F28A12" },
-
-  statusSubmitted: { backgroundColor: "#E8F8F0" },
-
-  statusSubmittedText: { color: "#16A36B" },
-
-  statusOverdue: { backgroundColor: "#FFE8EF" },
-
-  statusOverdueText: { color: "#E83D69" },
-
-  divider: {
-
-    height: 1,
-
-    backgroundColor: "#ECEEF4",
-
-    marginVertical: 11,
-
-  },
-
-  detailsGrid: {
-
-    flexDirection: "row",
-
-    flexWrap: "wrap",
-
-    columnGap: 18,
-
-    rowGap: 9,
-
-  },
-
-  detailItem: {
-
-    width: "46%",
-
-    marginBottom: 0,
-
-    minWidth: 120,
-
-  },
-
-  detailItemFull: {
-
-    width: "100%",
-
-    marginBottom: 0,
-
-    marginTop: 2,
-
-  },
-
-  detailLabel: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 9,
-
-    color: "#8B98AC",
-
-    marginBottom: 3,
-
-  },
-
-  detailValue: {
-
-    fontFamily: "PoppinsMedium",
-
-    fontSize: 11,
-
-    color: "#263047",
-
-  },
-
-  cardActions: {
-
-    flexDirection: "row",
-
-    justifyContent: "flex-end",
-
-    gap: 7,
-
-    marginTop: 10,
-
-    paddingTop: 9,
-
-    borderTopWidth: 1,
-
-    borderTopColor: "#EEF0F5",
-
-  },
-
-  editButton: {
-
-    minWidth: 70,
-
-    height: 34,
-
-    paddingHorizontal: 11,
-
-    borderRadius: 10,
-
-    backgroundColor: "#F7F3FF",
-
-    borderWidth: 1,
-
-    borderColor: "#DCCBFF",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  editButtonText: {
-
-    fontFamily: "PoppinsMedium",
-
-    fontSize: 10.5,
-
-    color: "#7040D5",
-
-    marginLeft: 7,
-
-  },
-
-  viewButton: {
-
-    minWidth: 74,
-
-    height: 34,
-
-    paddingHorizontal: 11,
-
-    borderRadius: 10,
-
-    backgroundColor: "#7040D5",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  viewButtonText: {
-
-    fontFamily: "PoppinsMedium",
-
-    fontSize: 10.5,
-
-    color: "#FFFFFF",
-
-    marginLeft: 7,
-
-  },
-
-  emptyState: {
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 14,
-
-    padding: 28,
-
-    alignItems: "center",
-
-    borderWidth: 1,
-
-    borderColor: "#ECEEF4",
-
-  },
-
-  emptyTitle: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 15,
-
-    color: "#263047",
-
-    marginTop: 10,
-
-  },
-
-  emptyText: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 11,
-
-    color: "#8994A7",
-
-    marginTop: 4,
-
-  },
-
-  modalOverlay: {
-
-    flex: 1,
-
-    backgroundColor: "rgba(17,24,39,0.45)",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    padding: 20,
-
-  },
-
-  modalCard: {
-
-    width: "100%",
-
-    maxWidth: 650,
-
-    maxHeight: "88%",
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 18,
-
-    padding: 20,
-
-  },
-
-  modalHeader: {
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "space-between",
-
-    marginBottom: 18,
-
-  },
-
-  modalTitle: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 17,
-
-    color: "#202A3D",
-
-  },
-
-  modalSubtitle: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 10,
-
-    color: "#8994A7",
-
-    marginTop: 2,
-
-  },
-
-  modalClose: {
-
-    width: 36,
-
-    height: 36,
-
-    borderRadius: 10,
-
-    backgroundColor: "#F4F5F8",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  modalProfile: {
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    marginBottom: 18,
-
-  },
-
-  modalIcon: {
-
-    width: 52,
-
-    height: 52,
-
-    borderRadius: 14,
-
-    backgroundColor: "#F0E8FF",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  modalProfileText: {
-
-    flex: 1,
-
-    marginLeft: 12,
-
-  },
-
-  modalAssignmentTitle: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 15,
-
-    color: "#202A3D",
-
-  },
-
-  modalId: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 10,
-
-    color: "#8994A7",
-
-    marginTop: 2,
-
-  },
-
-  modalGrid: {
-
-    flexDirection: "row",
-
-    flexWrap: "wrap",
-
-    gap: 10,
-
-  },
-
-  modalDetailBox: {
-
-    width: "48.5%",
-
-    backgroundColor: "#F8F9FC",
-
-    borderRadius: 11,
-
-    padding: 12,
-
-  },
-
-  modalLabel: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 9.5,
-
-    color: "#8994A7",
-
-  },
-
-  modalValue: {
-
-    fontFamily: "PoppinsMedium",
-
-    fontSize: 11.5,
-
-    color: "#263047",
-
-    marginTop: 3,
-
-  },
-
-  modalFieldLabel: {
-
-    fontFamily: "PoppinsMedium",
-
-    fontSize: 10.5,
-
-    color: "#58657A",
-
-    marginBottom: 6,
-
-    marginTop: 5,
-
-  },
-
-  modalInput: {
-
-    minHeight: 46,
-
-    borderWidth: 1,
-
-    borderColor: "#E2E5ED",
-
-    borderRadius: 11,
-
-    paddingHorizontal: 12,
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 11.5,
-
-    color: "#263047",
-
-    marginBottom: 10,
-
-  },
-
-  modalStatusRow: {
-
-    flexDirection: "row",
-
-    flexWrap: "wrap",
-
-    gap: 7,
-
-    marginBottom: 16,
-
-  },
-
-  modalStatusButton: {
-
-    paddingHorizontal: 12,
-
-    minHeight: 36,
-
-    borderRadius: 9,
-
-    backgroundColor: "#F7F8FC",
-
-    borderWidth: 1,
-
-    borderColor: "#E2E5ED",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  modalStatusButtonActive: {
-
-    backgroundColor: "#7040D5",
-
-    borderColor: "#7040D5",
-
-  },
-
-  modalStatusText: {
-
-    fontFamily: "PoppinsMedium",
-
-    fontSize: 9.5,
-
-    color: "#718099",
-
-  },
-
-  modalStatusTextActive: { color: "#FFFFFF" },
-
-  saveEditButton: {
-
-    minHeight: 46,
-
-    borderRadius: 11,
-
-    backgroundColor: "#7040D5",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    marginTop: 5,
-
-    marginBottom: 5,
-
-  },
-
-  saveEditText: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 11,
-
-    color: "#FFFFFF",
-
-    marginLeft: 8,
-
-  },
-
+  assignmentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 13, justifyContent: "space-between" },
+  assignmentCard: { backgroundColor: "#FFFFFF", borderRadius: 16, borderWidth: 1, borderColor: "#EEF0F5", padding: 15, marginBottom: 2, elevation: 2 },
+  cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  assignmentIcon: { width: 46, height: 46, borderRadius: 13, backgroundColor: "#F1EAFF", alignItems: "center", justifyContent: "center" },
+  moreButton: { width: 34, height: 34, borderRadius: 9, backgroundColor: "#F7F8FC", alignItems: "center", justifyContent: "center" },
+  assignmentTitle: { fontFamily: "PoppinsSemiBold", fontSize: 13, lineHeight: 19, color: "#172033", marginTop: 12 },
+  assignmentCode: { fontFamily: "PoppinsMedium", fontSize: 8.5, color: PURPLE, marginTop: 3 },
+  attachmentRow: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9F6FE", borderWidth: 1, borderColor: "#E8E0F7", borderRadius: 9, paddingHorizontal: 9, marginTop: 10 },
+  attachmentName: { flex: 1, fontFamily: "PoppinsRegular", fontSize: 9, color: "#626675" },
+  infoRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
+  infoText: { flex: 1, fontFamily: "PoppinsRegular", fontSize: 9, color: "#748096", marginLeft: 7 },
+  dateRow: { marginTop: 13, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F0F1F5", flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  dateItem: { flexDirection: "row", alignItems: "center", flexShrink: 1 },
+  dateText: { fontFamily: "PoppinsMedium", fontSize: 8, color: "#566176", marginLeft: 5 },
+  cardBottom: { marginTop: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  statusBadge: { minHeight: 27, paddingHorizontal: 9, borderRadius: 8, flexDirection: "row", alignItems: "center" },
+  statusText: { fontFamily: "PoppinsSemiBold", fontSize: 8, marginLeft: 4 },
+  marksText: { fontFamily: "PoppinsMedium", fontSize: 8.5, color: "#748096" },
+  viewButton: { height: 36, borderRadius: 9, backgroundColor: "#F1EAFF", marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  viewButtonText: { fontFamily: "PoppinsSemiBold", fontSize: 9, color: PURPLE, marginLeft: 5 },
+  centerState: { minHeight: 230, backgroundColor: "#FFFFFF", borderRadius: 16, borderWidth: 1, borderColor: "#EEF0F5", alignItems: "center", justifyContent: "center", padding: 24, marginTop: 4 },
+  stateText: { fontFamily: "PoppinsRegular", fontSize: 10, color: "#748096", marginTop: 8, textAlign: "center" },
+  emptyTitle: { fontFamily: "PoppinsSemiBold", fontSize: 14, color: "#172033", marginTop: 10, textAlign: "center" },
+  retryButton: { marginTop: 14, backgroundColor: PURPLE, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 9 },
+  retryText: { fontFamily: "PoppinsSemiBold", fontSize: 10, color: "#FFFFFF" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(20,24,35,0.45)", alignItems: "center", justifyContent: "center", padding: 12 },
+  actionModal: { width: "94%", maxWidth: 500, backgroundColor: "#FFFFFF", borderRadius: 18, padding: 18 },
+  modalHandle: { width: 35, height: 4, borderRadius: 4, backgroundColor: "#D9DDE5", alignSelf: "center", marginBottom: 14 },
+  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 },
+  modalTitle: { fontFamily: "PoppinsBold", fontSize: 17, color: "#172033" },
+  modalSubtitle: { fontFamily: "PoppinsRegular", fontSize: 9, color: "#748096", marginTop: 3 },
+  actionItem: { minHeight: 54, borderBottomWidth: 1, borderBottomColor: "#F0F1F5", flexDirection: "row", alignItems: "center" },
+  actionIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F1EAFF", alignItems: "center", justifyContent: "center" },
+  actionText: { flex: 1, fontFamily: "PoppinsMedium", fontSize: 10, color: "#172033", marginLeft: 11 },
+  largeModal: { backgroundColor: "#FFFFFF", borderRadius: 18, padding: 19 },
+  detailHeader: { backgroundColor: "#F7F4FF", borderRadius: 13, padding: 13, flexDirection: "row", alignItems: "center", gap: 11 },
+  detailTitle: { fontFamily: "PoppinsBold", fontSize: 15, color: "#172033" },
+  detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 15 },
+  detailBox: { width: "48%", minHeight: 66, backgroundColor: "#F7F8FC", borderRadius: 11, padding: 11 },
+  detailLabel: { fontFamily: "PoppinsMedium", fontSize: 8, color: "#748096" },
+  detailValue: { fontFamily: "PoppinsSemiBold", fontSize: 10, color: "#172033", marginTop: 5 },
+  sectionTitle: { fontFamily: "PoppinsSemiBold", fontSize: 12, color: "#172033", marginTop: 17, marginBottom: 8 },
+  descriptionBox: { backgroundColor: "#F7F8FC", borderRadius: 11, padding: 13 },
+  descriptionText: { fontFamily: "PoppinsRegular", fontSize: 9.5, lineHeight: 16, color: "#566176" },
+  primaryButton: { minHeight: 44, borderRadius: 10, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, marginTop: 16, paddingHorizontal: 12 },
+  primaryButtonText: { fontFamily: "PoppinsSemiBold", fontSize: 10, color: "#FFFFFF" },
+  secondaryButton: { minHeight: 42, borderRadius: 10, backgroundColor: "#F1EAFF", alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, marginTop: 9, marginBottom: 4 },
+  secondaryButtonText: { fontFamily: "PoppinsSemiBold", fontSize: 10, color: PURPLE },
+  inputLabel: { fontFamily: "PoppinsMedium", fontSize: 9.5, color: "#566176", marginBottom: 5, marginTop: 10 },
+  input: { minHeight: 43, borderWidth: 1, borderColor: "#E3E6ED", borderRadius: 10, paddingHorizontal: 11, fontFamily: "PoppinsRegular", fontSize: 10, color: "#172033" },
+  multilineInput: { minHeight: 80, paddingTop: 10 },
 });

@@ -1,943 +1,510 @@
-
-
-import React, { useState } from 'react';
-
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-
+  ActivityIndicator,
   Alert,
-
-  KeyboardAvoidingView,
-
-  Platform,
-
   ScrollView,
-
   StyleSheet,
-
   Text,
-
   TextInput,
-
   TouchableOpacity,
-
   View,
-  useWindowDimensions,
 } from 'react-native';
-
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-
 import { router } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
 
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Leave';
 
-import { StatusBar } from 'expo-status-bar';
+type Batch = {
+  id: string;
+  name: string;
+  standard: string;
+  code?: string;
+};
 
+type Subject = {
+  id: string;
+  name: string;
+  code?: string;
+};
 
+type Student = {
+  id: string;
+  studentCode: string;
+  name: string;
+  batchId: string;
+  status: AttendanceStatus;
+};
 
-type AttendanceStatus = 'Present' | 'Absent';
+type BatchSubjectAssignment = {
+  batchId: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode?: string;
+  status: string;
+};
 
+const statusOptions: AttendanceStatus[] = ['Present', 'Absent', 'Late', 'Leave'];
 
+const getId = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return String(value._id || value.id || '');
+};
+
+const getArray = (payload: any, keys: string[] = []): any[] => {
+  for (const key of keys) {
+    if (Array.isArray(payload?.data?.[key])) return payload.data[key];
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+};
+
+const todayLocal = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const mapBatch = (raw: any): Batch => ({
+  id: getId(raw),
+  name: String(raw?.name || raw?.batchName || raw?.code || 'Unnamed batch'),
+  standard: String(raw?.standard || raw?.course?.name || ''),
+  code: String(raw?.code || ''),
+});
+
+const mapStudent = (raw: any): Student => {
+  const user = raw?.userId && typeof raw.userId === 'object' ? raw.userId : {};
+  const batch = raw?.batchId && typeof raw.batchId === 'object' ? raw.batchId : {};
+  return {
+    id: getId(raw),
+    studentCode: String(raw?.studentId || ''),
+    name: String(user?.fullName || raw?.fullName || 'Unknown student'),
+    batchId: getId(batch) || String(raw?.batchId || ''),
+    status: 'Present',
+  };
+};
+
+const mapAssignment = (raw: any): BatchSubjectAssignment => {
+  const batch = raw?.batchId && typeof raw.batchId === 'object' ? raw.batchId : {};
+  const subject = raw?.subjectId && typeof raw.subjectId === 'object' ? raw.subjectId : {};
+  return {
+    batchId: getId(batch) || String(raw?.batchId || ''),
+    subjectId: getId(subject) || String(raw?.subjectId || ''),
+    subjectName: String(subject?.name || raw?.subject?.name || raw?.subjectName || ''),
+    subjectCode: String(subject?.code || raw?.subject?.code || ''),
+    status: String(raw?.status || 'active').toLowerCase(),
+  };
+};
 
 export default function AddAttendancePage() {
-  const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const isMobile = width < 700;
-  const isTablet = width >= 700 && width < 1100;
+  const [date, setDate] = useState(todayLocal());
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [assignments, setAssignments] = useState<BatchSubjectAssignment[]>([]);
+  const [batchId, setBatchId] = useState('');
+  const [subjectId, setSubjectId] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
-
-  const [studentName, setStudentName] = useState('');
-
-  const [studentId, setStudentId] = useState('');
-
-  const [date, setDate] = useState('');
-
-  const [branch, setBranch] = useState('Pune');
-
-  const [standardBatch, setStandardBatch] = useState('');
-
-  const [status, setStatus] = useState<AttendanceStatus>('Present');
-
-
-
-  const handleSave = () => {
-
-    if (
-
-      !studentName.trim() ||
-
-      !studentId.trim() ||
-
-      !date.trim() ||
-
-      !branch.trim() ||
-
-      !standardBatch.trim()
-
-    ) {
-
-      Alert.alert('Missing Information', 'Please fill in all fields.');
-
-      return;
-
+  const apiRequest = useCallback(async (path: string, options: RequestInit = {}) => {
+    const token = await getToken();
+    if (!token) throw new Error('Your session has expired. Please log in again.');
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.success === false) {
+      throw new Error(payload?.message || `Request failed (${response.status})`);
     }
+    return payload;
+  }, []);
 
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const [batchPayload, studentPayload, subjectPayload] = await Promise.all([
+        apiRequest('/batches'),
+        apiRequest('/students'),
+        apiRequest('/subjects'),
+      ]);
 
+      const batchRows = getArray(batchPayload, ['batches'])
+        .map(mapBatch)
+        .filter((item) => item.id);
+      const studentRows = getArray(studentPayload, ['students', 'data'])
+        // Only include students explicitly marked active by the backend.
+        .filter((raw: any) => {
+          const status = String(raw?.status ?? raw?.userId?.status ?? '').trim().toLowerCase();
+          return status === 'active';
+        })
+        .map(mapStudent)
+        .filter((item) => item.id && item.batchId && item.name);
+      const subjectRows = getArray(subjectPayload, ['subjects'])
+        .map((raw: any): Subject => ({
+          id: getId(raw),
+          name: String(raw?.name || ''),
+          code: String(raw?.code || ''),
+        }))
+        .filter((item) => item.id && item.name);
 
-    // UI-only implementation.
+      setBatches(batchRows);
+      setStudents(studentRows);
+      setSubjects(subjectRows);
 
-    // Connect your backend/API here to persist the record.
+      if (batchRows.length) {
+        setBatchId((current) => batchRows.some((item) => item.id === current) ? current : batchRows[0].id);
+      } else {
+        setBatchId('');
+      }
 
-    Alert.alert(
+      // Load each batch's assigned subjects. These are the subjects that can
+      // actually be marked for that batch, rather than an unrelated subject list.
+      const assignmentPayloads = await Promise.all(
+        batchRows.map(async (batch) => {
+          try {
+            const payload = await apiRequest(`/batch-subjects/batch/${batch.id}`);
+            return getArray(payload, ['batchSubjects', 'assignments']).map(mapAssignment);
+          } catch (error) {
+            console.warn(`Could not load subjects for batch ${batch.id}`, error);
+            return [] as BatchSubjectAssignment[];
+          }
+        }),
+      );
+      setAssignments(assignmentPayloads.flat());
+    } catch (error: any) {
+      const message = error?.message || 'Please check your connection and try again.';
+      setLoadError(message);
+      Alert.alert('Unable to Load Attendance Data', message);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiRequest]);
 
-      'Attendance Details',
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-      'The form is valid. Connect your attendance API to save this record.',
+  const selectedBatch = useMemo(
+    () => batches.find((item) => item.id === batchId),
+    [batches, batchId],
+  );
 
-      [
+  const availableSubjects = useMemo(() => {
+    const linked = assignments
+      .filter((item) => item.batchId === batchId && item.subjectId && item.status === 'active')
+      .map((item) => ({ id: item.subjectId, name: item.subjectName, code: item.subjectCode || '' }))
+      .filter((item) => item.name);
+    // Only use subjects assigned to this batch. If the assignments endpoint
+    // returns none, don't silently offer every master subject.
+    return linked;
+  }, [assignments, batchId]);
 
-        {
+  const visibleStudents = useMemo(
+    () => students.filter((student) => student.batchId === batchId),
+    [students, batchId],
+  );
 
-          text: 'OK',
-
-          onPress: () => router.back(),
-
-        },
-
-      ],
-
+  const filteredStudents = useMemo(() => {
+    const query = studentSearch.trim().toLowerCase();
+    if (!query) return visibleStudents;
+    return visibleStudents.filter((student) =>
+      student.name.toLowerCase().includes(query) ||
+      student.studentCode.toLowerCase().includes(query),
     );
+  }, [visibleStudents, studentSearch]);
 
+  useEffect(() => {
+    if (!availableSubjects.some((item) => item.id === subjectId)) {
+      setSubjectId(availableSubjects[0]?.id || '');
+    }
+  }, [availableSubjects, subjectId]);
+
+  const updateStatus = (studentId: string, status: AttendanceStatus) => {
+    setStudents((current) =>
+      current.map((student) =>
+        student.id === studentId ? { ...student, status } : student,
+      ),
+    );
   };
 
+  const saveAttendance = async () => {
+    if (!date.trim() || !batchId || !subjectId) {
+      Alert.alert('Required Fields', 'Please select a date, batch, and subject.');
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim()) || Number.isNaN(new Date(`${date}T00:00:00`).getTime())) {
+      Alert.alert('Invalid Date', 'Enter the date in YYYY-MM-DD format.');
+      return;
+    }
+    if (!visibleStudents.length) {
+      Alert.alert('No Students', 'There are no students assigned to this batch.');
+      return;
+    }
 
-
-  const renderField = (
-
-    label: string,
-
-    value: string,
-
-    onChangeText: (value: string) => void,
-
-    placeholder: string,
-
-    icon: React.ComponentProps<
-
-      typeof MaterialCommunityIcons
-
-    >['name'],
-
-  ) => (
-
-    <View style={styles.field}>
-
-      <Text style={styles.label}>{label}</Text>
-
-      <View style={styles.inputContainer}>
-
-        <MaterialCommunityIcons
-
-          name={icon}
-
-          size={19}
-
-          color="#8792A4"
-
-        />
-
-        <TextInput
-
-          value={value}
-
-          onChangeText={onChangeText}
-
-          placeholder={placeholder}
-
-          placeholderTextColor="#A1A9B7"
-
-          style={styles.input}
-
-          autoCapitalize="words"
-
-        />
-
-      </View>
-
-    </View>
-
-  );
-
-
+    Alert.alert(
+      'Save Attendance',
+      `Save attendance for ${visibleStudents.length} student(s) in ${selectedBatch?.name || 'this batch'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              // The backend endpoint creates one attendance record per student.
+              // Sequential requests avoid sending a burst of writes to the API.
+              for (const student of visibleStudents) {
+                await apiRequest('/attendance', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    studentId: student.id,
+                    batchId,
+                    subjectId,
+                    date: new Date(`${date}T00:00:00`).toISOString(),
+                    status: student.status,
+                  }),
+                });
+              }
+              Alert.alert('Attendance Saved', 'Attendance has been marked successfully.', [
+                { text: 'OK', onPress: () => router.back() },
+              ]);
+            } catch (error: any) {
+              Alert.alert(
+                'Unable to Save Attendance',
+                error?.message || 'Attendance could not be saved. Please try again. Some records may already have been saved.',
+              );
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>Add Attendance</Text>
+      </View>
 
-    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Text style={styles.pageTitle}>Mark Attendance</Text>
+        <Text style={styles.pageSubtitle}>Select the class details and mark attendance for each student.</Text>
 
-      <StatusBar style="light" backgroundColor="#6D35D8" translucent={false} />
-
-
-
-      <KeyboardAvoidingView
-
-        style={styles.container}
-
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-
-      >
-
-        {/* Header */}
-
-        <View style={[styles.header, { paddingTop: insets.top + 8, minHeight: insets.top + 66 }, isMobile && styles.headerMobile, isTablet && styles.headerTablet]}>
-
-          <TouchableOpacity
-
-            style={styles.backButton}
-
-            onPress={() => router.back()}
-
-            activeOpacity={0.8}
-
-          >
-
-            <MaterialCommunityIcons
-
-              name="arrow-left"
-
-              size={22}
-
-              color="#FFFFFF"
-
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Attendance Details</Text>
+          <Text style={styles.label}>Date <Text style={styles.required}>*</Text></Text>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons name="calendar-outline" size={18} color="#7040D5" />
+            <TextInput
+              value={date}
+              onChangeText={setDate}
+              style={styles.input}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#A2AABB"
+              autoCapitalize="none"
+              keyboardType="numbers-and-punctuation"
             />
+          </View>
 
-          </TouchableOpacity>
+          <Text style={styles.label}>Batch <Text style={styles.required}>*</Text></Text>
+          {loading ? (
+            <ActivityIndicator color="#7040D5" style={styles.loader} />
+          ) : batches.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.options}>
+              {batches.map((item) => (
+                <Option
+                  key={item.id}
+                  label={item.name}
+                  selected={batchId === item.id}
+                  onPress={() => setBatchId(item.id)}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.emptyText}>No batches are available for your account.</Text>
+          )}
 
+          {selectedBatch?.standard ? <Text style={styles.batchHint}>{selectedBatch.standard}{selectedBatch.code ? ` · ${selectedBatch.code}` : ''}</Text> : null}
 
-
-          <Text style={[styles.headerTitle, isMobile && styles.headerTitleMobile]} numberOfLines={1}>Add Attendance</Text>
-
+          <Text style={styles.label}>Subject <Text style={styles.required}>*</Text></Text>
+          {loading ? (
+            <ActivityIndicator color="#7040D5" style={styles.loader} />
+          ) : availableSubjects.length ? (
+            <View style={styles.wrap}>
+              {availableSubjects.map((item) => (
+                <Option
+                  key={item.id}
+                  label={item.name}
+                  selected={subjectId === item.id}
+                  onPress={() => setSubjectId(item.id)}
+                />
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>No active subjects are assigned to this batch.</Text>
+          )}
         </View>
 
-
-
-        <ScrollView
-
-          showsVerticalScrollIndicator={false}
-
-          keyboardShouldPersistTaps="handled"
-
-          contentContainerStyle={styles.content}
-
-        >
-
-          {/* Page Heading */}
-
-          <View style={styles.headingBlock}>
-
-            <Text style={styles.pageTitle}>
-
-              Add Attendance Record
-
-            </Text>
-
-            <Text style={styles.pageSubtitle}>
-
-              Enter student details and mark attendance.
-
-            </Text>
-
-          </View>
-
-
-
-          {/* Form */}
-
-          <View style={styles.card}>
-
-            <View style={styles.cardHeader}>
-
-              <View style={styles.cardIcon}>
-
-                <MaterialCommunityIcons
-
-                  name="clipboard-text-outline"
-
-                  size={22}
-
-                  color="#7040D5"
-
-                />
-
-              </View>
-
-              <View style={styles.cardHeaderText}>
-
-                <Text style={styles.cardTitle}>
-
-                  Student Information
-
-                </Text>
-
-                <Text style={styles.cardSubtitle}>
-
-                  Fields marked with * are required.
-
-                </Text>
-
-              </View>
-
-            </View>
-
-
-
-            {renderField(
-
-              'Student Name *',
-
-              studentName,
-
-              setStudentName,
-
-              'Enter student name',
-
-              'account-outline',
-
-            )}
-
-
-
-            {renderField(
-
-              'Student ID *',
-
-              studentId,
-
-              setStudentId,
-
-              'Enter student ID',
-
-              'card-account-details-outline',
-
-            )}
-
-
-
-            {renderField(
-
-              'Date *',
-
-              date,
-
-              setDate,
-
-              'e.g. 12 Oct 2026',
-
-              'calendar-month-outline',
-
-            )}
-
-
-
-            {renderField(
-
-              'Branch *',
-
-              branch,
-
-              setBranch,
-
-              'Enter branch',
-
-              'map-marker-outline',
-
-            )}
-
-
-
-            {renderField(
-
-              'Standard / Batch *',
-
-              standardBatch,
-
-              setStandardBatch,
-
-              'e.g. 12th / JEE 12th',
-
-              'book-open-page-variant-outline',
-
-            )}
-
-
-
-            {/* Attendance Status */}
-
-            <View style={styles.field}>
-
-              <Text style={styles.label}>
-
-                Attendance Status *
-
-              </Text>
-
-
-
-              <View style={styles.statusRow}>
-
-                <TouchableOpacity
-
-                  style={[
-
-                    styles.statusButton,
-
-                    status === 'Present' &&
-
-                      styles.presentSelected,
-
-                  ]}
-
-                  onPress={() => setStatus('Present')}
-
-                  activeOpacity={0.8}
-
-                >
-
-                  <MaterialCommunityIcons
-
-                    name="check-circle-outline"
-
-                    size={19}
-
-                    color={
-
-                      status === 'Present' ? '#279965' : '#8792A4'
-
-                    }
-
-                  />
-
-                  <Text
-
-                    style={[
-
-                      styles.statusText,
-
-                      status === 'Present' &&
-
-                        styles.presentSelectedText,
-
-                    ]}
-
-                  >
-
-                    Present
-
-                  </Text>
-
-                </TouchableOpacity>
-
-
-
-                <TouchableOpacity
-
-                  style={[
-
-                    styles.statusButton,
-
-                    status === 'Absent' && styles.absentSelected,
-
-                  ]}
-
-                  onPress={() => setStatus('Absent')}
-
-                  activeOpacity={0.8}
-
-                >
-
-                  <MaterialCommunityIcons
-
-                    name="close-circle-outline"
-
-                    size={19}
-
-                    color={
-
-                      status === 'Absent' ? '#D77A0A' : '#8792A4'
-
-                    }
-
-                  />
-
-                  <Text
-
-                    style={[
-
-                      styles.statusText,
-
-                      status === 'Absent' &&
-
-                        styles.absentSelectedText,
-
-                    ]}
-
-                  >
-
-                    Absent
-
-                  </Text>
-
-                </TouchableOpacity>
-
-              </View>
-
-            </View>
-
-
-
-            {/* Actions */}
-
-            <View style={styles.actionRow}>
-
-              <TouchableOpacity
-
-                style={styles.cancelButton}
-
-                onPress={() => router.back()}
-
-                activeOpacity={0.8}
-
-              >
-
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Student Attendance</Text>
+          <Text style={styles.helper}>Only active students are shown. Search by student name or ID, then tap a status.</Text>
+          <View style={[styles.inputWrapper, styles.searchWrapper]}>
+            <MaterialCommunityIcons name="magnify" size={19} color="#8792A4" />
+            <TextInput
+              value={studentSearch}
+              onChangeText={setStudentSearch}
+              style={styles.searchInput}
+              placeholder="Search student name or ID"
+              placeholderTextColor="#A2AABB"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {!!studentSearch && (
+              <TouchableOpacity onPress={() => setStudentSearch('')} accessibilityLabel="Clear student search">
+                <MaterialCommunityIcons name="close-circle" size={18} color="#8792A4" />
               </TouchableOpacity>
-
-
-
-              <TouchableOpacity
-
-                style={styles.saveButton}
-
-                onPress={handleSave}
-
-                activeOpacity={0.85}
-
-              >
-
-                <MaterialCommunityIcons
-
-                  name="content-save-outline"
-
-                  size={18}
-
-                  color="#FFFFFF"
-
-                />
-
-                <Text style={styles.saveButtonText}>
-
-                  Save Attendance
-
-                </Text>
-
-              </TouchableOpacity>
-
-            </View>
-
+            )}
           </View>
+          {loading ? (
+            <ActivityIndicator color="#7040D5" style={styles.loader} />
+          ) : filteredStudents.length ? (
+            filteredStudents.map((student) => (
+              <View key={student.id} style={styles.studentCard}>
+                <View style={styles.studentHeader}>
+                  <View style={styles.avatar}>
+                    <MaterialCommunityIcons name="account-outline" size={17} color="#7040D5" />
+                  </View>
+                  <View style={styles.studentInfo}>
+                    <Text style={styles.studentName} numberOfLines={1}>{student.name}</Text>
+                    {!!student.studentCode && <Text style={styles.studentCode}>{student.studentCode}</Text>}
+                  </View>
+                </View>
+                <View style={styles.statusWrap}>
+                  {statusOptions.map((status) => (
+                    <TouchableOpacity
+                      key={status}
+                      style={[styles.statusButton, student.status === status && styles.statusActive]}
+                      onPress={() => updateStatus(student.id, status)}
+                      activeOpacity={0.8}
+                    >
+                      {student.status === status && <MaterialCommunityIcons name="check" size={13} color="#7040D5" />}
+                      <Text style={[styles.statusText, student.status === status && styles.statusTextActive]}>{status}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptyText}>
+              {visibleStudents.length
+                ? 'No active students match your search.'
+                : 'No active students are assigned to the selected batch.'}
+            </Text>
+          )}
+        </View>
 
-        </ScrollView>
+        {loadError ? (
+          <TouchableOpacity style={styles.retryButton} onPress={loadData} activeOpacity={0.8}>
+            <MaterialCommunityIcons name="refresh" size={16} color="#7040D5" />
+            <Text style={styles.retryText}>Retry loading data</Text>
+          </TouchableOpacity>
+        ) : null}
 
-      </KeyboardAvoidingView>
-
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()} activeOpacity={0.8} disabled={saving}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.saveButton, (saving || loading || !visibleStudents.length || !subjectId) && styles.saveButtonDisabled]}
+            onPress={saveAttendance}
+            activeOpacity={0.85}
+            disabled={saving || loading || !visibleStudents.length || !subjectId}
+          >
+            {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <MaterialCommunityIcons name="check-circle-outline" size={18} color="#FFFFFF" />}
+            <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save Attendance'}</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
-
   );
-
 }
 
-
+function Option({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={[styles.option, selected && styles.optionActive]} onPress={onPress} activeOpacity={0.8}>
+      {selected && <MaterialCommunityIcons name="check-circle" size={14} color="#7040D5" />}
+      <Text style={[styles.optionText, selected && styles.optionTextActive]} numberOfLines={1}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 const styles = StyleSheet.create({
-
-  safeArea: {
-
-    flex: 1,
-
-    backgroundColor: '#F7F8FC',
-
-  },
-
-  container: {
-
-    flex: 1,
-
-    backgroundColor: '#F7F8FC',
-
-  },
-
-  header: {
-    width: '100%',
-    backgroundColor: '#6D35D8',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerMobile: {
-    height: 80,
-    paddingHorizontal: 14,
-  },
-  headerTablet: {
-    height: 64,
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  backButtonMobile: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    marginRight: 12,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 20,
-    lineHeight: 26,
-    color: '#FFFFFF',
-    textAlign: 'left',
-  },
-  headerTitleMobile: {
-    fontSize: 20,
-  },
-
-  content: {
-
-    padding: 18,
-
-    paddingBottom: 36,
-
-    width: '100%',
-
-    maxWidth: 900,
-
-    alignSelf: 'center',
-
-  },
-
-  headingBlock: {
-
-    marginBottom: 18,
-
-  },
-
-  pageTitle: {
-
-    color: '#172033',
-
-    fontFamily: 'PoppinsSemiBold',
-
-    fontSize: 21,
-
-  },
-
-  pageSubtitle: {
-
-    marginTop: 4,
-
-    color: '#7B8498',
-
-    fontFamily: 'PoppinsRegular',
-
-    fontSize: 12,
-
-    lineHeight: 19,
-
-  },
-
-  card: {
-
-    padding: 18,
-
-    borderRadius: 16,
-
-    backgroundColor: '#FFFFFF',
-
-    borderWidth: 1,
-
-    borderColor: '#EEF0F5',
-
-    shadowColor: '#172033',
-
-    shadowOffset: { width: 0, height: 3 },
-
-    shadowOpacity: 0.04,
-
-    shadowRadius: 8,
-
-    elevation: 2,
-
-  },
-
-  cardHeader: {
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    marginBottom: 24,
-
-  },
-
-  cardIcon: {
-
-    width: 44,
-
-    height: 44,
-
-    borderRadius: 12,
-
-    backgroundColor: '#F1EAFF',
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    marginRight: 12,
-
-  },
-
-  cardHeaderText: {
-
-    flex: 1,
-
-  },
-
-  cardTitle: {
-
-    color: '#172033',
-
-    fontFamily: 'PoppinsSemiBold',
-
-    fontSize: 15,
-
-  },
-
-  cardSubtitle: {
-
-    marginTop: 3,
-
-    color: '#8792A4',
-
-    fontFamily: 'PoppinsRegular',
-
-    fontSize: 10,
-
-  },
-
-  field: {
-
-    marginBottom: 18,
-
-  },
-
-  label: {
-
-    marginBottom: 7,
-
-    color: '#344054',
-
-    fontFamily: 'PoppinsMedium',
-
-    fontSize: 12,
-
-  },
-
-  inputContainer: {
-
-    minHeight: 46,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    borderWidth: 1,
-
-    borderColor: '#E6E9F0',
-
-    borderRadius: 10,
-
-    paddingHorizontal: 12,
-
-    backgroundColor: '#FFFFFF',
-
-  },
-
-  input: {
-
-    flex: 1,
-
-    minWidth: 0,
-
-    paddingVertical: 10,
-
-    paddingLeft: 10,
-
-    color: '#202B3E',
-
-    fontFamily: 'PoppinsRegular',
-
-    fontSize: 12,
-
-  },
-
-  statusRow: {
-
-    flexDirection: 'row',
-
-    gap: 12,
-
-  },
-
-  statusButton: {
-
-    flex: 1,
-
-    minHeight: 46,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    gap: 8,
-
-    borderWidth: 1,
-
-    borderColor: '#E6E9F0',
-
-    borderRadius: 10,
-
-    backgroundColor: '#FFFFFF',
-
-  },
-
-  presentSelected: {
-
-    backgroundColor: '#E7F8EF',
-
-    borderColor: '#35B878',
-
-  },
-
-  absentSelected: {
-
-    backgroundColor: '#FFF1E2',
-
-    borderColor: '#F7941D',
-
-  },
-
-  statusText: {
-
-    color: '#7B8498',
-
-    fontFamily: 'PoppinsMedium',
-
-    fontSize: 12,
-
-  },
-
-  presentSelectedText: {
-
-    color: '#279965',
-
-  },
-
-  absentSelectedText: {
-
-    color: '#D77A0A',
-
-  },
-
-  actionRow: {
-
-    flexDirection: 'row',
-
-    justifyContent: 'flex-end',
-
-    gap: 10,
-
-    marginTop: 8,
-
-  },
-
-  cancelButton: {
-
-    minHeight: 44,
-
-    paddingHorizontal: 18,
-
-    borderWidth: 1,
-
-    borderColor: '#E2E5ED',
-
-    borderRadius: 10,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFFFFF',
-
-  },
-
-  cancelButtonText: {
-
-    color: '#667085',
-
-    fontFamily: 'PoppinsSemiBold',
-
-    fontSize: 12,
-
-  },
-
-  saveButton: {
-
-    minHeight: 44,
-
-    paddingHorizontal: 16,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    gap: 8,
-
-    borderRadius: 10,
-
-    backgroundColor: '#7040D5',
-
-  },
-
-  saveButtonText: {
-
-    color: '#FFFFFF',
-
-    fontFamily: 'PoppinsSemiBold',
-
-    fontSize: 12,
-
-  },
-
+  safeArea: { flex: 1, backgroundColor: '#F7F8FC' },
+  header: { minHeight: 64, backgroundColor: '#7040D5', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 10 },
+  backButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, minWidth: 0, fontFamily: 'PoppinsSemiBold', fontSize: 20, color: '#FFFFFF' },
+  container: { flex: 1 },
+  content: { padding: 16, paddingTop: 28, paddingBottom: 30 },
+  pageTitle: { fontFamily: 'PoppinsBold', fontSize: 20, color: '#172033' },
+  pageSubtitle: { fontFamily: 'PoppinsRegular', fontSize: 11, lineHeight: 18, color: '#7B8496', marginTop: 5, marginBottom: 16 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E7E8ED', padding: 16, marginBottom: 14 },
+  sectionTitle: { fontFamily: 'PoppinsSemiBold', fontSize: 16, color: '#172033' },
+  helper: { fontFamily: 'PoppinsRegular', fontSize: 10, color: '#8A93A4', marginTop: 3, marginBottom: 4 },
+  label: { fontFamily: 'PoppinsMedium', fontSize: 11, color: '#59657A', marginTop: 13, marginBottom: 5 },
+  required: { color: '#D84B63' },
+  inputWrapper: { minHeight: 52, borderRadius: 10, borderWidth: 1, borderColor: '#E0E3EA', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 11 },
+  input: { flex: 1, minWidth: 0, minHeight: 50, marginLeft: 8, paddingVertical: 0, color: '#172033', fontFamily: 'PoppinsRegular', fontSize: 10 },
+  searchWrapper: { marginTop: 12, marginBottom: 8, minHeight: 44 },
+  searchInput: { flex: 1, minWidth: 0, minHeight: 42, marginLeft: 8, paddingVertical: 0, color: '#172033', fontFamily: 'PoppinsRegular', fontSize: 11 },
+  options: { gap: 7, paddingBottom: 2 },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  option: { minHeight: 40, maxWidth: '100%', paddingHorizontal: 10, borderRadius: 9, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E5EC', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  optionActive: { backgroundColor: '#F1EAFF', borderColor: '#7040D5' },
+  optionText: { fontFamily: 'PoppinsMedium', fontSize: 10, color: '#687386' },
+  optionTextActive: { fontFamily: 'PoppinsSemiBold', color: '#7040D5' },
+  studentCard: { borderWidth: 1, borderColor: '#E7E9EF', borderRadius: 12, padding: 10, marginTop: 8 },
+  studentHeader: { flexDirection: 'row', alignItems: 'center', minWidth: 0, marginBottom: 8 },
+  avatar: { width: 31, height: 31, borderRadius: 10, backgroundColor: '#F1EAFF', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  studentInfo: { flex: 1, minWidth: 0 },
+  studentName: { fontFamily: 'PoppinsMedium', fontSize: 10, color: '#172033' },
+  studentCode: { fontFamily: 'PoppinsRegular', fontSize: 9, color: '#8A93A4', marginTop: 2 },
+  statusWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  statusButton: { minHeight: 32, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3EA', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
+  statusActive: { backgroundColor: '#F1EAFF', borderColor: '#7040D5' },
+  statusText: { fontFamily: 'PoppinsMedium', fontSize: 9, color: '#687386' },
+  statusTextActive: { fontFamily: 'PoppinsSemiBold', color: '#7040D5' },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  cancelButton: { flex: 1, minHeight: 48, borderRadius: 11, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E3EA', alignItems: 'center', justifyContent: 'center' },
+  cancelText: { fontFamily: 'PoppinsSemiBold', fontSize: 10, color: '#687386' },
+  saveButton: { flex: 1.4, minHeight: 48, borderRadius: 11, backgroundColor: '#7040D5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  saveButtonDisabled: { opacity: 0.6 },
+  saveText: { fontFamily: 'PoppinsSemiBold', fontSize: 10, color: '#FFFFFF' },
+  emptyText: { fontFamily: 'PoppinsRegular', fontSize: 11, color: '#8792A4', marginTop: 10, lineHeight: 18 },
+  batchHint: { fontFamily: 'PoppinsRegular', fontSize: 10, color: '#8792A4', marginTop: 6 },
+  loader: { marginVertical: 14 },
+  retryButton: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, marginBottom: 8 },
+  retryText: { fontFamily: 'PoppinsSemiBold', fontSize: 11, color: '#7040D5' },
 });

@@ -1,23 +1,24 @@
-
 const mongoose = require("mongoose");
+const fs = require("fs");
+const path = require("path");
+
 const Assignment = require("../models/assignment.model");
 const Batch = require("../models/Batch");
 const Subject = require("../models/Subject");
 const BatchSubject = require("../models/BatchSubject");
 
+const UPLOAD_DIR = path.resolve(process.cwd(), "uploads", "assignments");
+
 const hasRole = (user, role) =>
   Array.isArray(user?.roles) && user.roles.includes(role);
 
 const isSuperAdmin = (user) => hasRole(user, "super_admin");
-
 const isAdmin = (user) => hasRole(user, "admin");
-
 const isTeacher = (user) => hasRole(user, "teacher");
 
 const parseDate = (value) => {
   if (!value) return null;
 
-  // Support DD/MM/YYYY from the existing frontend.
   if (typeof value === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
     const [day, month, year] = value.split("/").map(Number);
     const date = new Date(Date.UTC(year, month - 1, day));
@@ -36,6 +37,9 @@ const parseDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 };
+
+const escapeRegex = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const getBatchSubject = async (batchId, subjectId) => {
   if (
@@ -86,19 +90,18 @@ const getBatchSubject = async (batchId, subjectId) => {
 const canAccessBranch = (user, branchId) => {
   if (isSuperAdmin(user)) return true;
 
-  return (
-    user.branchId &&
-    branchId &&
-    String(user.branchId) === String(branchId)
+  return Boolean(
+    user?.branchId &&
+      branchId &&
+      String(user.branchId?._id || user.branchId) ===
+        String(branchId?._id || branchId)
   );
 };
-
 
 const canManageAssignment = async (user, assignment) => {
   if (isSuperAdmin(user)) return true;
 
-  const branchId =
-    assignment.branchId?._id || assignment.branchId;
+  const branchId = assignment.branchId?._id || assignment.branchId;
 
   if (isAdmin(user)) {
     return canAccessBranch(user, branchId);
@@ -121,7 +124,6 @@ const canManageAssignment = async (user, assignment) => {
   return false;
 };
 
-
 const populateAssignment = (query) =>
   query
     .populate("batchId", "name code standard academicYear branchId")
@@ -130,15 +132,71 @@ const populateAssignment = (query) =>
     .populate("createdBy", "fullName email")
     .populate("updatedBy", "fullName email");
 
+const getAttachmentMetadata = (file) => {
+  if (!file) return undefined;
+
+  return {
+    fileName: path.basename(file.originalname || "assignment.pdf"),
+    filePath: path.posix.join("assignments", file.filename),
+    mimeType: "application/pdf",
+    fileSize: file.size,
+  };
+};
+
+const resolveStoredAttachment = (storedPath) => {
+  if (!storedPath || typeof storedPath !== "string") return null;
+
+  const filename = path.basename(storedPath);
+  if (!filename || filename === "." || filename === "..") return null;
+
+  const resolved = path.resolve(UPLOAD_DIR, filename);
+
+  if (path.dirname(resolved) !== UPLOAD_DIR) return null;
+
+  return resolved;
+};
+
+const removeAttachmentFile = async (storedPath) => {
+  const filePath = resolveStoredAttachment(storedPath);
+  if (!filePath) return;
+
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("Failed to remove assignment attachment:", error);
+    }
+  }
+};
+
+const removeUploadedFile = async (file) => {
+  if (!file?.path) return;
+
+  try {
+    await fs.promises.unlink(file.path);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("Failed to remove rejected upload:", error);
+    }
+  }
+};
+
+const validateAssignmentType = (type) =>
+  ["homework", "practice_set", "worksheet", "project", "revision"].includes(
+    type
+  );
+
 // POST /api/assignments
 const createAssignment = async (req, res) => {
+  let createdAssignment;
+
   try {
     const {
       assignmentTitle,
       assignmentCode,
       batchId,
       subjectId,
-      assignmentType,
+      assignmentType = "homework",
       assignedDate,
       submissionDate,
       totalMarks,
@@ -147,29 +205,25 @@ const createAssignment = async (req, res) => {
     } = req.body;
 
     if (
-      !assignmentTitle?.trim() ||
-      !assignmentCode?.trim() ||
+      typeof assignmentTitle !== "string" ||
+      !assignmentTitle.trim() ||
+      typeof assignmentCode !== "string" ||
+      !assignmentCode.trim() ||
       !batchId ||
       !subjectId ||
       !assignedDate ||
       !submissionDate ||
       totalMarks === undefined
     ) {
+      await removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: "Please provide all required assignment fields.",
       });
     }
 
-    if (
-      ![
-        "homework",
-        "practice_set",
-        "worksheet",
-        "project",
-        "revision",
-      ].includes(assignmentType || "homework")
-    ) {
+    if (!validateAssignmentType(assignmentType)) {
+      await removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: "Invalid assignment type.",
@@ -181,6 +235,7 @@ const createAssignment = async (req, res) => {
     const marks = Number(totalMarks);
 
     if (!parsedAssignedDate || !parsedSubmissionDate) {
+      await removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: "Invalid date. Use DD/MM/YYYY or a valid date.",
@@ -188,6 +243,7 @@ const createAssignment = async (req, res) => {
     }
 
     if (parsedSubmissionDate < parsedAssignedDate) {
+      await removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: "Submission date cannot be before the assigned date.",
@@ -195,6 +251,7 @@ const createAssignment = async (req, res) => {
     }
 
     if (!Number.isFinite(marks) || marks < 1) {
+      await removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: "Total marks must be a positive number.",
@@ -204,6 +261,7 @@ const createAssignment = async (req, res) => {
     const relation = await getBatchSubject(batchId, subjectId);
 
     if (!relation.valid) {
+      await removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: relation.message,
@@ -211,6 +269,7 @@ const createAssignment = async (req, res) => {
     }
 
     if (!canAccessBranch(req.user, relation.batch.branchId)) {
+      await removeUploadedFile(req.file);
       return res.status(403).json({
         success: false,
         message: "You cannot create assignments for this branch.",
@@ -226,12 +285,14 @@ const createAssignment = async (req, res) => {
       });
 
       if (!assigned) {
+        await removeUploadedFile(req.file);
         return res.status(403).json({
           success: false,
           message: "You can only create assignments for your assigned subjects.",
         });
       }
     } else if (!isAdmin(req.user) && !isSuperAdmin(req.user)) {
+      await removeUploadedFile(req.file);
       return res.status(403).json({
         success: false,
         message: "You are not authorized to create assignments.",
@@ -245,39 +306,31 @@ const createAssignment = async (req, res) => {
     });
 
     if (existing) {
+      await removeUploadedFile(req.file);
       return res.status(409).json({
         success: false,
         message: "Assignment code already exists.",
       });
     }
 
-    const attachment = req.file
-      ? {
-          fileName: req.file.originalname,
-          filePath: req.file.path,
-          mimeType: req.file.mimetype,
-          fileSize: req.file.size,
-        }
-      : undefined;
-
-    const assignment = await Assignment.create({
+    createdAssignment = await Assignment.create({
       assignmentTitle: assignmentTitle.trim(),
       assignmentCode: normalizedCode,
       batchId,
       subjectId,
-      assignmentType: assignmentType || "homework",
+      assignmentType,
       assignedDate: parsedAssignedDate,
       submissionDate: parsedSubmissionDate,
       totalMarks: marks,
-      description: description?.trim() || "",
-      instructions: instructions?.trim() || "",
-      attachment,
+      description: typeof description === "string" ? description.trim() : "",
+      instructions: typeof instructions === "string" ? instructions.trim() : "",
+      attachment: getAttachmentMetadata(req.file),
       branchId: relation.batch.branchId,
       createdBy: req.user._id,
     });
 
     const data = await populateAssignment(
-      Assignment.findById(assignment._id)
+      Assignment.findById(createdAssignment._id)
     );
 
     return res.status(201).json({
@@ -286,6 +339,10 @@ const createAssignment = async (req, res) => {
       data,
     });
   } catch (error) {
+    if (req.file && !createdAssignment) {
+      await removeUploadedFile(req.file);
+    }
+
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -294,7 +351,6 @@ const createAssignment = async (req, res) => {
     }
 
     console.error("Create assignment error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to create assignment.",
@@ -329,11 +385,17 @@ const getAssignments = async (req, res) => {
     }
 
     if (assignmentType) {
+      if (!validateAssignmentType(assignmentType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid assignment type.",
+        });
+      }
       filter.assignmentType = assignmentType;
     }
 
-    if (search?.trim()) {
-      const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (typeof search === "string" && search.trim()) {
+      const escaped = escapeRegex(search.trim());
       filter.$or = [
         { assignmentTitle: { $regex: escaped, $options: "i" } },
         { assignmentCode: { $regex: escaped, $options: "i" } },
@@ -341,13 +403,14 @@ const getAssignments = async (req, res) => {
       ];
     }
 
-    if (isAdmin(req.user)) {
+    if (isAdmin(req.user) && !isSuperAdmin(req.user)) {
       if (!req.user.branchId) {
         return res.status(403).json({
           success: false,
           message: "Your account is not assigned to a branch.",
         });
       }
+
       filter.branchId = req.user.branchId;
     } else if (isTeacher(req.user) && !isSuperAdmin(req.user)) {
       const assignedRelations = await BatchSubject.find({
@@ -368,11 +431,17 @@ const getAssignments = async (req, res) => {
         });
       }
 
+      const otherConditions = { ...filter };
+      delete otherConditions.$or;
+
       filter.$and = [
         { $or: relationConditions },
+        otherConditions,
         ...(filter.$or ? [{ $or: filter.$or }] : []),
       ];
 
+      delete filter.batchId;
+      delete filter.subjectId;
       delete filter.$or;
     } else if (!isSuperAdmin(req.user)) {
       return res.status(403).json({
@@ -392,7 +461,6 @@ const getAssignments = async (req, res) => {
     });
   } catch (error) {
     console.error("Get assignments error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to fetch assignments.",
@@ -412,9 +480,7 @@ const getAssignmentById = async (req, res) => {
       });
     }
 
-    const assignment = await populateAssignment(
-      Assignment.findById(id)
-    );
+    const assignment = await populateAssignment(Assignment.findById(id));
 
     if (!assignment) {
       return res.status(404).json({
@@ -436,7 +502,6 @@ const getAssignmentById = async (req, res) => {
     });
   } catch (error) {
     console.error("Get assignment error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to fetch assignment.",
@@ -446,10 +511,13 @@ const getAssignmentById = async (req, res) => {
 
 // PUT /api/assignments/:id
 const updateAssignment = async (req, res) => {
+  let saved = false;
+
   try {
     const { id } = req.params;
 
     if (!mongoose.isValidObjectId(id)) {
+      await removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: "Invalid assignment ID.",
@@ -459,6 +527,7 @@ const updateAssignment = async (req, res) => {
     const assignment = await Assignment.findById(id);
 
     if (!assignment) {
+      await removeUploadedFile(req.file);
       return res.status(404).json({
         success: false,
         message: "Assignment not found.",
@@ -466,6 +535,7 @@ const updateAssignment = async (req, res) => {
     }
 
     if (!(await canManageAssignment(req.user, assignment))) {
+      await removeUploadedFile(req.file);
       return res.status(403).json({
         success: false,
         message: "You are not authorized to update this assignment.",
@@ -494,7 +564,11 @@ const updateAssignment = async (req, res) => {
     }
 
     if (updates.assignmentTitle !== undefined) {
-      if (!updates.assignmentTitle.trim()) {
+      if (
+        typeof updates.assignmentTitle !== "string" ||
+        !updates.assignmentTitle.trim()
+      ) {
+        await removeUploadedFile(req.file);
         return res.status(400).json({
           success: false,
           message: "Assignment title cannot be empty.",
@@ -504,7 +578,11 @@ const updateAssignment = async (req, res) => {
     }
 
     if (updates.assignmentCode !== undefined) {
-      if (!updates.assignmentCode.trim()) {
+      if (
+        typeof updates.assignmentCode !== "string" ||
+        !updates.assignmentCode.trim()
+      ) {
+        await removeUploadedFile(req.file);
         return res.status(400).json({
           success: false,
           message: "Assignment code cannot be empty.",
@@ -516,6 +594,7 @@ const updateAssignment = async (req, res) => {
     if (updates.assignedDate !== undefined) {
       updates.assignedDate = parseDate(updates.assignedDate);
       if (!updates.assignedDate) {
+        await removeUploadedFile(req.file);
         return res.status(400).json({
           success: false,
           message: "Invalid assigned date.",
@@ -526,6 +605,7 @@ const updateAssignment = async (req, res) => {
     if (updates.submissionDate !== undefined) {
       updates.submissionDate = parseDate(updates.submissionDate);
       if (!updates.submissionDate) {
+        await removeUploadedFile(req.file);
         return res.status(400).json({
           success: false,
           message: "Invalid submission date.",
@@ -538,6 +618,7 @@ const updateAssignment = async (req, res) => {
       updates.submissionDate || assignment.submissionDate;
 
     if (nextSubmissionDate < nextAssignedDate) {
+      await removeUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: "Submission date cannot be before the assigned date.",
@@ -548,6 +629,7 @@ const updateAssignment = async (req, res) => {
       updates.totalMarks = Number(updates.totalMarks);
 
       if (!Number.isFinite(updates.totalMarks) || updates.totalMarks < 1) {
+        await removeUploadedFile(req.file);
         return res.status(400).json({
           success: false,
           message: "Total marks must be a positive number.",
@@ -555,21 +637,15 @@ const updateAssignment = async (req, res) => {
       }
     }
 
-    if (updates.assignmentType !== undefined) {
-      const allowedTypes = [
-        "homework",
-        "practice_set",
-        "worksheet",
-        "project",
-        "revision",
-      ];
-
-      if (!allowedTypes.includes(updates.assignmentType)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid assignment type.",
-        });
-      }
+    if (
+      updates.assignmentType !== undefined &&
+      !validateAssignmentType(updates.assignmentType)
+    ) {
+      await removeUploadedFile(req.file);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid assignment type.",
+      });
     }
 
     const nextBatchId = updates.batchId || assignment.batchId;
@@ -579,6 +655,7 @@ const updateAssignment = async (req, res) => {
       const relation = await getBatchSubject(nextBatchId, nextSubjectId);
 
       if (!relation.valid) {
+        await removeUploadedFile(req.file);
         return res.status(400).json({
           success: false,
           message: relation.message,
@@ -586,16 +663,14 @@ const updateAssignment = async (req, res) => {
       }
 
       if (!canAccessBranch(req.user, relation.batch.branchId)) {
+        await removeUploadedFile(req.file);
         return res.status(403).json({
           success: false,
           message: "You cannot move this assignment to another branch.",
         });
       }
 
-      if (
-        isTeacher(req.user) &&
-        !isSuperAdmin(req.user)
-      ) {
+      if (isTeacher(req.user) && !isSuperAdmin(req.user)) {
         const assigned = await BatchSubject.findOne({
           batchId: nextBatchId,
           subjectId: nextSubjectId,
@@ -604,6 +679,7 @@ const updateAssignment = async (req, res) => {
         });
 
         if (!assigned) {
+          await removeUploadedFile(req.file);
           return res.status(403).json({
             success: false,
             message: "You can only assign work to your assigned subjects.",
@@ -614,21 +690,18 @@ const updateAssignment = async (req, res) => {
       updates.branchId = relation.batch.branchId;
     }
 
-    if (req.body.description !== undefined) {
-      updates.description = req.body.description?.trim() || "";
+    if (updates.description !== undefined) {
+      updates.description =
+        typeof updates.description === "string"
+          ? updates.description.trim()
+          : "";
     }
 
-    if (req.body.instructions !== undefined) {
-      updates.instructions = req.body.instructions?.trim() || "";
-    }
-
-    if (req.file) {
-      updates.attachment = {
-        fileName: req.file.originalname,
-        filePath: req.file.path,
-        mimeType: req.file.mimetype,
-        fileSize: req.file.size,
-      };
+    if (updates.instructions !== undefined) {
+      updates.instructions =
+        typeof updates.instructions === "string"
+          ? updates.instructions.trim()
+          : "";
     }
 
     if (
@@ -641,6 +714,7 @@ const updateAssignment = async (req, res) => {
       });
 
       if (duplicate) {
+        await removeUploadedFile(req.file);
         return res.status(409).json({
           success: false,
           message: "Assignment code already exists.",
@@ -648,10 +722,21 @@ const updateAssignment = async (req, res) => {
       }
     }
 
+    const previousAttachmentPath = assignment.attachment?.filePath;
+
+    if (req.file) {
+      updates.attachment = getAttachmentMetadata(req.file);
+    }
+
     Object.assign(assignment, updates);
     assignment.updatedBy = req.user._id;
 
     await assignment.save();
+    saved = true;
+
+    if (req.file && previousAttachmentPath) {
+      await removeAttachmentFile(previousAttachmentPath);
+    }
 
     const data = await populateAssignment(
       Assignment.findById(assignment._id)
@@ -663,6 +748,10 @@ const updateAssignment = async (req, res) => {
       data,
     });
   } catch (error) {
+    if (req.file && !saved) {
+      await removeUploadedFile(req.file);
+    }
+
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -671,7 +760,6 @@ const updateAssignment = async (req, res) => {
     }
 
     console.error("Update assignment error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to update assignment.",
@@ -700,14 +788,9 @@ const deleteAssignment = async (req, res) => {
       });
     }
 
-    // Teachers may create and edit their assigned work, but only admins
-    // and super admins may delete assignments.
     if (
       !isSuperAdmin(req.user) &&
-      !(
-        isAdmin(req.user) &&
-        canAccessBranch(req.user, assignment.branchId)
-      )
+      !(isAdmin(req.user) && canAccessBranch(req.user, assignment.branchId))
     ) {
       return res.status(403).json({
         success: false,
@@ -715,7 +798,10 @@ const deleteAssignment = async (req, res) => {
       });
     }
 
+    const attachmentPath = assignment.attachment?.filePath;
+
     await Assignment.findByIdAndDelete(id);
+    await removeAttachmentFile(attachmentPath);
 
     return res.status(200).json({
       success: true,
@@ -723,10 +809,65 @@ const deleteAssignment = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete assignment error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to delete assignment.",
+    });
+  }
+};
+
+// GET /api/assignments/:id/attachment
+const downloadAssignmentAttachment = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid assignment ID.",
+      });
+    }
+
+    const assignment = await Assignment.findById(id);
+
+    if (!assignment) {
+      return res.status(404).json({
+        success: false,
+        message: "Assignment not found.",
+      });
+    }
+
+    if (!(await canManageAssignment(req.user, assignment))) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot access this attachment.",
+      });
+    }
+
+    const filePath = resolveStoredAttachment(
+      assignment.attachment?.filePath
+    );
+
+    if (!filePath || !fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: "Attachment file not found.",
+      });
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+
+    return res.download(
+      filePath,
+      path.basename(assignment.attachment.fileName || "assignment.pdf")
+    );
+  } catch (error) {
+    console.error("Download assignment PDF error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to download attachment.",
     });
   }
 };
@@ -737,4 +878,5 @@ module.exports = {
   getAssignmentById,
   updateAssignment,
   deleteAssignment,
+  downloadAssignmentAttachment,
 };

@@ -132,16 +132,25 @@ const getAnnouncements = async (req, res) => {
     const user = req.user;
     const roles = getUserRoles(user);
 
-    const branchFilter = getBranchFilter(user);
+    let filter = {};
 
-    if (!branchFilter) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account is not assigned to a valid branch.",
-      });
+    if (!isSuperAdmin(user)) {
+      const branchId = getUserBranchId(user);
+
+      if (!branchId || !isValidObjectId(branchId)) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account is not assigned to a valid branch.",
+        });
+      }
+
+      // Include announcements for the user's branch and
+      // institute-wide announcements (branchId: null).
+      filter.$or = [
+        { branchId },
+        { branchId: null },
+      ];
     }
-
-    const filter = { ...branchFilter };
 
     if (!canManageAnnouncements(user)) {
       const isStudent = roles.includes("student");
@@ -180,15 +189,6 @@ const getAnnouncements = async (req, res) => {
       }
 
       filter.audience = { $in: [...new Set(audiences)] };
-
-      // Include announcements for the user's branch and
-      // announcements intended for all branches.
-      const branchId = getUserBranchId(user);
-
-      filter.$or = [
-        { branchId },
-        { branchId: null },
-      ];
     }
 
     const announcements = await Announcement.find(filter)
@@ -663,19 +663,20 @@ const duplicateAnnouncement = async (req, res) => {
       });
     }
 
-    const branchFilter = getBranchFilter(user);
+    let dupQuery = { _id: id };
 
-    if (!branchFilter) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account is not assigned to a valid branch.",
-      });
+    if (!isSuperAdmin(user)) {
+      const branchId = getUserBranchId(user);
+      if (!branchId || !isValidObjectId(branchId)) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account is not assigned to a valid branch.",
+        });
+      }
+      dupQuery.$or = [{ branchId }, { branchId: null }];
     }
 
-    const original = await Announcement.findOne({
-      _id: id,
-      ...branchFilter,
-    });
+    const original = await Announcement.findOne(dupQuery);
 
     if (!original) {
       return res.status(404).json({
@@ -690,7 +691,7 @@ const duplicateAnnouncement = async (req, res) => {
       category: original.category,
       priority: original.priority,
       audience: original.audience,
-      branchId: original.branchId,
+      branchId: isSuperAdmin(user) ? original.branchId : getUserBranchId(user),
       status: "Draft",
       createdBy: userId,
       publishedAt: null,

@@ -239,14 +239,25 @@ const register = async (req, res) => {
         status: "active",
       }).select("_id");
 
+      const branchAdmins = await User.find({
+        roles: "admin",
+        branchId: branch._id,
+        status: "active",
+      }).select("_id");
+
       const notificationMessage =
         `${user.fullName} has submitted a new ${role} registration ` +
         `for the ${branch.name} branch. Approval is required.`;
 
+      const allAdmins = [...superAdmins, ...branchAdmins];
+      const uniqueAdminIds = Array.from(
+        new Set(allAdmins.map((a) => a._id.toString()))
+      );
+
       await Promise.all(
-        superAdmins.map((admin) =>
+        uniqueAdminIds.map((adminId) =>
           createNotification({
-            recipient: admin._id,
+            recipient: adminId,
             title: `New ${role === "teacher" ? "Teacher" : "Student"} Registration`,
             message: notificationMessage,
             type: "registration",

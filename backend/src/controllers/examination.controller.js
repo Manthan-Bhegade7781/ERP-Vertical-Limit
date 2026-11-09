@@ -513,10 +513,77 @@ const cancelExamination = async (req, res) => {
   }
 };
 
+/**
+ * PATCH /api/examinations/:id/reschedule
+ * Reschedule a previously cancelled examination.
+ */
+const rescheduleExamination = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid examination ID.",
+      });
+    }
+
+    const examination = await Examination.findById(id);
+
+    if (!examination) {
+      return res.status(404).json({
+        success: false,
+        message: "Examination not found.",
+      });
+    }
+
+    if (examination.status !== "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Only cancelled examinations can be scheduled again.",
+      });
+    }
+
+    // Confirm the batch and subject are still valid and assigned.
+    const relation = await validateBatchSubject(
+      examination.batchId,
+      examination.subjectId
+    );
+
+    if (!relation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: relation.message,
+      });
+    }
+
+    examination.status = "scheduled";
+    await examination.save();
+
+    const updatedExamination = await Examination.findById(id)
+      .populate("batchId", "name code standard academicYear branchId")
+      .populate("subjectId", "name code standard type");
+
+    return res.status(200).json({
+      success: true,
+      message: "Examination scheduled again successfully.",
+      data: updatedExamination,
+    });
+  } catch (error) {
+    console.error("Reschedule examination error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to schedule examination again.",
+    });
+  }
+};
+
 module.exports = {
   createExamination,
   getExaminations,
   getExaminationById,
   updateExamination,
   cancelExamination,
+  rescheduleExamination,
 };

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,6 +17,70 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
+
+type NotificationItem = {
+  id: string;
+  icon: string;
+  title: string;
+  message: string;
+  time: string;
+  isRead: boolean;
+  link?: string;
+  type?: string;
+};
+
+const getNotificationIcon = (
+  type?: string,
+  icon?: string
+): keyof typeof MaterialCommunityIcons.glyphMap => {
+  if (icon && icon in MaterialCommunityIcons.glyphMap) {
+    return icon as keyof typeof MaterialCommunityIcons.glyphMap;
+  }
+  switch (type) {
+    case 'registration':
+      return 'account-plus-outline';
+    case 'approval':
+      return 'check-circle-outline';
+    case 'rejection':
+      return 'close-circle-outline';
+    case 'fee':
+      return 'cash-clock';
+    case 'attendance':
+      return 'calendar-check-outline';
+    case 'leave':
+      return 'account-clock-outline';
+    case 'message':
+      return 'email-outline';
+    default:
+      return 'bell-outline';
+  }
+};
+
+const getNotificationColor = (type?: string, icon?: string): string => {
+  if (type === 'fee' || icon?.includes('cash')) return '#E95386';
+  if (type === 'registration' || icon?.includes('account-plus')) return '#2675E8';
+  if (type === 'approval' || icon?.includes('check')) return '#35B878';
+  if (type === 'rejection' || icon?.includes('close')) return '#EF4444';
+  if (type === 'attendance' || icon?.includes('calendar')) return '#F7941D';
+  if (type === 'message' || icon?.includes('email')) return '#7040D5';
+  return '#7040D5';
+};
+
+const formatNotificationTime = (dateValue?: string): string => {
+  if (!dateValue) return 'Recently';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return 'Recently';
+  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
+};
 
 /* =========================================================
    NAVIGATION
@@ -53,12 +119,170 @@ export default function AdminHeader({
   const [profileVisible, setProfileVisible] =
     useState(false);
 
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
   const { logout } = useAuth();
+
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/notifications`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || 'Unable to load notifications.');
+      }
+
+      const items = Array.isArray(result?.data?.notifications)
+        ? result.data.notifications
+        : [];
+
+      setNotifications(
+        items.map((item: any) => ({
+          id: String(item._id || item.id),
+          icon: item.icon || getNotificationIcon(item.type, item.icon),
+          title: item.title || 'Notification',
+          message: item.message || '',
+          time: formatNotificationTime(item.createdAt),
+          isRead: Boolean(item.isRead),
+          link: item.link || '',
+          type: item.type || 'general',
+        }))
+      );
+      setUnreadCount(
+        Number(
+          result?.data?.unreadCount ??
+            items.filter((item: any) => !item.isRead).length
+        )
+      );
+    } catch (err) {
+      console.error('Fetch admin notifications error:', err);
+      setError(
+        err instanceof Error ? err.message : 'Unable to load notifications.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchNotifications();
+  }, [fetchNotifications]);
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    const selected = notifications.find((item) => item.id === notificationId);
+    if (!selected || selected.isRead) return;
+
+    setNotifications((current) =>
+      current.map((item) =>
+        item.id === notificationId ? { ...item, isRead: true } : item
+      )
+    );
+    setUnreadCount((count) => Math.max(0, count - 1));
+
+    try {
+      const token = await getToken();
+      if (!token) return;
+      await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (err) {
+      console.error('Mark notification as read error:', err);
+      void fetchNotifications();
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    if (unreadCount === 0) return;
+    const previous = notifications;
+    setNotifications((current) =>
+      current.map((item) => ({ ...item, isRead: true }))
+    );
+    setUnreadCount(0);
+
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`${API_BASE_URL}/notifications/read-all`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!res.ok) throw new Error('Failed to mark all as read');
+    } catch (err) {
+      console.error('Mark all notifications error:', err);
+      setNotifications(previous);
+      void fetchNotifications();
+    }
+  };
+
+  const handleNotificationPress = async (notification: NotificationItem) => {
+    await markNotificationAsRead(notification.id);
+    closeAll();
+
+    if (notification.link) {
+      try {
+        router.push(notification.link as any);
+        return;
+      } catch (err) {
+        console.error('Notification navigation error:', err);
+      }
+    }
+
+    const titleLower = notification.title.toLowerCase();
+    if (
+      notification.type === 'registration' ||
+      titleLower.includes('registration')
+    ) {
+      openAdminFeature('Students');
+    } else if (notification.type === 'fee' || titleLower.includes('fee')) {
+      openAdminFeature('Reports');
+    } else if (
+      notification.type === 'attendance' ||
+      titleLower.includes('attendance')
+    ) {
+      openAdminFeature('Attendance');
+    } else if (
+      titleLower.includes('message') ||
+      notification.icon?.includes('email')
+    ) {
+      openAdminFeature('Messages');
+    } else if (titleLower.includes('leave')) {
+      openAdminFeature('Staff on Leave');
+    }
+  };
 
   const handleLogout = async () => {
     closeAll();
 
     try {
+      if (router.canDismiss?.()) {
+        router.dismissAll();
+      }
       await logout();
       router.replace('/(auth)');
     } catch {
@@ -73,6 +297,7 @@ export default function AdminHeader({
   const openNotifications = () => {
     setProfileVisible(false);
     setNotificationVisible(true);
+    void fetchNotifications();
   };
 
   /* =======================================================
@@ -105,13 +330,25 @@ export default function AdminHeader({
       return;
     }
 
-    if (option === 'settings') {
-      openAdminFeature('Settings');
+    if (option === 'logout') {
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout from your admin account?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Logout',
+            style: 'destructive',
+            onPress: () => {
+              void handleLogout();
+            },
+          },
+        ]
+      );
       return;
-    }
-
-   if (option === 'logout') {
-      void handleLogout();
     }
   };
 
@@ -197,6 +434,7 @@ export default function AdminHeader({
             style={styles.headerIconButton}
             onPress={openNotifications}
             activeOpacity={0.8}
+            accessibilityLabel={`Notifications, ${unreadCount} unread`}
           >
             <MaterialCommunityIcons
               name="bell-outline"
@@ -204,9 +442,13 @@ export default function AdminHeader({
               color="#FFFFFF"
             />
 
-            <View
-              style={styles.notificationDot}
-            />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           {/* PROFILE */}
@@ -287,106 +529,165 @@ export default function AdminHeader({
 
             {/* POPUP HEADER */}
 
-            <View
-              style={styles.popupHeader}
-            >
+            <View style={styles.popupHeader}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.popupTitle}>
+                  Notifications
+                </Text>
+                <Text style={styles.popupSubtitle}>
+                  {unreadCount > 0
+                    ? `You have ${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
+                    : 'All notifications caught up'}
+                </Text>
+              </View>
 
-              <Text
-                style={styles.popupTitle}
-              >
-                Notifications
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {unreadCount > 0 && (
+                  <TouchableOpacity
+                    onPress={markAllNotificationsAsRead}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    style={{ marginRight: 10 }}
+                  >
+                    <Text style={styles.markAllReadText}>
+                      Mark all read
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
-              <TouchableOpacity
-                onPress={closeAll}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={19}
-                  color="#7B8798"
-                />
-              </TouchableOpacity>
-
+                <TouchableOpacity
+                  onPress={closeAll}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={19}
+                    color="#7B8798"
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
-            {/* NOTIFICATION 1 */}
+            {/* NOTIFICATION CONTENT */}
 
-            <View
-              style={styles.notificationItem}
-            >
-
-              <View
-                style={styles.notificationIcon}
-              >
+            {loading && notifications.length === 0 ? (
+              <View style={styles.notificationStateContainer}>
+                <ActivityIndicator size="small" color="#7040D5" />
+                <Text style={styles.notificationStateText}>
+                  Loading notifications...
+                </Text>
+              </View>
+            ) : error && notifications.length === 0 ? (
+              <View style={styles.notificationStateContainer}>
+                <Text style={styles.notificationStateText}>
+                  {error}
+                </Text>
+                <TouchableOpacity
+                  onPress={fetchNotifications}
+                  style={styles.retryButton}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.retryButtonText}>
+                    Try again
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : notifications.length === 0 ? (
+              <View style={styles.notificationStateContainer}>
                 <MaterialCommunityIcons
-                  name="cash-clock"
-                  size={18}
-                  color="#E95386"
+                  name="bell-check-outline"
+                  size={28}
+                  color="#A0A9B8"
                 />
+                <Text style={[styles.notificationStateText, { marginTop: 6 }]}>
+                  You are all caught up.
+                </Text>
               </View>
-
-              <View
-                style={styles.notificationText}
+            ) : (
+              <ScrollView
+                style={{ maxHeight: 340 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingVertical: 4 }}
               >
+                {notifications.map((notification) => {
+                  const iconName = getNotificationIcon(
+                    notification.type,
+                    notification.icon
+                  );
+                  const iconColor = getNotificationColor(
+                    notification.type,
+                    notification.icon
+                  );
 
-                <Text
-                  style={styles.notificationTitle}
-                >
-                  Pending fee collection
-                </Text>
+                  return (
+                    <TouchableOpacity
+                      key={notification.id}
+                      style={[
+                        styles.notificationItem,
+                        notification.isRead && styles.notificationItemRead,
+                      ]}
+                      activeOpacity={0.7}
+                      onPress={() => void handleNotificationPress(notification)}
+                    >
+                      <View
+                        style={[
+                          styles.notificationIcon,
+                          {
+                            backgroundColor:
+                              iconColor === '#E95386'
+                                ? '#FFE9F0'
+                                : iconColor === '#2675E8'
+                                ? '#EAF2FF'
+                                : iconColor === '#35B878'
+                                ? '#E7F8EF'
+                                : iconColor === '#F7941D'
+                                ? '#FFF1E2'
+                                : '#F1EAFF',
+                          },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={iconName}
+                          size={18}
+                          color={iconColor}
+                        />
+                      </View>
 
-                <Text
-                  style={
-                    styles.notificationDescription
-                  }
-                >
-                  Fee follow-up is required for
-                  24 students.
-                </Text>
+                      <View style={styles.notificationText}>
+                        <View style={styles.notificationTitleRow}>
+                          <Text
+                            style={[
+                              styles.notificationTitle,
+                              !notification.isRead &&
+                                styles.notificationTitleUnread,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {notification.title}
+                          </Text>
 
-              </View>
+                          <Text style={styles.notificationTime}>
+                            {notification.time}
+                          </Text>
+                        </View>
 
-            </View>
+                        <Text
+                          style={styles.notificationDescription}
+                          numberOfLines={2}
+                        >
+                          {notification.message}
+                        </Text>
+                      </View>
 
-            {/* NOTIFICATION 2 */}
-
-            <View
-              style={styles.notificationItem}
-            >
-
-              <View
-                style={styles.notificationIcon}
-              >
-                <MaterialCommunityIcons
-                  name="calendar-alert"
-                  size={18}
-                  color="#2675E8"
-                />
-              </View>
-
-              <View
-                style={styles.notificationText}
-              >
-
-                <Text
-                  style={styles.notificationTitle}
-                >
-                  Upcoming examination
-                </Text>
-
-                <Text
-                  style={
-                    styles.notificationDescription
-                  }
-                >
-                  Examination schedule requires
-                  review.
-                </Text>
-
-              </View>
-
-            </View>
+                      {!notification.isRead && (
+                        <View style={styles.notificationUnreadDot} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
 
           </View>
         )}
@@ -466,30 +767,6 @@ export default function AdminHeader({
             </TouchableOpacity>
 
             {/* SETTINGS */}
-
-            <TouchableOpacity
-              style={styles.popupOption}
-              onPress={() =>
-                handleProfileOption(
-                  'settings',
-                )
-              }
-              activeOpacity={0.7}
-            >
-
-              <MaterialCommunityIcons
-                name="cog-outline"
-                size={20}
-                color="#66768A"
-              />
-
-              <Text
-                style={styles.popupOptionText}
-              >
-                Settings
-              </Text>
-
-            </TouchableOpacity>
 
             {/* LOGOUT */}
 
@@ -682,20 +959,26 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 
-  notificationDot: {
-    width: 8,
-
-    height: 8,
-
-    borderRadius: 4,
-
-    backgroundColor: '#E95386',
-
+  notificationBadge: {
     position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#7040D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
 
-    right: 8,
-
-    top: 7,
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontFamily: 'PoppinsBold',
+    fontSize: 8.5,
+    lineHeight: 11,
   },
 
   /* =====================================================
@@ -773,109 +1056,147 @@ const styles = StyleSheet.create({
 
   notificationPopup: {
     position: 'absolute',
-
     right: 16,
-
     top: 64,
-
-    width: 315,
-
-    maxWidth: '90%',
-
+    width: 325,
+    maxWidth: '92%',
     backgroundColor: '#FFFFFF',
-
     borderRadius: 15,
-
-    padding: 15,
-
+    padding: 14,
     borderWidth: 1,
-
     borderColor: '#EEF0F5',
-
     shadowColor: '#000000',
-
     shadowOffset: {
       width: 0,
       height: 5,
     },
-
     shadowOpacity: 0.12,
-
     shadowRadius: 14,
-
     elevation: 12,
-
     zIndex: 30,
   },
 
   popupHeader: {
     flexDirection: 'row',
-
     alignItems: 'center',
-
     justifyContent: 'space-between',
-
     paddingBottom: 10,
-
     borderBottomWidth: 1,
-
     borderBottomColor: '#F0F2F6',
   },
 
   popupTitle: {
     fontFamily: 'PoppinsSemiBold',
-
     fontSize: 12,
-
     color: '#172033',
+  },
+
+  popupSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+    color: '#7B8798',
+    marginTop: 1,
+  },
+
+  markAllReadText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
+    color: '#7040D5',
   },
 
   notificationItem: {
     flexDirection: 'row',
+    paddingVertical: 9,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#F4F5F8',
+    alignItems: 'center',
+  },
 
-    paddingTop: 12,
+  notificationItemRead: {
+    opacity: 0.6,
   },
 
   notificationIcon: {
-    width: 35,
-
-    height: 35,
-
+    width: 34,
+    height: 34,
     borderRadius: 10,
-
     backgroundColor: '#F7F8FC',
-
     alignItems: 'center',
-
     justifyContent: 'center',
   },
 
   notificationText: {
     flex: 1,
-
     marginLeft: 9,
-
     minWidth: 0,
+  },
+
+  notificationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   notificationTitle: {
     fontFamily: 'PoppinsSemiBold',
-
     fontSize: 9.5,
-
     color: '#172033',
+    flex: 1,
+    marginRight: 4,
+  },
+
+  notificationTitleUnread: {
+    color: '#172033',
+    fontFamily: 'PoppinsBold',
+  },
+
+  notificationTime: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 7.5,
+    color: '#9CA3AF',
   },
 
   notificationDescription: {
     fontFamily: 'PoppinsRegular',
-
     fontSize: 8,
-
     color: '#8792A4',
-
     marginTop: 2,
-
     lineHeight: 12,
+  },
+
+  notificationUnreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#7040D5',
+    marginLeft: 6,
+  },
+
+  notificationStateContainer: {
+    paddingVertical: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  notificationStateText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9.5,
+    color: '#8792A4',
+    textAlign: 'center',
+  },
+
+  retryButton: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#F1EAFF',
+    borderRadius: 8,
+  },
+
+  retryButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
+    color: '#7040D5',
   },
 
   /* =====================================================

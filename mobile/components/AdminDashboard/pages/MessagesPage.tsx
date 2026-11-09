@@ -1,12 +1,19 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from 'react';
 
 import {
+
+  ActivityIndicator,
 
   Alert,
 
   Modal,
 
+  Pressable,
+
+  SafeAreaView,
+
   ScrollView,
+  RefreshControl,
 
   StyleSheet,
 
@@ -16,798 +23,2459 @@ import {
 
   TouchableOpacity,
 
-  View,
-
   useWindowDimensions,
 
-} from "react-native";
+  View,
 
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
+} from 'react-native';
 
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
-import { useRouter } from "expo-router";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
 
+type MessageStatus =
 
-type MessageStatus = "Unread" | "Read" | "Replied" | "Resolved";
+  | 'Unread'
 
+  | 'Read'
 
+  | 'Sent'
 
-type Message = {
+  | 'Archived';
 
-  id: string;
+type MessagePriority =
+
+  | 'Important'
+
+  | 'Normal';
+
+type MessageRecord = {
+
+  id: number;
+
+  messageId: string;
+
+  senderId: string;
+
+  recipientIds: string[];
+
+  folder: 'inbox' | 'sent';
 
   sender: string;
 
-  role: string;
+  senderRole: string;
+
+  recipient: string;
 
   subject: string;
 
-  message: string;
+  preview: string;
+
+  body: string;
 
   date: string;
 
   time: string;
 
-  branch: string;
-
   status: MessageStatus;
+
+  priority: MessagePriority;
+
+  category: string;
 
 };
 
+type MessageRecipient = {
+  id: string;
+  fullName: string;
+  email: string;
+  roles: string[];
+};
 
+const getId = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return String(value._id ?? value.id ?? value.userId ?? value.recipientId ?? '');
+};
 
-const initialMessages: Message[] = [
+const decodeUserIdFromToken = (token: string): string => {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return '';
+    const decoder = (globalThis as any).atob;
+    if (typeof decoder !== 'function') return '';
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = JSON.parse(decoder(normalized));
+    return String(decoded.id ?? decoded._id ?? decoded.userId ?? decoded.sub ?? '');
+  } catch {
+    return '';
+  }
+};
 
-  {
+const categories = [
 
-    id: "MSG001",
+  'General',
 
-    sender: "Aarav Patil",
+  'Academic',
 
-    role: "Student",
+  'Examination',
 
-    subject: "Examination Schedule",
+  'Fees',
 
-    message:
+  'Reports',
 
-      "Could you please confirm the date and timing for the upcoming examination?",
+  'Training',
 
-    date: "20 Sep 2026",
+  'Events',
 
-    time: "10:15 AM",
-
-    branch: "Pune",
-
-    status: "Unread",
-
-  },
-
-  {
-
-    id: "MSG002",
-
-    sender: "Ananya Sharma",
-
-    role: "Parent",
-
-    subject: "Fee Payment Query",
-
-    message:
-
-      "I would like to confirm the fee payment details for this month.",
-
-    date: "20 Sep 2026",
-
-    time: "09:30 AM",
-
-    branch: "Mumbai",
-
-    status: "Unread",
-
-  },
-
-  {
-
-    id: "MSG003",
-
-    sender: "Rohan Deshmukh",
-
-    role: "Student",
-
-    subject: "Assignment Submission",
-
-    message:
-
-      "Please let me know if my assignment submission has been received.",
-
-    date: "19 Sep 2026",
-
-    time: "04:20 PM",
-
-    branch: "Nashik",
-
-    status: "Read",
-
-  },
-
-  {
-
-    id: "MSG004",
-
-    sender: "Sneha Kulkarni",
-
-    role: "Teacher",
-
-    subject: "Batch Schedule",
-
-    message:
-
-      "The updated batch schedule is available for review.",
-
-    date: "19 Sep 2026",
-
-    time: "02:10 PM",
-
-    branch: "Pune",
-
-    status: "Replied",
-
-  },
-
-  {
-
-    id: "MSG005",
-
-    sender: "Vedant Joshi",
-
-    role: "Parent",
-
-    subject: "Performance Discussion",
-
-    message:
-
-      "I would like to discuss the recent performance report.",
-
-    date: "18 Sep 2026",
-
-    time: "11:45 AM",
-
-    branch: "Mumbai",
-
-    status: "Read",
-
-  },
-
-  {
-
-    id: "MSG006",
-
-    sender: "Isha More",
-
-    role: "Student",
-
-    subject: "Course Enquiry",
-
-    message:
-
-      "Could you please share more information about the new course?",
-
-    date: "17 Sep 2026",
-
-    time: "01:25 PM",
-
-    branch: "Pune",
-
-    status: "Resolved",
-
-  },
+  'Assignments',
 
 ];
 
-
-
-const statusStyle: Record<
-
-  MessageStatus,
-
-  { bg: string; text: string; border: string }
-
-> = {
-
-  Unread: {
-
-    bg: "#FFF0F4",
-
-    text: "#E84D75",
-
-    border: "#F2467B",
-
-  },
-
-  Read: {
-
-    bg: "#EAF2FF",
-
-    text: "#2675E8",
-
-    border: "#2675E8",
-
-  },
-
-  Replied: {
-
-    bg: "#E8F8F0",
-
-    text: "#13B96D",
-
-    border: "#13B96D",
-
-  },
-
-  Resolved: {
-
-    bg: "#EAF2FF",
-
-    text: "#2675E8",
-
-    border: "#2675E8",
-
-  },
-
+const getName = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return String(value.fullName ?? value.name ?? value.email ?? '');
 };
 
+const mapApiMessage = (
+  raw: any,
+  index: number,
+  currentUserId = '',
+): MessageRecord => {
+  const sender = raw.sender;
+  const recipients = Array.isArray(raw.recipients) ? raw.recipients : [];
+  const getRecipientUser = (entry: any) =>
+    entry?.user ?? entry?.recipient ?? entry?.userId ?? entry?.recipientId ?? entry;
+  const recipientNames = recipients
+    .map((entry: any) => getName(getRecipientUser(entry)))
+    .filter(Boolean);
+  const currentRecipient =
+    recipients.find((entry: any) => getId(getRecipientUser(entry)) === currentUserId) ??
+    recipients[0] ??
+    {};
 
+  const senderRoles = Array.isArray(sender?.roles)
+    ? sender.roles
+    : sender?.role
+      ? [sender.role]
+      : [];
+  const roleLabels: Record<string, string> = {
+    super_admin: 'Super Admin',
+    admin: 'Admin',
+    teacher: 'Teacher',
+    student: 'Student',
+  };
+  const rawRole = String(senderRoles[0] ?? '');
+  const senderRole = (roleLabels[rawRole] ?? rawRole) || 'User';
+  const archivedAt = currentRecipient.archivedAt;
+  const readAt = currentRecipient.readAt;
+  const isRead = Boolean(readAt || currentRecipient.isRead);
+  const isImportant = Boolean(currentRecipient.isImportant || ['important', 'high'].includes(String(raw.priority ?? '').toLowerCase()));
+  const folder: 'inbox' | 'sent' = raw.__folder === 'sent' ? 'sent' : 'inbox';
+
+  let status: MessageStatus = 'Unread';
+  if (folder === 'sent') status = 'Sent';
+  else if (archivedAt) status = 'Archived';
+  else if (isRead) status = 'Read';
+
+  const createdAt = raw.createdAt ? new Date(raw.createdAt) : null;
+  const validDate = Boolean(createdAt && !Number.isNaN(createdAt.getTime()));
+
+  return {
+    id: index + 1,
+    messageId: String(raw._id ?? raw.id ?? ''),
+    senderId: getId(sender),
+    recipientIds: recipients.map((entry: any) => getId(getRecipientUser(entry))).filter(Boolean),
+    folder,
+    sender: getName(sender) || 'Unknown sender',
+    senderRole,
+    recipient: recipientNames.join(', ') || 'You',
+    subject: String(raw.subject ?? '(No subject)'),
+    preview: String(raw.body ?? '').replace(/\s+/g, ' ').slice(0, 120),
+    body: String(raw.body ?? ''),
+    date: validDate
+      ? createdAt!.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '',
+    time: validDate
+      ? createdAt!.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+      : '',
+    status,
+    priority: isImportant ? 'Important' : 'Normal',
+    category: String(raw.category ?? 'General'),
+  };
+};
 
 export default function MessagesPage() {
-  const router = useRouter();
-  const { width } = useWindowDimensions();
+
   const insets = useSafeAreaInsets();
-  const isMobile = width < 700;
-  const isTablet = width >= 700 && width < 1100;
 
+  const { width } = useWindowDimensions();
 
+  const contentWidth = width - 32;
 
-  const [messages, setMessages] =
+  const statGap = 10;
 
-    useState<Message[]>(initialMessages);
+  const statCardWidth =
 
-  const [search, setSearch] = useState("");
+    (contentWidth - statGap * 2) / 3;
 
-  const [statusFilter, setStatusFilter] =
+  const [messages, setMessages] = useState<MessageRecord[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState('');
+  const [recipients, setRecipients] = useState<MessageRecipient[]>([]);
+  const [recipientPickerVisible, setRecipientPickerVisible] = useState(false);
+  const [recipientSearch, setRecipientSearch] = useState('');
+  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
+  const [replyToId, setReplyToId] = useState<string | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
 
-    useState<"All" | MessageStatus>("All");
+  const [search, setSearch] =
 
-  const [branchFilter, setBranchFilter] =
+    useState('');
 
-    useState<"All" | "Pune" | "Mumbai" | "Nashik">("All");
+  const [activeFilter, setActiveFilter] =
 
+    useState<
 
+      'All' | MessageStatus | 'Important'
 
-  const [selected, setSelected] = useState<Message | null>(null);
+    >('All');
 
-  const [viewVisible, setViewVisible] = useState(false);
+  const [selectedMessage, setSelectedMessage] =
 
-  const [editVisible, setEditVisible] = useState(false);
+    useState<MessageRecord | null>(
 
-
-
-  const [editSender, setEditSender] = useState("");
-
-  const [editRole, setEditRole] = useState("");
-
-  const [editSubject, setEditSubject] = useState("");
-
-  const [editMessage, setEditMessage] = useState("");
-
-  const [editDate, setEditDate] = useState("");
-
-  const [editTime, setEditTime] = useState("");
-
-  const [editBranch, setEditBranch] = useState("");
-
-  const [editStatus, setEditStatus] =
-
-    useState<MessageStatus>("Read");
-
-
-
-  const openAddMessage = () => {
-
-    router.push("/(admin)/add-message" as never);
-
-  };
-
-
-
-  const openEdit = (message: Message) => {
-
-    setSelected(message);
-
-    setEditSender(message.sender);
-
-    setEditRole(message.role);
-
-    setEditSubject(message.subject);
-
-    setEditMessage(message.message);
-
-    setEditDate(message.date);
-
-    setEditTime(message.time);
-
-    setEditBranch(message.branch);
-
-    setEditStatus(message.status);
-
-    setEditVisible(true);
-
-  };
-
-
-
-  const saveEdit = () => {
-
-    if (
-
-      !selected ||
-
-      !editSender.trim() ||
-
-      !editRole.trim() ||
-
-      !editSubject.trim() ||
-
-      !editMessage.trim() ||
-
-      !editDate.trim() ||
-
-      !editTime.trim() ||
-
-      !editBranch.trim()
-
-    ) {
-
-      Alert.alert(
-
-        "Required Fields",
-
-        "Please fill all required message details."
-
-      );
-
-      return;
-
-    }
-
-
-
-    const updated: Message = {
-
-      ...selected,
-
-      sender: editSender.trim(),
-
-      role: editRole.trim(),
-
-      subject: editSubject.trim(),
-
-      message: editMessage.trim(),
-
-      date: editDate.trim(),
-
-      time: editTime.trim(),
-
-      branch: editBranch.trim(),
-
-      status: editStatus,
-
-    };
-
-
-
-    setMessages((current) =>
-
-      current.map((item) =>
-
-        item.id === updated.id ? updated : item
-
-      )
+      null
 
     );
 
+  const [actionModalVisible, setActionModalVisible] =
+
+    useState(false);
+
+  const [viewModalVisible, setViewModalVisible] =
+
+    useState(false);
+
+  const [composeModalVisible, setComposeModalVisible] =
+
+    useState(false);
+
+  const [composeRecipient, setComposeRecipient] =
+
+    useState('');
+
+  const [composeSubject, setComposeSubject] =
+
+    useState('');
+
+  const [composeBody, setComposeBody] =
+
+    useState('');
+
+  const [composePriority, setComposePriority] =
+
+    useState<MessagePriority>('Normal');
+
+  const [composeCategory, setComposeCategory] =
+
+    useState('General');
+
+  const apiRequest = async (path: string, options: any = {}) => {
+    const token = await getToken();
+    if (!token) throw new Error('Your session has expired. Please log in again.');
+
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers ?? {}),
+      },
+    });
+
+    let result: any = {};
+    try {
+      result = await response.json();
+    } catch {
+      // Some successful DELETE responses may not contain JSON.
+    }
+
+    if (!response.ok || result.success === false) {
+      throw new Error(result.message || `Request failed (${response.status}).`);
+    }
+    return result;
+  };
+
+  const loadMessages = async (showLoading = false, showError = false) => {
+    try {
+      if (showLoading) setLoadingMessages(true);
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please log in again.');
+      const decodedUserId = decodeUserIdFromToken(token);
+      if (decodedUserId) setCurrentUserId(decodedUserId);
+
+      const fetchFolder = async (folder: 'inbox' | 'sent' | 'archived') => {
+        const response = await fetch(`${API_BASE_URL}/messages?folder=${folder}`, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || `Unable to load ${folder} messages.`);
+        }
+        const records = Array.isArray(result.data)
+          ? result.data
+          : Array.isArray(result.data?.messages)
+            ? result.data.messages
+            : [];
+        return records.map((message: any) => ({ ...message, __folder: folder }));
+      };
+
+      const [inboxMessages, sentMessages, archivedMessages] = await Promise.all([
+        fetchFolder('inbox'),
+        fetchFolder('sent'),
+        fetchFolder('archived'),
+      ]);
+      const allMessages = [...inboxMessages, ...sentMessages, ...archivedMessages];
+      const uniqueMessages = Array.from(
+        new Map(allMessages.map((message: any) => [String(message._id ?? message.id), message])).values(),
+      );
+      setMessages(uniqueMessages.map((message: any, index: number) =>
+        mapApiMessage(message, index, decodedUserId),
+      ));
+    } catch (error) {
+      if (showError) {
+        Alert.alert('Unable to Load Messages', error instanceof Error ? error.message : 'Please try again.');
+      }
+    } finally {
+      if (showLoading) setLoadingMessages(false);
+    }
+  };
+
+  const loadRecipients = async (showError = false) => {
+    try {
+      const result = await apiRequest('/users/message-recipients');
+      const records = Array.isArray(result.data) ? result.data : [];
+      setRecipients(records.map((user: any) => ({
+        id: String(user.id ?? user._id ?? ''),
+        fullName: String(user.fullName ?? user.name ?? user.email ?? 'Unknown user'),
+        email: String(user.email ?? ''),
+        roles: Array.isArray(user.roles) ? user.roles : user.role ? [user.role] : [],
+      })).filter((user: MessageRecipient) => Boolean(user.id)));
+    } catch (error) {
+      if (showError) {
+        Alert.alert('Unable to Load Recipients', error instanceof Error ? error.message : 'Please try again.');
+      }
+    }
+  };
+
+  useEffect(() => {
+    void loadMessages(true, true);
+    void loadRecipients(false);
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void loadMessages(false, false);
+    }, [])
+  );
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    void loadMessages(false, true).finally(() => setRefreshing(false));
+  }, []);
 
 
-    setSelected(updated);
+  const totalMessages =
 
-    setEditVisible(false);
+    messages.length;
+
+  const unreadMessages =
+
+    messages.filter(
+
+      (message) =>
+
+        message.status === 'Unread'
+
+    ).length;
+
+  const readMessages =
+
+    messages.filter(
+
+      (message) =>
+
+        message.status === 'Read'
+
+    ).length;
+
+  const sentMessages =
+
+    messages.filter(
+
+      (message) =>
+
+        message.status === 'Sent'
+
+    ).length;
+
+  const importantMessages =
+
+    messages.filter(
+
+      (message) =>
+
+        message.priority ===
+
+        'Important'
+
+    ).length;
+
+  const archivedMessages =
+
+    messages.filter(
+
+      (message) =>
+
+        message.status === 'Archived'
+
+    ).length;
+
+  const filteredMessages =
+
+    useMemo(() => {
+
+      const query =
+
+        search.trim().toLowerCase();
+
+      return messages.filter(
+
+        (message) => {
+
+          const matchesSearch =
+
+            !query ||
+
+            message.sender
+
+              .toLowerCase()
+
+              .includes(query) ||
+
+            message.subject
+
+              .toLowerCase()
+
+              .includes(query) ||
+
+            message.preview
+
+              .toLowerCase()
+
+              .includes(query) ||
+
+            message.messageId
+
+              .toLowerCase()
+
+              .includes(query) ||
+
+            message.category
+
+              .toLowerCase()
+
+              .includes(query);
+
+          const matchesFilter =
+
+            activeFilter === 'All' ||
+
+            message.status ===
+
+              activeFilter ||
+
+            (activeFilter ===
+
+              'Important' &&
+
+              message.priority ===
+
+                'Important');
+
+          return (
+
+            matchesSearch &&
+
+            matchesFilter
+
+          );
+
+        }
+
+      );
+
+    }, [
+
+      messages,
+
+      search,
+
+      activeFilter,
+
+    ]);
+
+  const openActions = (
+
+    message: MessageRecord
+
+  ) => {
+
+    setSelectedMessage(message);
+
+    setActionModalVisible(true);
 
   };
 
+  const viewMessage = async (message: MessageRecord) => {
+    setActionModalVisible(false);
+    try {
+      const result = await apiRequest(`/messages/${message.messageId}`);
+      const raw = result.data?.message ?? result.data;
+      const mapped = mapApiMessage({ ...raw, __folder: message.folder }, message.id - 1, currentUserId);
+      const viewed = { ...message, ...mapped, id: message.id, status: message.status === 'Archived' ? 'Archived' : (message.folder === 'inbox' ? 'Read' : 'Sent') } as MessageRecord;
+      setSelectedMessage(viewed);
+      setMessages((current) => current.map((item) => item.messageId === message.messageId
+        ? { ...item, status: item.status === 'Archived' ? 'Archived' : (item.folder === 'inbox' ? 'Read' : 'Sent') }
+        : item));
+      setViewModalVisible(true);
+    } catch (error) {
+      Alert.alert('Unable to Open Message', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
 
+  const toggleReadStatus = async (message: MessageRecord) => {
+    setActionModalVisible(false);
+    if (message.folder === 'sent') {
+      Alert.alert('Not Available', 'Read status can only be changed for messages in your inbox.');
+      return;
+    }
+    const action = message.status === 'Unread' ? 'read' : 'unread';
+    try {
+      await apiRequest(`/messages/${message.messageId}/status`, {
+        method: 'PATCH', body: JSON.stringify({ action }),
+      });
+      setMessages((current) => current.map((item) => item.messageId === message.messageId
+        ? { ...item, status: item.status === 'Archived' ? 'Archived' : (action === 'read' ? 'Read' : 'Unread') }
+        : item));
+      setSelectedMessage((current) => current?.messageId === message.messageId
+        ? { ...current, status: current.status === 'Archived' ? 'Archived' : (action === 'read' ? 'Read' : 'Unread') }
+        : current);
+    } catch (error) {
+      Alert.alert('Unable to Update Message', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
 
-  const filteredMessages = useMemo(() => {
+  const toggleImportant = async (message: MessageRecord) => {
+    setActionModalVisible(false);
+    if (message.folder === 'sent') {
+      Alert.alert('Not Available', 'Important status is managed for messages in your inbox.');
+      return;
+    }
+    const action = message.priority === 'Important' ? 'normal' : 'important';
+    try {
+      await apiRequest(`/messages/${message.messageId}/status`, {
+        method: 'PATCH', body: JSON.stringify({ action }),
+      });
+      const priority: MessagePriority = action === 'important' ? 'Important' : 'Normal';
+      setMessages((current) => current.map((item) => item.messageId === message.messageId ? { ...item, priority } : item));
+      setSelectedMessage((current) => current?.messageId === message.messageId ? { ...current, priority } : current);
+    } catch (error) {
+      Alert.alert('Unable to Update Importance', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
 
-    const query = search.trim().toLowerCase();
+  const archiveMessage = async (message: MessageRecord) => {
+    setActionModalVisible(false);
+    if (message.folder === 'sent') {
+      Alert.alert('Not Available', 'Only inbox messages can be archived.');
+      return;
+    }
+    const action = message.status === 'Archived' ? 'unarchive' : 'archive';
+    try {
+      await apiRequest(`/messages/${message.messageId}/status`, {
+        method: 'PATCH', body: JSON.stringify({ action }),
+      });
+      setMessages((current) => current.map((item) => item.messageId === message.messageId
+        ? { ...item, status: action === 'archive' ? 'Archived' : (item.status === 'Archived' ? 'Read' : item.status) }
+        : item));
+      setSelectedMessage((current) => current?.messageId === message.messageId
+        ? { ...current, status: action === 'archive' ? 'Archived' : 'Read' }
+        : current);
+      Alert.alert(action === 'archive' ? 'Message Archived' : 'Message Unarchived', action === 'archive'
+        ? 'The message has been moved to archived messages.'
+        : 'The message has been moved back to your inbox.');
+    } catch (error) {
+      Alert.alert('Unable to Update Archive', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
 
+  const deleteMessage = (message: MessageRecord) => {
+    setActionModalVisible(false);
+    Alert.alert('Delete Message', `Are you sure you want to delete "${message.subject}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await apiRequest(`/messages/${message.messageId}`, { method: 'DELETE' });
+            setMessages((current) => current.filter((item) => item.messageId !== message.messageId));
+            if (selectedMessage?.messageId === message.messageId) setSelectedMessage(null);
+            Alert.alert('Deleted', 'Message has been deleted.');
+          } catch (error) {
+            Alert.alert('Unable to Delete Message', error instanceof Error ? error.message : 'Please try again.');
+          }
+        },
+      },
+    ]);
+  };
 
+  const replyToMessage = (message: MessageRecord) => {
+    setActionModalVisible(false);
+    if (message.folder === 'sent') {
+      Alert.alert('Reply Not Available', 'Open a message from your inbox to reply to its sender.');
+      return;
+    }
+    if (!message.senderId) {
+      Alert.alert('Unable to Reply', 'The sender ID was not included in the message response.');
+      return;
+    }
+    setSelectedRecipientIds([message.senderId]);
+    setComposeRecipient(message.sender);
+    setReplyToId(message.messageId);
+    setComposeSubject(`Re: ${message.subject.replace(/^Re:\s*/i, '')}`);
+    setComposeBody('');
+    setComposePriority(message.priority);
+    setComposeCategory(message.category);
+    setComposeModalVisible(true);
+  };
 
-    return messages.filter((item) => {
+  const openCompose = () => {
+    setComposeRecipient('');
+    setSelectedRecipientIds([]);
+    setReplyToId(null);
+    setComposeSubject('');
+    setComposeBody('');
+    setComposePriority('Normal');
+    setComposeCategory('General');
+    void loadRecipients(true);
+    setComposeModalVisible(true);
+  };
 
-      const matchesSearch =
+  const toggleRecipient = (recipient: MessageRecipient) => {
+    const exists = selectedRecipientIds.includes(recipient.id);
+    const next = exists
+      ? selectedRecipientIds.filter((id) => id !== recipient.id)
+      : [...selectedRecipientIds, recipient.id];
+    setSelectedRecipientIds(next);
+    const selectedNames = recipients
+      .filter((item) => next.includes(item.id))
+      .map((item) => item.fullName);
+    setComposeRecipient(selectedNames.join(', '));
+  };
 
-        !query ||
+  const sendMessage = async () => {
+    if (!composeSubject.trim() || !composeBody.trim() || (!replyToId && selectedRecipientIds.length === 0)) {
+      Alert.alert('Required Fields', replyToId
+        ? 'Please enter subject and message.'
+        : 'Please select at least one recipient, and enter subject and message.');
+      return;
+    }
 
-        item.id.toLowerCase().includes(query) ||
+    setSendingMessage(true);
+    try {
+      if (replyToId) {
+        await apiRequest(`/messages/${replyToId}/reply`, {
+          method: 'POST',
+          body: JSON.stringify({ body: composeBody.trim() }),
+        });
+      } else {
+        await apiRequest('/messages', {
+          method: 'POST',
+          body: JSON.stringify({
+            recipientIds: selectedRecipientIds,
+            subject: composeSubject.trim(),
+            body: composeBody.trim(),
+            category: composeCategory,
+            priority: composePriority,
+          }),
+        });
+      }
 
-        item.sender.toLowerCase().includes(query) ||
+      setComposeModalVisible(false);
+      setRecipientPickerVisible(false);
+      setReplyToId(null);
+      setComposeBody('');
+      setComposeSubject('');
+      setComposeRecipient('');
+      setSelectedRecipientIds([]);
+      await loadMessages(false, false);
+      Alert.alert('Message Sent', replyToId
+        ? 'Your reply has been sent.'
+        : `Your message has been sent to ${composeRecipient}.`);
+    } catch (error) {
+      Alert.alert('Unable to Send Message', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
-        item.role.toLowerCase().includes(query) ||
+  const renderSummaryCard = (
 
-        item.subject.toLowerCase().includes(query) ||
+    title: string,
 
-        item.message.toLowerCase().includes(query) ||
+    value: string,
 
-        item.branch.toLowerCase().includes(query);
+    icon: keyof typeof MaterialCommunityIcons.glyphMap,
 
+    type:
 
+      | 'purple'
 
-      const matchesStatus =
+      | 'blue'
 
-        statusFilter === "All" || item.status === statusFilter;
+      | 'green'
 
+      | 'orange'
 
+      | 'pink'
 
-      const matchesBranch =
+  ) => {
 
-        branchFilter === "All" || item.branch === branchFilter;
+    const colors = {
 
+      purple: {
 
+        bg: '#F1EAFF',
 
-      return matchesSearch && matchesStatus && matchesBranch;
+        icon: '#7040D5',
 
-    });
+      },
 
-  }, [messages, search, statusFilter, branchFilter]);
+      blue: {
 
+        bg: '#EAF2FF',
 
+        icon: '#2675E8',
 
+      },
 
+      green: {
 
-  return (
+        bg: '#E7F8EF',
 
-    <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
+        icon: '#35B878',
 
-      <View style={styles.container}>
+      },
 
-        <StatusBar style="light" backgroundColor="#6D35D8" translucent={false} />
+      orange: {
+
+        bg: '#FFF1E2',
+
+        icon: '#F7941D',
+
+      },
+
+      pink: {
+
+        bg: '#FFE9F0',
+
+        icon: '#E95386',
+
+      },
+
+    };
+
+    return (
+
+      <View
+
+        style={[
+
+          styles.summaryCard,
+
+          {
+
+            width:
+
+              statCardWidth,
+
+          },
+
+        ]}
+
+      >
+
         <View
+
           style={[
-            styles.header,
-            { paddingTop: insets.top + 8, minHeight: insets.top + 66 },
-            isMobile && styles.headerMobile,
-            isTablet && styles.headerTablet,
+
+            styles.summaryIcon,
+
+            {
+
+              backgroundColor:
+
+                colors[type].bg,
+
+            },
+
           ]}
+
         >
-          <TouchableOpacity
-            style={[styles.backButton, isMobile && styles.backButtonMobile]}
-            activeOpacity={0.8}
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <MaterialCommunityIcons name="arrow-left" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
 
-          <Text
-            style={[styles.headerTitle, isMobile && styles.headerTitleMobile]}
-            numberOfLines={1}
-          >
-            Messages
-          </Text>
+          <MaterialCommunityIcons
 
-          <TouchableOpacity
-            style={[styles.addButton, isMobile && styles.addButtonMobile]}
-            activeOpacity={0.85}
-            onPress={openAddMessage}
-            accessibilityRole="button"
-            accessibilityLabel="Add Message"
-          >
-            <MaterialCommunityIcons name="plus" size={24} color="#7040D5" />
-          </TouchableOpacity>
+            name={icon}
+
+            size={19}
+
+            color={colors[type].icon}
+
+          />
+
         </View>
 
-        <ScrollView
+        <Text
 
-          showsVerticalScrollIndicator={false}
+          style={styles.summaryTitle}
 
-          contentContainerStyle={styles.content}
+          numberOfLines={2}
 
         >
 
-          <View style={styles.searchCard}>
+          {title}
 
-            <View style={styles.searchBox}>
+        </Text>
 
-              <MaterialCommunityIcons
+        <Text
 
-                name="magnify"
+          style={styles.summaryValue}
 
-                size={21}
+          numberOfLines={1}
 
-                color="#8994A7"
+          adjustsFontSizeToFit
 
-              />
+          minimumFontScale={0.65}
 
-              <TextInput
+        >
 
-                value={search}
+          {value}
 
-                onChangeText={setSearch}
+        </Text>
 
-                placeholder="Search messages..."
+      </View>
 
-                placeholderTextColor="#A0A9B8"
+    );
 
-                style={styles.searchInput}
+  };
 
-              />
+  const renderMessageCard = (
 
-            </View>
+    message: MessageRecord
 
+  ) => {
 
+    const isUnread =
 
-            <ScrollView
+      message.status === 'Unread';
 
-              horizontal
+    const isImportant =
 
-              showsHorizontalScrollIndicator={false}
+      message.priority ===
 
-              contentContainerStyle={styles.filterRow}
+      'Important';
 
-            >
+    return (
 
-              {(
+      <TouchableOpacity
 
-                [
+        key={message.id}
 
-                  "All",
+        activeOpacity={0.9}
 
-                  "Unread",
+        style={[
 
-                  "Read",
+          styles.messageCard,
 
-                  "Replied",
+          isUnread &&
 
-                  "Resolved",
+            styles.unreadMessageCard,
 
-                ] as const
+        ]}
 
-              ).map((item) => (
+        onPress={() =>
 
-                <TouchableOpacity
+          viewMessage(message)
 
-                  key={item}
+        }
 
-                  activeOpacity={0.8}
+      >
 
-                  onPress={() => setStatusFilter(item)}
+        <View
 
-                  style={[
+          style={styles.cardTopRow}
 
-                    styles.filterButton,
+        >
 
-                    statusFilter === item &&
+          <View
 
-                      styles.filterButtonActive,
+            style={styles.senderArea}
 
-                  ]}
+          >
 
-                >
+            <View
 
-                  <Text
+              style={[
 
-                    style={[
+                styles.avatar,
 
-                      styles.filterText,
+                {
 
-                      statusFilter === item &&
+                  backgroundColor:
 
-                        styles.filterTextActive,
+                    isUnread
 
-                    ]}
+                      ? '#F1EAFF'
 
-                  >
+                      : '#F3F4F7',
 
-                    {item}
+                },
 
-                  </Text>
-
-                </TouchableOpacity>
-
-              ))}
-
-            </ScrollView>
-
-
-
-            <ScrollView
-
-              horizontal
-
-              showsHorizontalScrollIndicator={false}
-
-              contentContainerStyle={styles.branchRow}
+              ]}
 
             >
 
-              {(["All", "Pune", "Mumbai", "Nashik"] as const).map(
-
-                (item) => (
-
-                  <TouchableOpacity
-
-                    key={item}
-
-                    activeOpacity={0.8}
-
-                    onPress={() => setBranchFilter(item)}
-
-                    style={[
-
-                      styles.branchButton,
-
-                      branchFilter === item &&
-
-                        styles.branchButtonActive,
-
-                    ]}
-
-                  >
-
-                    <MaterialCommunityIcons
-
-                      name="map-marker-outline"
-
-                      size={16}
-
-                      color={
-
-                        branchFilter === item
-
-                          ? "#FFFFFF"
-
-                          : "#7040D5"
-
-                      }
-
-                    />
-
-                    <Text
-
-                      style={[
-
-                        styles.branchText,
-
-                        branchFilter === item &&
-
-                          styles.branchTextActive,
-
-                      ]}
-
-                    >
-
-                      {item}
-
-                    </Text>
-
-                  </TouchableOpacity>
-
-                )
-
-              )}
-
-            </ScrollView>
-
-          </View>
-
-
-
-          <View style={styles.listHeader}>
-
-            <View>
-
-              <Text style={styles.listTitle}>All Messages</Text>
-
-              <Text style={styles.listSubtitle}>
-
-                Recent communication and enquiries
-
-              </Text>
-
-            </View>
-
-
-
-            <Text style={styles.recordCount}>
-
-              {filteredMessages.length} records
-
-            </Text>
-
-          </View>
-
-
-
-          {filteredMessages.map((item) => {
-
-            const colors = statusStyle[item.status];
-
-
-
-            return (
-
-              <View
-
-                key={item.id}
+              <Text
 
                 style={[
 
-                  styles.messageCard,
+                  styles.avatarText,
 
-                  { borderLeftColor: colors.border },
+                  {
+
+                    color:
+
+                      isUnread
+
+                        ? '#7040D5'
+
+                        : '#687386',
+
+                  },
 
                 ]}
 
               >
 
-                <View style={styles.messageTop}>
+                {message.sender
 
-                  <View style={styles.senderArea}>
+                  .split(' ')
 
-                    <View style={styles.avatar}>
+                  .map(
 
-                      <MaterialCommunityIcons
+                    (part) =>
 
-                        name="account-outline"
+                      part[0]
 
-                        size={25}
+                  )
 
-                        color="#7040D5"
+                  .join('')
 
-                      />
+                  .slice(0, 2)}
+
+              </Text>
+
+            </View>
+
+            <View
+
+              style={{
+
+                flex: 1,
+
+              }}
+
+            >
+
+              <View
+
+                style={
+
+                  styles.senderNameRow
+
+                }
+
+              >
+
+                <Text
+
+                  style={
+
+                    styles.senderName
+
+                  }
+
+                  numberOfLines={1}
+
+                >
+
+                  {message.sender}
+
+                </Text>
+
+                {isUnread && (
+
+                  <View
+
+                    style={
+
+                      styles.unreadDot
+
+                    }
+
+                  />
+
+                )}
+
+              </View>
+
+              <Text
+
+                style={
+
+                  styles.senderRole
+
+                }
+
+              >
+
+                {
+
+                  message.senderRole
+
+                }
+
+              </Text>
+
+            </View>
+
+          </View>
+
+          <View
+
+            style={
+
+              styles.dateArea
+
+            }
+
+          >
+
+            <Text
+
+              style={
+
+                styles.messageTime
+
+              }
+
+            >
+
+              {message.time}
+
+            </Text>
+
+            <TouchableOpacity
+
+              style={
+
+                styles.moreButton
+
+              }
+
+              onPress={(event) => {
+
+                event.stopPropagation();
+
+                openActions(message);
+
+              }}
+
+            >
+
+              <MaterialCommunityIcons
+
+                name="dots-vertical"
+
+                size={22}
+
+                color="#59657A"
+
+              />
+
+            </TouchableOpacity>
+
+          </View>
+
+        </View>
+
+        <View
+
+          style={
+
+            styles.subjectRow
+
+          }
+
+        >
+
+          <Text
+
+            style={[
+
+              styles.subject,
+
+              isUnread &&
+
+                styles.unreadSubject,
+
+            ]}
+
+            numberOfLines={2}
+
+          >
+
+            {message.subject}
+
+          </Text>
+
+          {isImportant && (
+
+            <MaterialCommunityIcons
+
+              name="star"
+
+              size={17}
+
+              color="#F7941D"
+
+            />
+
+          )}
+
+        </View>
+
+        <Text
+
+          style={
+
+            styles.preview
+
+          }
+
+          numberOfLines={2}
+
+        >
+
+          {message.preview}
+
+        </Text>
+
+        <View
+
+          style={
+
+            styles.messageFooter
+
+          }
+
+        >
+
+          <View
+
+            style={
+
+              styles.footerLeft
+
+            }
+
+          >
+
+            <View
+
+              style={
+
+                styles.categoryBadge
+
+              }
+
+            >
+
+              <Text
+
+                style={
+
+                  styles.categoryText
+
+                }
+
+              >
+
+                {message.category}
+
+              </Text>
+
+            </View>
+
+            <Text
+
+              style={
+
+                styles.messageDate
+
+              }
+
+            >
+
+              {message.date}
+
+            </Text>
+
+          </View>
+
+          <View
+
+            style={[
+
+              styles.statusBadge,
+
+              {
+
+                backgroundColor:
+
+                  getStatusColor(
+
+                    message.status
+
+                  ).bg,
+
+              },
+
+            ]}
+
+          >
+
+            <Text
+
+              style={[
+
+                styles.statusText,
+
+                {
+
+                  color:
+
+                    getStatusColor(
+
+                      message.status
+
+                    ).text,
+
+                },
+
+              ]}
+
+            >
+
+              {message.status}
+
+            </Text>
+
+          </View>
+
+        </View>
+
+      </TouchableOpacity>
+
+    );
+
+  };
+
+  return (
+
+    <SafeAreaView
+
+      style={[
+
+        styles.safeArea,
+
+        {
+
+          paddingTop:
+
+            insets.top,
+
+        },
+
+      ]}
+
+    >
+      <StatusBar style="light" backgroundColor="#6D35D8" translucent={false} />
+
+      {/* HEADER */}
+
+      <View
+
+        style={styles.header}
+
+      >
+
+        <TouchableOpacity
+
+          style={
+
+            styles.backButton
+
+          }
+
+          onPress={() =>
+
+            router.back()
+
+          }
+
+        >
+
+          <MaterialCommunityIcons
+
+            name="arrow-left"
+
+            size={22}
+
+            color="#FFFFFF"
+
+          />
+
+        </TouchableOpacity>
+
+        <Text
+
+          style={
+
+            styles.headerTitle
+
+          }
+
+        >
+
+          Messages
+
+        </Text>
+
+        <TouchableOpacity
+
+          style={
+
+            styles.addButton
+
+          }
+
+          onPress={
+
+            openCompose
+
+          }
+
+        >
+
+          <MaterialCommunityIcons
+
+            name="pencil-outline"
+
+            size={15}
+
+            color="#7040D5"
+
+          />
+
+          <Text
+
+            style={
+
+              styles.addButtonText
+
+            }
+
+          >
+
+            Compose
+
+          </Text>
+
+        </TouchableOpacity>
+
+      </View>
+
+      <ScrollView
+
+        style={styles.container}
+
+        contentContainerStyle={[
+
+          styles.content,
+
+          {
+
+            paddingBottom:
+
+              insets.bottom +
+
+              30,
+
+          },
+
+        ]}
+
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#7040D5']}
+            tintColor="#7040D5"
+          />
+        }
+
+      >
+
+        <Text
+
+          style={
+
+            styles.managementTitle
+
+          }
+
+        >
+
+          Message Management
+
+        </Text>
+
+        <Text
+
+          style={
+
+            styles.managementSubtitle
+
+          }
+
+        >
+
+          Manage messages, conversations and notifications
+
+        </Text>
+
+        {/* SUMMARY */}
+
+        <View
+
+          style={
+
+            styles.summaryGrid
+
+          }
+
+        >
+
+          {renderSummaryCard(
+
+            'Total Messages',
+
+            String(totalMessages),
+
+            'message-text-outline',
+
+            'purple'
+
+          )}
+
+          {renderSummaryCard(
+
+            'Unread',
+
+            String(unreadMessages),
+
+            'email-alert-outline',
+
+            'pink'
+
+          )}
+
+          {renderSummaryCard(
+
+            'Read',
+
+            String(readMessages),
+
+            'email-open-outline',
+
+            'green'
+
+          )}
+
+          {renderSummaryCard(
+
+            'Sent',
+
+            String(sentMessages),
+
+            'send-check-outline',
+
+            'blue'
+
+          )}
+
+          {renderSummaryCard(
+
+            'Important',
+
+            String(importantMessages),
+
+            'star-outline',
+
+            'orange'
+
+          )}
+
+          {renderSummaryCard(
+
+            'Archived',
+
+            String(archivedMessages),
+
+            'archive-outline',
+
+            'purple'
+
+          )}
+
+        </View>
+
+        {/* SEARCH */}
+
+        <View
+
+          style={styles.searchBox}
+
+        >
+
+          <MaterialCommunityIcons
+
+            name="magnify"
+
+            size={21}
+
+            color="#8B95A7"
+
+          />
+
+          <TextInput
+
+            value={search}
+
+            onChangeText={
+
+              setSearch
+
+            }
+
+            placeholder="Search sender, subject, message..."
+
+            placeholderTextColor="#A2AABB"
+
+            style={
+
+              styles.searchInput
+
+            }
+
+          />
+
+          {search.length >
+
+            0 && (
+
+            <TouchableOpacity
+
+              onPress={() =>
+
+                setSearch('')
+
+              }
+
+            >
+
+              <MaterialCommunityIcons
+
+                name="close-circle"
+
+                size={19}
+
+                color="#A2AABB"
+
+              />
+
+            </TouchableOpacity>
+
+          )}
+
+        </View>
+
+        {/* FILTERS */}
+
+        <ScrollView
+
+          horizontal
+
+          showsHorizontalScrollIndicator={
+
+            false
+
+          }
+
+          contentContainerStyle={
+
+            styles.filterContainer
+
+          }
+
+        >
+
+          {[
+
+            'All',
+
+            'Unread',
+
+            'Read',
+
+            'Sent',
+
+            'Important',
+
+            'Archived',
+
+          ].map((filter) => (
+
+            <TouchableOpacity
+
+              key={filter}
+
+              onPress={() =>
+
+                setActiveFilter(
+
+                  filter as
+
+                    | 'All'
+
+                    | MessageStatus
+
+                    | 'Important'
+
+                )
+
+              }
+
+              style={[
+
+                styles.filterButton,
+
+                activeFilter ===
+
+                  filter &&
+
+                  styles.filterButtonActive,
+
+              ]}
+
+            >
+
+              <Text
+
+                style={[
+
+                  styles.filterText,
+
+                  activeFilter ===
+
+                    filter &&
+
+                    styles.filterTextActive,
+
+                ]}
+
+              >
+
+                {filter}
+
+              </Text>
+
+            </TouchableOpacity>
+
+          ))}
+
+        </ScrollView>
+
+        {/* LIST */}
+
+        <View
+
+          style={
+
+            styles.listHeader
+
+          }
+
+        >
+
+          <Text
+
+            style={
+
+              styles.listTitle
+
+            }
+
+          >
+
+            Messages
+
+          </Text>
+
+          <Text
+
+            style={
+
+              styles.recordCount
+
+            }
+
+          >
+
+            {
+
+              filteredMessages.length
+
+            }{' '}
+
+            Records
+
+          </Text>
+
+        </View>
+
+        {loadingMessages ? (
+          <View style={styles.emptyBox}>
+            <ActivityIndicator size="large" color="#7040D5" />
+            <Text style={styles.emptyTitle}>Loading messages...</Text>
+          </View>
+        ) : filteredMessages.length ===
+        0 ? (
+
+          <View
+
+            style={
+
+              styles.emptyBox
+
+            }
+
+          >
+
+            <MaterialCommunityIcons
+
+              name="message-text-outline"
+
+              size={44}
+
+              color="#A7AFBD"
+
+            />
+
+            <Text
+
+              style={
+
+                styles.emptyTitle
+
+              }
+
+            >
+
+              No messages found
+
+            </Text>
+
+            <Text
+
+              style={
+
+                styles.emptyText
+
+              }
+
+            >
+
+              Try changing your search or filter.
+
+            </Text>
+
+          </View>
+
+        ) : (
+
+          filteredMessages.map(
+
+            renderMessageCard
+
+          )
+
+        )}
+
+      </ScrollView>
+
+      {/* =========================
+
+          ACTION MODAL
+
+      ========================== */}
+
+      <Modal
+
+        visible={
+
+          actionModalVisible
+
+        }
+
+        transparent
+
+        animationType="fade"
+
+        onRequestClose={() =>
+
+          setActionModalVisible(
+
+            false
+
+          )
+
+        }
+
+      >
+
+        <Pressable
+
+          style={
+
+            styles.modalOverlay
+
+          }
+
+          onPress={() =>
+
+            setActionModalVisible(
+
+              false
+
+            )
+
+          }
+
+        >
+
+          <Pressable
+
+            style={
+
+              styles.actionModal
+
+            }
+
+            onPress={(event) =>
+
+              event.stopPropagation()
+
+            }
+
+          >
+
+            <View
+
+              style={
+
+                styles.modalHeader
+
+              }
+
+            >
+
+              <View
+
+                style={{
+
+                  flex: 1,
+
+                }}
+
+              >
+
+                <Text
+
+                  style={
+
+                    styles.modalTitle
+
+                  }
+
+                >
+
+                  Message Actions
+
+                </Text>
+
+                <Text
+
+                  style={
+
+                    styles.modalSubtitle
+
+                  }
+
+                  numberOfLines={1}
+
+                >
+
+                  {
+
+                    selectedMessage?.subject
+
+                  }
+
+                </Text>
+
+              </View>
+
+              <TouchableOpacity
+
+                onPress={() =>
+
+                  setActionModalVisible(
+
+                    false
+
+                  )
+
+                }
+
+              >
+
+                <MaterialCommunityIcons
+
+                  name="close"
+
+                  size={23}
+
+                  color="#667085"
+
+                />
+
+              </TouchableOpacity>
+
+            </View>
+
+            <ActionButton
+
+              icon="eye-outline"
+
+              color="#7040D5"
+
+              text="View Message"
+
+              onPress={() => {
+
+                if (
+
+                  selectedMessage
+
+                ) {
+
+                  viewMessage(
+
+                    selectedMessage
+
+                  );
+
+                }
+
+              }}
+
+            />
+
+            <ActionButton
+
+              icon={
+
+                selectedMessage?.status ===
+
+                'Unread'
+
+                  ? 'email-open-outline'
+
+                  : 'email-outline'
+
+              }
+
+              color="#2675E8"
+
+              text={
+
+                selectedMessage?.status ===
+
+                'Unread'
+
+                  ? 'Mark as Read'
+
+                  : 'Mark as Unread'
+
+              }
+
+              onPress={() => {
+
+                if (
+
+                  selectedMessage
+
+                ) {
+
+                  toggleReadStatus(
+
+                    selectedMessage
+
+                  );
+
+                }
+
+              }}
+
+            />
+
+            <ActionButton
+
+              icon={
+
+                selectedMessage?.priority ===
+
+                'Important'
+
+                  ? 'star-off-outline'
+
+                  : 'star-outline'
+
+              }
+
+              color="#F7941D"
+
+              text={
+
+                selectedMessage?.priority ===
+
+                'Important'
+
+                  ? 'Remove Important'
+
+                  : 'Mark Important'
+
+              }
+
+              onPress={() => {
+
+                if (
+
+                  selectedMessage
+
+                ) {
+
+                  toggleImportant(
+
+                    selectedMessage
+
+                  );
+
+                }
+
+              }}
+
+            />
+
+            <ActionButton
+
+              icon="reply-outline"
+
+              color="#35B878"
+
+              text="Reply"
+
+              onPress={() => {
+
+                if (
+
+                  selectedMessage
+
+                ) {
+
+                  replyToMessage(
+
+                    selectedMessage
+
+                  );
+
+                }
+
+              }}
+
+            />
+
+            <ActionButton
+
+              icon={selectedMessage?.status === 'Archived' ? "archive-arrow-up-outline" : "archive-outline"}
+
+              color="#7040D5"
+
+              text={selectedMessage?.status === 'Archived' ? "Unarchive" : "Archive"}
+
+              onPress={() => {
+
+                if (
+
+                  selectedMessage
+
+                ) {
+
+                  archiveMessage(
+
+                    selectedMessage
+
+                  );
+
+                }
+
+              }}
+
+            />
+
+            <ActionButton
+
+              icon="delete-outline"
+
+              color="#D84B63"
+
+              text="Delete Message"
+
+              onPress={() => {
+
+                if (
+
+                  selectedMessage
+
+                ) {
+
+                  deleteMessage(
+
+                    selectedMessage
+
+                  );
+
+                }
+
+              }}
+
+            />
+
+          </Pressable>
+
+        </Pressable>
+
+      </Modal>
+
+      {/* =========================
+
+          VIEW MESSAGE
+
+      ========================== */}
+
+      <Modal
+
+        visible={
+
+          viewModalVisible
+
+        }
+
+        transparent
+
+        animationType="slide"
+
+        onRequestClose={() =>
+
+          setViewModalVisible(
+
+            false
+
+          )
+
+        }
+
+      >
+
+        <View
+
+          style={
+
+            styles.modalOverlay
+
+          }
+
+        >
+
+          <View
+
+            style={
+
+              styles.largeModal
+
+            }
+
+          >
+
+            <View
+
+              style={
+
+                styles.modalHeader
+
+              }
+
+            >
+
+              <View
+
+                style={{
+
+                  flex: 1,
+
+                }}
+
+              >
+
+                <Text
+
+                  style={
+
+                    styles.modalTitle
+
+                  }
+
+                >
+
+                  Message
+
+                </Text>
+
+                <Text
+
+                  style={
+
+                    styles.modalSubtitle
+
+                  }
+
+                >
+
+                  {
+
+                    selectedMessage?.messageId
+
+                  }
+
+                </Text>
+
+              </View>
+
+              <TouchableOpacity
+
+                onPress={() =>
+
+                  setViewModalVisible(
+
+                    false
+
+                  )
+
+                }
+
+              >
+
+                <MaterialCommunityIcons
+
+                  name="close"
+
+                  size={23}
+
+                  color="#667085"
+
+                />
+
+              </TouchableOpacity>
+
+            </View>
+
+            {selectedMessage && (
+
+              <ScrollView
+
+                showsVerticalScrollIndicator={
+
+                  false
+
+                }
+
+              >
+
+                <View
+
+                  style={
+
+                    styles.messageDetailHeader
+
+                  }
+
+                >
+
+                  <View
+
+                    style={
+
+                      styles.detailSenderRow
+
+                    }
+
+                  >
+
+                    <View
+
+                      style={
+
+                        styles.largeAvatar
+
+                      }
+
+                    >
+
+                      <Text
+
+                        style={
+
+                          styles.largeAvatarText
+
+                        }
+
+                      >
+
+                        {selectedMessage.sender
+
+                          .split(' ')
+
+                          .map(
+
+                            (part) =>
+
+                              part[0]
+
+                          )
+
+                          .join('')
+
+                          .slice(0, 2)}
+
+                      </Text>
 
                     </View>
 
+                    <View
 
+                      style={{
 
-                    <View style={styles.senderInfo}>
+                        flex: 1,
 
-                      <View style={styles.nameRow}>
+                      }}
 
-                        <Text style={styles.senderName}>
+                    >
 
-                          {item.sender}
+                      <Text
 
-                        </Text>
+                        style={
 
+                          styles.detailSenderName
 
+                        }
 
-                        {item.status === "Unread" && (
+                      >
 
-                          <View style={styles.unreadDot} />
+                        {
 
-                        )}
+                          selectedMessage.sender
 
-                      </View>
+                        }
 
+                      </Text>
 
+                      <Text
 
-                      <Text style={styles.senderMeta}>
+                        style={
 
-                        {item.id} • {item.role}
+                          styles.detailSenderRole
+
+                        }
+
+                      >
+
+                        {
+
+                          selectedMessage.senderRole
+
+                        }
 
                       </Text>
 
@@ -815,7 +2483,141 @@ export default function MessagesPage() {
 
                   </View>
 
+                  <View
 
+                    style={
+
+                      styles.detailMessageMeta
+
+                    }
+
+                  >
+
+                    <Text
+
+                      style={
+
+                        styles.metaText
+
+                      }
+
+                    >
+
+                      {
+
+                        selectedMessage.date
+
+                      }
+
+                    </Text>
+
+                    <Text
+
+                      style={
+
+                        styles.metaText
+
+                      }
+
+                    >
+
+                      {
+
+                        selectedMessage.time
+
+                      }
+
+                    </Text>
+
+                  </View>
+
+                </View>
+
+                <View
+
+                  style={
+
+                    styles.detailSubjectRow
+
+                  }
+
+                >
+
+                  <Text
+
+                    style={
+
+                      styles.detailSubject
+
+                    }
+
+                  >
+
+                    {
+
+                      selectedMessage.subject
+
+                    }
+
+                  </Text>
+
+                  {selectedMessage.priority ===
+
+                    'Important' && (
+
+                    <MaterialCommunityIcons
+
+                      name="star"
+
+                      size={19}
+
+                      color="#F7941D"
+
+                    />
+
+                  )}
+
+                </View>
+
+                <View
+
+                  style={
+
+                    styles.detailTags
+
+                  }
+
+                >
+
+                  <View
+
+                    style={
+
+                      styles.categoryBadge
+
+                    }
+
+                  >
+
+                    <Text
+
+                      style={
+
+                        styles.categoryText
+
+                      }
+
+                    >
+
+                      {
+
+                        selectedMessage.category
+
+                      }
+
+                    </Text>
+
+                  </View>
 
                   <View
 
@@ -823,7 +2625,17 @@ export default function MessagesPage() {
 
                       styles.statusBadge,
 
-                      { backgroundColor: colors.bg },
+                      {
+
+                        backgroundColor:
+
+                          getStatusColor(
+
+                            selectedMessage.status
+
+                          ).bg,
+
+                      },
 
                     ]}
 
@@ -835,13 +2647,27 @@ export default function MessagesPage() {
 
                         styles.statusText,
 
-                        { color: colors.text },
+                        {
+
+                          color:
+
+                            getStatusColor(
+
+                              selectedMessage.status
+
+                            ).text,
+
+                        },
 
                       ]}
 
                     >
 
-                      {item.status}
+                      {
+
+                        selectedMessage.status
+
+                      }
 
                     </Text>
 
@@ -849,627 +2675,661 @@ export default function MessagesPage() {
 
                 </View>
 
+                <View
 
+                  style={
 
-                <Text style={styles.subject}>
+                    styles.recipientBox
 
-                  {item.subject}
+                  }
 
-                </Text>
+                >
 
+                  <Text
 
+                    style={
 
-                <Text style={styles.messageText}>
+                      styles.recipientLabel
 
-                  {item.message}
-
-                </Text>
-
-
-
-                <View style={styles.divider} />
-
-
-
-                <View style={styles.detailsGrid}>
-
-                  <View style={styles.detailItem}>
-
-                    <Text style={styles.detailLabel}>Date</Text>
-
-                    <Text style={styles.detailValue}>
-
-                      {item.date}
-
-                    </Text>
-
-                  </View>
-
-
-
-                  <View style={styles.detailItem}>
-
-                    <Text style={styles.detailLabel}>Time</Text>
-
-                    <Text style={styles.detailValue}>
-
-                      {item.time}
-
-                    </Text>
-
-                  </View>
-
-
-
-                  <View style={styles.detailItem}>
-
-                    <Text style={styles.detailLabel}>Branch</Text>
-
-                    <Text style={styles.detailValue}>
-
-                      {item.branch}
-
-                    </Text>
-
-                  </View>
-
-
-
-                  <View style={styles.detailItem}>
-
-                    <Text style={styles.detailLabel}>Role</Text>
-
-                    <Text style={styles.detailValue}>
-
-                      {item.role}
-
-                    </Text>
-
-                  </View>
-
-                </View>
-
-
-
-                <View style={styles.cardActions}>
-
-                  <TouchableOpacity
-
-                    style={styles.editButton}
-
-                    activeOpacity={0.8}
-
-                    onPress={() => openEdit(item)}
+                    }
 
                   >
 
-                    <MaterialCommunityIcons
-
-                      name="pencil-outline"
-
-                      size={17}
-
-                      color="#FFFFFF"
-
-                    />
-
-                    <Text style={styles.editButtonText}>
-
-                      Edit
-
-                    </Text>
-
-                  </TouchableOpacity>
-
-
-
-                  <TouchableOpacity
-
-                    style={styles.viewButton}
-
-                    activeOpacity={0.8}
-
-                    onPress={() => {
-
-                      setSelected(item);
-
-                      setViewVisible(true);
-
-                    }}
-
-                  >
-
-                    <MaterialCommunityIcons
-
-                      name="eye-outline"
-
-                      size={18}
-
-                      color="#7040D5"
-
-                    />
-
-                    <Text style={styles.viewButtonText}>
-
-                      View
-
-                    </Text>
-
-                  </TouchableOpacity>
-
-                </View>
-
-              </View>
-
-            );
-
-          })}
-
-
-
-          {filteredMessages.length === 0 && (
-
-            <View style={styles.emptyState}>
-
-              <MaterialCommunityIcons
-
-                name="message-text-outline"
-
-                size={38}
-
-                color="#A3AABD"
-
-              />
-
-              <Text style={styles.emptyTitle}>
-
-                No messages found
-
-              </Text>
-
-              <Text style={styles.emptyText}>
-
-                Try another search or filter.
-
-              </Text>
-
-            </View>
-
-          )}
-
-        </ScrollView>
-
-
-
-        <Modal
-
-          visible={viewVisible}
-
-          transparent
-
-          animationType="fade"
-
-          onRequestClose={() => setViewVisible(false)}
-
-        >
-
-          <View style={styles.modalOverlay}>
-
-            <View style={styles.modalCard}>
-
-              <View style={styles.modalHeader}>
-
-                <View>
-
-                  <Text style={styles.modalTitle}>
-
-                    Message Details
+                    To
 
                   </Text>
 
-                  <Text style={styles.modalSubtitle}>
+                  <Text
 
-                    {selected?.id}
+                    style={
+
+                      styles.recipientValue
+
+                    }
+
+                  >
+
+                    {
+
+                      selectedMessage.recipient
+
+                    }
 
                   </Text>
 
                 </View>
 
+                <View
 
+                  style={
+
+                    styles.messageBodyBox
+
+                  }
+
+                >
+
+                  <Text
+
+                    style={
+
+                      styles.messageBody
+
+                    }
+
+                  >
+
+                    {
+
+                      selectedMessage.body
+
+                    }
+
+                  </Text>
+
+                </View>
 
                 <TouchableOpacity
 
-                  style={styles.closeButton}
+                  style={
 
-                  onPress={() => setViewVisible(false)}
+                    styles.primaryButton
+
+                  }
+
+                  onPress={() =>
+
+                    replyToMessage(
+
+                      selectedMessage
+
+                    )
+
+                  }
 
                 >
 
                   <MaterialCommunityIcons
 
-                    name="close"
+                    name="reply-outline"
 
-                    size={20}
+                    size={19}
 
-                    color="#66768A"
+                    color="#FFFFFF"
 
                   />
 
-                </TouchableOpacity>
+                  <Text
 
-              </View>
+                    style={
 
+                      styles.primaryButtonText
 
-
-              {selected && (
-
-                <>
-
-                  <Text style={styles.modalSender}>
-
-                    {selected.sender}
-
-                  </Text>
-
-
-
-                  <Text style={styles.modalSubject}>
-
-                    {selected.subject}
-
-                  </Text>
-
-
-
-                  <Text style={styles.modalMessage}>
-
-                    {selected.message}
-
-                  </Text>
-
-
-
-                  <View style={styles.modalGrid}>
-
-                    {[
-
-                      ["Date", selected.date],
-
-                      ["Time", selected.time],
-
-                      ["Branch", selected.branch],
-
-                      ["Role", selected.role],
-
-                      ["Status", selected.status],
-
-                    ].map(([label, value]) => (
-
-                      <View
-
-                        key={label}
-
-                        style={styles.modalDetail}
-
-                      >
-
-                        <Text style={styles.detailLabel}>
-
-                          {label}
-
-                        </Text>
-
-                        <Text style={styles.detailValue}>
-
-                          {value}
-
-                        </Text>
-
-                      </View>
-
-                    ))}
-
-                  </View>
-
-
-
-                  <TouchableOpacity
-
-                    style={styles.modalEditButton}
-
-                    onPress={() => {
-
-                      setViewVisible(false);
-
-                      openEdit(selected);
-
-                    }}
+                    }
 
                   >
 
-                    <MaterialCommunityIcons
-
-                      name="pencil-outline"
-
-                      size={18}
-
-                      color="#FFFFFF"
-
-                    />
-
-                    <Text style={styles.modalEditText}>
-
-                      Edit Message
-
-                    </Text>
-
-                  </TouchableOpacity>
-
-                </>
-
-              )}
-
-            </View>
-
-          </View>
-
-        </Modal>
-
-
-
-        <Modal
-
-          visible={editVisible}
-
-          transparent
-
-          animationType="slide"
-
-          onRequestClose={() => setEditVisible(false)}
-
-        >
-
-          <View style={styles.modalOverlay}>
-
-            <View style={styles.editModalCard}>
-
-              <View style={styles.modalHeader}>
-
-                <View>
-
-                  <Text style={styles.modalTitle}>
-
-                    Edit Message
+                    Reply
 
                   </Text>
-
-                  <Text style={styles.modalSubtitle}>
-
-                    Update message information
-
-                  </Text>
-
-                </View>
-
-
-
-                <TouchableOpacity
-
-                  style={styles.closeButton}
-
-                  onPress={() => setEditVisible(false)}
-
-                >
-
-                  <MaterialCommunityIcons
-
-                    name="close"
-
-                    size={20}
-
-                    color="#66768A"
-
-                  />
 
                 </TouchableOpacity>
-
-              </View>
-
-
-
-              <ScrollView
-
-                showsVerticalScrollIndicator={false}
-
-                keyboardShouldPersistTaps="handled"
-
-              >
-
-                {[
-
-                  ["Sender", editSender, setEditSender],
-
-                  ["Role", editRole, setEditRole],
-
-                  ["Subject", editSubject, setEditSubject],
-
-                  ["Date", editDate, setEditDate],
-
-                  ["Time", editTime, setEditTime],
-
-                  ["Branch", editBranch, setEditBranch],
-
-                ].map(([label, value, setter]) => (
-
-                  <View key={label as string}>
-
-                    <Text style={styles.inputLabel}>
-
-                      {label as string}
-
-                    </Text>
-
-                    <TextInput
-
-                      value={value as string}
-
-                      onChangeText={setter as (v: string) => void}
-
-                      style={styles.input}
-
-                      placeholder={`Enter ${(label as string).toLowerCase()}`}
-
-                      placeholderTextColor="#A0A9B8"
-
-                    />
-
-                  </View>
-
-                ))}
-
-
-
-                <Text style={styles.inputLabel}>Message</Text>
-
-                <TextInput
-
-                  value={editMessage}
-
-                  onChangeText={setEditMessage}
-
-                  style={[styles.input, styles.textArea]}
-
-                  placeholder="Enter message"
-
-                  placeholderTextColor="#A0A9B8"
-
-                  multiline
-
-                />
-
-
-
-                <Text style={styles.inputLabel}>Status</Text>
-
-                <View style={styles.optionsRow}>
-
-                  {(
-
-                    [
-
-                      "Unread",
-
-                      "Read",
-
-                      "Replied",
-
-                      "Resolved",
-
-                    ] as MessageStatus[]
-
-                  ).map((item) => (
-
-                    <TouchableOpacity
-
-                      key={item}
-
-                      onPress={() => setEditStatus(item)}
-
-                      style={[
-
-                        styles.option,
-
-                        editStatus === item &&
-
-                          styles.optionActive,
-
-                      ]}
-
-                    >
-
-                      <Text
-
-                        style={[
-
-                          styles.optionText,
-
-                          editStatus === item &&
-
-                            styles.optionTextActive,
-
-                        ]}
-
-                      >
-
-                        {item}
-
-                      </Text>
-
-                    </TouchableOpacity>
-
-                  ))}
-
-                </View>
-
-
-
-                <View style={styles.modalActions}>
-
-                  <TouchableOpacity
-
-                    style={styles.cancelButton}
-
-                    onPress={() => setEditVisible(false)}
-
-                  >
-
-                    <Text style={styles.cancelText}>
-
-                      Cancel
-
-                    </Text>
-
-                  </TouchableOpacity>
-
-
-
-                  <TouchableOpacity
-
-                    style={styles.saveButton}
-
-                    onPress={saveEdit}
-
-                  >
-
-                    <MaterialCommunityIcons
-
-                      name="content-save-outline"
-
-                      size={18}
-
-                      color="#FFFFFF"
-
-                    />
-
-                    <Text style={styles.saveText}>
-
-                      Save Changes
-
-                    </Text>
-
-                  </TouchableOpacity>
-
-                </View>
 
               </ScrollView>
 
-            </View>
+            )}
 
           </View>
 
-        </Modal>
+        </View>
 
-      </View>
+      </Modal>
+
+      {/* =========================
+
+          COMPOSE MESSAGE
+
+      ========================== */}
+
+      <Modal
+
+        visible={
+
+          composeModalVisible
+
+        }
+
+        transparent
+
+        animationType="slide"
+
+        onRequestClose={() =>
+
+          setComposeModalVisible(
+
+            false
+
+          )
+
+        }
+
+      >
+
+        <View
+
+          style={
+
+            styles.modalOverlay
+
+          }
+
+        >
+
+          <View
+
+            style={
+
+              styles.largeModal
+
+            }
+
+          >
+
+            <View
+
+              style={
+
+                styles.modalHeader
+
+              }
+
+            >
+
+              <View
+
+                style={{
+
+                  flex: 1,
+
+                }}
+
+              >
+
+                <Text
+
+                  style={
+
+                    styles.modalTitle
+
+                  }
+
+                >
+
+                  Compose Message
+
+                </Text>
+
+                <Text
+
+                  style={
+
+                    styles.modalSubtitle
+
+                  }
+
+                >
+
+                  Send a new message
+
+                </Text>
+
+              </View>
+
+              <TouchableOpacity
+
+                onPress={() =>
+
+                  setComposeModalVisible(
+
+                    false
+
+                  )
+
+                }
+
+              >
+
+                <MaterialCommunityIcons
+
+                  name="close"
+
+                  size={23}
+
+                  color="#667085"
+
+                />
+
+              </TouchableOpacity>
+
+            </View>
+
+            <ScrollView
+
+              showsVerticalScrollIndicator={
+
+                false
+
+              }
+
+            >
+
+              <Text
+
+                style={
+
+                  styles.inputLabel
+
+                }
+
+              >
+
+                Recipient
+
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => {
+                  if (replyToId) {
+                    Alert.alert('Reply Recipient', `Your reply will be sent to ${composeRecipient}.`);
+                  } else {
+                    void loadRecipients(true);
+                    setRecipientPickerVisible(true);
+                  }
+                }}
+                activeOpacity={0.8}
+                style={[styles.input, { minHeight: 48, justifyContent: 'center' }]}
+              >
+                <Text style={{ color: composeRecipient ? '#202939' : '#A2AABB', fontSize: 14 }}>
+                  {composeRecipient || 'Select recipient(s)'}
+                </Text>
+                {!replyToId && (
+                  <MaterialCommunityIcons name="chevron-down" size={20} color="#667085" style={{ position: 'absolute', right: 12, top: 13 }} />
+                )}
+              </TouchableOpacity>
+
+              <Text
+
+                style={
+
+                  styles.inputLabel
+
+                }
+
+              >
+
+                Subject
+
+              </Text>
+
+              <TextInput
+
+                value={
+
+                  composeSubject
+
+                }
+
+                onChangeText={
+
+                  setComposeSubject
+
+                }
+
+                placeholder="Enter message subject"
+
+                placeholderTextColor="#A2AABB"
+
+                style={
+
+                  styles.input
+
+                }
+
+              />
+
+              <Text
+
+                style={
+
+                  styles.inputLabel
+
+                }
+
+              >
+
+                Category
+
+              </Text>
+
+              <ScrollView
+
+                horizontal
+
+                showsHorizontalScrollIndicator={
+
+                  false
+
+                }
+
+                contentContainerStyle={
+
+                  styles.optionContainer
+
+                }
+
+              >
+
+                {categories.map(
+
+                  (category) => (
+
+                    <OptionButton
+
+                      key={
+
+                        category
+
+                      }
+
+                      label={
+
+                        category
+
+                      }
+
+                      selected={
+
+                        composeCategory ===
+
+                        category
+
+                      }
+
+                      onPress={() =>
+
+                        setComposeCategory(
+
+                          category
+
+                        )
+
+                      }
+
+                    />
+
+                  )
+
+                )}
+
+              </ScrollView>
+
+              <Text
+
+                style={
+
+                  styles.inputLabel
+
+                }
+
+              >
+
+                Priority
+
+              </Text>
+
+              <View
+
+                style={
+
+                  styles.inlineOptions
+
+                }
+
+              >
+
+                {(
+
+                  [
+
+                    'Important',
+
+                    'Normal',
+
+                  ] as MessagePriority[]
+
+                ).map(
+
+                  (priority) => (
+
+                    <OptionButton
+
+                      key={
+
+                        priority
+
+                      }
+
+                      label={
+
+                        priority
+
+                      }
+
+                      selected={
+
+                        composePriority ===
+
+                        priority
+
+                      }
+
+                      onPress={() =>
+
+                        setComposePriority(
+
+                          priority
+
+                        )
+
+                      }
+
+                    />
+
+                  )
+
+                )}
+
+              </View>
+
+              <Text
+
+                style={
+
+                  styles.inputLabel
+
+                }
+
+              >
+
+                Message
+
+              </Text>
+
+              <TextInput
+
+                value={
+
+                  composeBody
+
+                }
+
+                onChangeText={
+
+                  setComposeBody
+
+                }
+
+                placeholder="Type your message..."
+
+                placeholderTextColor="#A2AABB"
+
+                multiline
+
+                style={[
+
+                  styles.input,
+
+                  styles.textArea,
+
+                ]}
+
+              />
+
+              <TouchableOpacity
+
+                style={
+
+                  styles.primaryButton
+
+                }
+
+                disabled={sendingMessage}
+
+                onPress={() => void sendMessage()}
+
+              >
+
+                <MaterialCommunityIcons
+
+                  name="send-outline"
+
+                  size={19}
+
+                  color="#FFFFFF"
+
+                />
+
+                <Text
+
+                  style={
+
+                    styles.primaryButtonText
+
+                  }
+
+                >
+
+                  {sendingMessage ? 'Sending...' : (replyToId ? 'Send Reply' : 'Send Message')}
+
+                </Text>
+
+              </TouchableOpacity>
+
+            </ScrollView>
+
+          </View>
+
+        </View>
+
+      </Modal>
+
+      {/* =========================
+          RECIPIENT PICKER
+      ========================== */}
+      <Modal
+        visible={recipientPickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setRecipientPickerVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.largeModal, { maxHeight: '82%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Select Recipients</Text>
+                <Text style={styles.modalSubtitle}>Choose one or more active users</Text>
+              </View>
+              <TouchableOpacity onPress={() => setRecipientPickerVisible(false)}>
+                <MaterialCommunityIcons name="close" size={23} color="#667085" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              value={recipientSearch}
+              onChangeText={setRecipientSearch}
+              placeholder="Search by name or email"
+              placeholderTextColor="#A2AABB"
+              style={styles.input}
+            />
+            <ScrollView style={{ marginTop: 10 }} showsVerticalScrollIndicator={false}>
+              {recipients
+                .filter((user) => {
+                  const q = recipientSearch.trim().toLowerCase();
+                  return !q || user.fullName.toLowerCase().includes(q) || user.email.toLowerCase().includes(q) || user.roles.join(' ').toLowerCase().includes(q);
+                })
+                .map((user) => {
+                  const selected = selectedRecipientIds.includes(user.id);
+                  const roleLabels = user.roles.map((role) => role.replace(/_/g, ' ')).join(', ');
+                  return (
+                    <TouchableOpacity
+                      key={user.id}
+                      onPress={() => toggleRecipient(user)}
+                      activeOpacity={0.75}
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: '#EEF0F4' }}
+                    >
+                      <MaterialCommunityIcons name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} color={selected ? '#7040D5' : '#98A2B3'} />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={{ color: '#202939', fontSize: 14, fontWeight: '600' }}>{user.fullName}</Text>
+                        {!!user.email && <Text style={{ color: '#667085', fontSize: 12, marginTop: 2 }}>{user.email}</Text>}
+                        {!!roleLabels && <Text style={{ color: '#8A5CE6', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }}>{roleLabels}</Text>}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              {recipients.length === 0 && (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Text style={{ color: '#667085', textAlign: 'center' }}>No eligible recipients were returned by the server.</Text>
+                </View>
+              )}
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setRecipientPickerVisible(false)}
+              style={{ backgroundColor: '#7040D5', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Done ({selectedRecipientIds.length} selected)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
 
@@ -1477,7 +3337,207 @@ export default function MessagesPage() {
 
 }
 
+/* =========================
 
+   HELPERS
+
+========================= */
+
+function getStatusColor(
+
+  status: MessageStatus
+
+) {
+
+  switch (status) {
+
+    case 'Unread':
+
+      return {
+
+        bg: '#F1EAFF',
+
+        text: '#7040D5',
+
+      };
+
+    case 'Read':
+
+      return {
+
+        bg: '#E7F8EF',
+
+        text: '#22945F',
+
+      };
+
+    case 'Sent':
+
+      return {
+
+        bg: '#EAF2FF',
+
+        text: '#2675E8',
+
+      };
+
+    case 'Archived':
+
+      return {
+
+        bg: '#F0F1F5',
+
+        text: '#687386',
+
+      };
+
+  }
+
+}
+
+function ActionButton({
+
+  icon,
+
+  color,
+
+  text,
+
+  onPress,
+
+}: {
+
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+
+  color: string;
+
+  text: string;
+
+  onPress: () => void;
+
+}) {
+
+  return (
+
+    <TouchableOpacity
+
+      style={styles.actionItem}
+
+      onPress={onPress}
+
+    >
+
+      <View
+
+        style={[
+
+          styles.actionIcon,
+
+          {
+
+            backgroundColor:
+
+              `${color}18`,
+
+          },
+
+        ]}
+
+      >
+
+        <MaterialCommunityIcons
+
+          name={icon}
+
+          size={20}
+
+          color={color}
+
+        />
+
+      </View>
+
+      <Text
+
+        style={styles.actionText}
+
+      >
+
+        {text}
+
+      </Text>
+
+    </TouchableOpacity>
+
+  );
+
+}
+
+function OptionButton({
+
+  label,
+
+  selected,
+
+  onPress,
+
+}: {
+
+  label: string;
+
+  selected: boolean;
+
+  onPress: () => void;
+
+}) {
+
+  return (
+
+    <TouchableOpacity
+
+      style={[
+
+        styles.optionButton,
+
+        selected &&
+
+          styles.optionButtonActive,
+
+      ]}
+
+      onPress={onPress}
+
+    >
+
+      <Text
+
+        style={[
+
+          styles.optionText,
+
+          selected &&
+
+            styles.optionTextActive,
+
+        ]}
+
+      >
+
+        {label}
+
+      </Text>
+
+    </TouchableOpacity>
+
+  );
+
+}
+
+/* =========================
+
+   STYLES
+
+========================= */
 
 const styles = StyleSheet.create({
 
@@ -1485,7 +3545,77 @@ const styles = StyleSheet.create({
 
     flex: 1,
 
-    backgroundColor: "#F7F8FC",
+    backgroundColor: '#F7F8FC',
+
+  },
+
+  header: {
+
+    minHeight: 64,
+
+    backgroundColor: '#7040D5',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    paddingHorizontal: 14,
+
+    gap: 10,
+
+  },
+
+  backButton: {
+
+    width: 38,
+
+    height: 38,
+
+    borderRadius: 11,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+  },
+
+  headerTitle: {
+
+    flex: 1,
+
+    color: '#FFFFFF',
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 17,
+
+  },
+
+  addButton: {
+
+    height: 34,
+
+    paddingHorizontal: 9,
+
+    borderRadius: 9,
+
+    backgroundColor: '#FFFFFF',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 3,
+
+  },
+
+  addButtonText: {
+
+    color: '#7040D5',
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 10,
 
   },
 
@@ -1493,110 +3623,151 @@ const styles = StyleSheet.create({
 
     flex: 1,
 
-    backgroundColor: "#F7F8FC",
-
   },
 
-  header: {
-    width: "100%",
-    backgroundColor: "#6D35D8",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerMobile: {
-    height: 80,
-    paddingHorizontal: 14,
-  },
-  headerTablet: {
-    height: 64,
-    paddingHorizontal: 20,
-  },
-  headerLeft: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  backButtonMobile: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    marginRight: 12,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 20,
-    lineHeight: 26,
-    color: "#FFFFFF",
-    textAlign: "left",
-  },
-  headerTitleMobile: {
-    fontSize: 20,
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 11,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-  },
-  addButtonMobile: {
-    width: 40,
-    height: 40,
-    borderRadius: 11,
-  },
   content: {
-
-    padding: 16,
-
-    paddingBottom: 50,
-
-  },
-
-  searchCard: {
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 16,
-
-    padding: 15,
-
-    borderWidth: 1,
-
-    borderColor: "#E8EAF0",
-
-    marginBottom: 22,
-
-  },
-
-  searchBox: {
-
-    minHeight: 56,
-
-    borderWidth: 1,
-
-    borderColor: "#E3E6ED",
-
-    borderRadius: 12,
 
     paddingHorizontal: 16,
 
-    flexDirection: "row",
+    paddingTop: 18,
 
-    alignItems: "center",
+  },
+
+  managementTitle: {
+
+    fontFamily: 'PoppinsBold',
+
+    fontSize: 21,
+
+    color: '#172033',
+
+  },
+
+  managementSubtitle: {
+
+    marginTop: 2,
+
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 11.5,
+
+    color: '#7B8496',
+
+    marginBottom: 16,
+
+  },
+
+  /* SUMMARY */
+
+  summaryGrid: {
+
+    width: '100%',
+
+    flexDirection: 'row',
+
+    flexWrap: 'wrap',
+
+    gap: 10,
+
+    marginBottom: 16,
+
+    alignItems: 'flex-start',
+
+  },
+
+  summaryCard: {
+
+    height: 112,
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 14,
+
+    borderWidth: 1,
+
+    borderColor: '#EEF0F5',
+
+    padding: 11,
+
+    justifyContent: 'space-between',
+
+    shadowColor: '#000000',
+
+    shadowOffset: {
+
+      width: 0,
+
+      height: 2,
+
+    },
+
+    shadowOpacity: 0.035,
+
+    shadowRadius: 5,
+
+    elevation: 2,
+
+  },
+
+  summaryIcon: {
+
+    width: 36,
+
+    height: 36,
+
+    borderRadius: 10,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+  },
+
+  summaryTitle: {
+
+    fontFamily: 'PoppinsMedium',
+
+    color: '#7B8496',
+
+    fontSize: 8.8,
+
+    lineHeight: 12,
+
+    marginTop: 3,
+
+  },
+
+  summaryValue: {
+
+    fontFamily: 'PoppinsBold',
+
+    color: '#172033',
+
+    fontSize: 13.5,
+
+  },
+
+  /* SEARCH */
+
+  searchBox: {
+
+    height: 48,
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 13,
+
+    borderWidth: 1,
+
+    borderColor: '#E9ECF2',
+
+    paddingHorizontal: 13,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    marginBottom: 12,
 
   },
 
@@ -1604,197 +3775,153 @@ const styles = StyleSheet.create({
 
     flex: 1,
 
-    fontFamily: "PoppinsRegular",
+    fontFamily: 'PoppinsRegular',
 
-    fontSize: 11,
+    fontSize: 11.5,
 
-    color: "#263047",
+    color: '#172033',
 
-    marginLeft: 9,
+    marginLeft: 8,
 
   },
 
-  filterRow: {
+  /* FILTER */
 
-    paddingTop: 13,
+  filterContainer: {
 
-    gap: 9,
+    gap: 8,
+
+    paddingBottom: 15,
 
   },
 
   filterButton: {
 
-    minHeight: 45,
+    height: 34,
 
-    paddingHorizontal: 18,
+    paddingHorizontal: 13,
 
-    borderRadius: 11,
+    borderRadius: 9,
 
-    backgroundColor: "#F8F9FC",
+    backgroundColor: '#FFFFFF',
 
     borderWidth: 1,
 
-    borderColor: "#E6E8EF",
+    borderColor: '#E7EAF0',
 
-    alignItems: "center",
+    alignItems: 'center',
 
-    justifyContent: "center",
+    justifyContent: 'center',
 
   },
 
   filterButtonActive: {
 
-    backgroundColor: "#7040D5",
+    backgroundColor: '#7040D5',
 
-    borderColor: "#7040D5",
+    borderColor: '#7040D5',
 
   },
 
   filterText: {
 
-    fontFamily: "PoppinsSemiBold",
+    fontFamily: 'PoppinsMedium',
 
     fontSize: 10,
 
-    color: "#788397",
+    color: '#687386',
 
   },
 
   filterTextActive: {
 
-    color: "#FFFFFF",
+    color: '#FFFFFF',
 
   },
 
-  branchRow: {
-
-    paddingTop: 11,
-
-    gap: 9,
-
-  },
-
-  branchButton: {
-
-    minHeight: 43,
-
-    paddingHorizontal: 15,
-
-    borderRadius: 11,
-
-    backgroundColor: "#F8F9FC",
-
-    borderWidth: 1,
-
-    borderColor: "#E6E8EF",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  branchButtonActive: {
-
-    backgroundColor: "#7040D5",
-
-    borderColor: "#7040D5",
-
-  },
-
-  branchText: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 10,
-
-    color: "#7040D5",
-
-    marginLeft: 5,
-
-  },
-
-  branchTextActive: {
-
-    color: "#FFFFFF",
-
-  },
+  /* LIST */
 
   listHeader: {
 
-    flexDirection: "row",
+    flexDirection: 'row',
 
-    alignItems: "flex-end",
+    alignItems: 'center',
 
-    justifyContent: "space-between",
+    justifyContent: 'space-between',
 
-    marginBottom: 14,
+    marginBottom: 10,
 
   },
 
   listTitle: {
 
-    fontFamily: "PoppinsSemiBold",
+    fontFamily: 'PoppinsSemiBold',
 
-    fontSize: 20,
+    fontSize: 15,
 
-    color: "#202A3D",
-
-  },
-
-  listSubtitle: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 10.5,
-
-    color: "#7C879A",
-
-    marginTop: 1,
+    color: '#172033',
 
   },
 
   recordCount: {
 
-    fontFamily: "PoppinsRegular",
+    fontFamily: 'PoppinsMedium',
 
     fontSize: 10,
 
-    color: "#7C879A",
-
-    marginBottom: 2,
+    color: '#8A93A4',
 
   },
 
+  /* MESSAGE CARD */
+
   messageCard: {
 
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
 
-    borderRadius: 17,
-
-    padding: 20,
+    borderRadius: 16,
 
     borderWidth: 1,
 
-    borderColor: "#ECEEF4",
+    borderColor: '#EEF0F5',
 
-    borderLeftWidth: 3,
+    padding: 14,
 
-    marginBottom: 16,
+    marginBottom: 12,
+
+    shadowColor: '#000000',
+
+    shadowOffset: {
+
+      width: 0,
+
+      height: 2,
+
+    },
+
+    shadowOpacity: 0.04,
+
+    shadowRadius: 7,
 
     elevation: 2,
 
   },
 
-  messageTop: {
+  unreadMessageCard: {
 
-    flexDirection: "row",
+    borderColor: '#DDD1F8',
 
-    alignItems: "center",
+    backgroundColor: '#FEFDFF',
 
-    justifyContent: "space-between",
+  },
+
+  cardTopRow: {
+
+    flexDirection: 'row',
+
+    alignItems: 'flex-start',
+
+    justifyContent: 'space-between',
 
   },
 
@@ -1802,269 +3929,267 @@ const styles = StyleSheet.create({
 
     flex: 1,
 
-    flexDirection: "row",
+    flexDirection: 'row',
 
-    alignItems: "center",
+    alignItems: 'center',
+
+    gap: 9,
 
   },
 
   avatar: {
 
-    width: 53,
+    width: 43,
 
-    height: 53,
+    height: 43,
 
     borderRadius: 13,
 
-    backgroundColor: "#F0E8FF",
+    alignItems: 'center',
 
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    marginRight: 12,
+    justifyContent: 'center',
 
   },
 
-  senderInfo: {
+  avatarText: {
 
-    flex: 1,
+    fontFamily: 'PoppinsBold',
+
+    fontSize: 11.5,
 
   },
 
-  nameRow: {
+  senderNameRow: {
 
-    flexDirection: "row",
+    flexDirection: 'row',
 
-    alignItems: "center",
+    alignItems: 'center',
+
+    gap: 5,
 
   },
 
   senderName: {
 
-    fontFamily: "PoppinsSemiBold",
+    flexShrink: 1,
 
-    fontSize: 15,
+    fontFamily: 'PoppinsSemiBold',
 
-    color: "#202A3D",
+    color: '#172033',
+
+    fontSize: 12.5,
 
   },
 
   unreadDot: {
 
-    width: 8,
+    width: 6,
 
-    height: 8,
+    height: 6,
 
-    borderRadius: 4,
+    borderRadius: 3,
 
-    backgroundColor: "#E84D75",
-
-    marginLeft: 7,
+    backgroundColor: '#7040D5',
 
   },
 
-  senderMeta: {
+  senderRole: {
 
-    fontFamily: "PoppinsRegular",
+    fontFamily: 'PoppinsRegular',
 
-    fontSize: 9.5,
+    color: '#8A93A4',
 
-    color: "#9AA2B1",
+    fontSize: 8.5,
+
+    marginTop: 1,
+
+  },
+
+  dateArea: {
+
+    alignItems: 'flex-end',
+
+  },
+
+  messageTime: {
+
+    fontFamily: 'PoppinsRegular',
+
+    color: '#8A93A4',
+
+    fontSize: 8,
+
+  },
+
+  moreButton: {
+
+    width: 31,
+
+    height: 31,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
 
     marginTop: 2,
 
   },
 
-  statusBadge: {
+  subjectRow: {
 
-    paddingHorizontal: 14,
+    marginTop: 11,
 
-    paddingVertical: 9,
+    flexDirection: 'row',
 
-    borderRadius: 10,
+    alignItems: 'center',
 
-    marginLeft: 10,
-
-  },
-
-  statusText: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 9.5,
+    gap: 5,
 
   },
 
   subject: {
 
-    fontFamily: "PoppinsSemiBold",
+    flex: 1,
 
-    fontSize: 13,
+    fontFamily: 'PoppinsMedium',
 
-    color: "#202A3D",
-
-    marginTop: 15,
-
-  },
-
-  messageText: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 11,
-
-    color: "#687388",
-
-    lineHeight: 18,
-
-    marginTop: 6,
-
-    marginBottom: 20,
-
-  },
-
-  divider: {
-
-    height: 1,
-
-    backgroundColor: "#EEF0F4",
-
-    marginBottom: 14,
-
-  },
-
-  detailsGrid: {
-
-    flexDirection: "row",
-
-    flexWrap: "wrap",
-
-  },
-
-  detailItem: {
-
-    width: "50%",
-
-    marginBottom: 13,
-
-  },
-
-  detailLabel: {
-
-    fontFamily: "PoppinsRegular",
-
-    fontSize: 9.5,
-
-    color: "#8290A5",
-
-    marginBottom: 3,
-
-  },
-
-  detailValue: {
-
-    fontFamily: "PoppinsRegular",
+    color: '#313B4E',
 
     fontSize: 11.5,
 
-    color: "#263047",
+    lineHeight: 16,
 
   },
 
-  cardActions: {
+  unreadSubject: {
 
-    flexDirection: "row",
+    fontFamily: 'PoppinsSemiBold',
 
-    gap: 10,
-
-    marginTop: 2,
+    color: '#172033',
 
   },
 
-  editButton: {
+  preview: {
+
+    fontFamily: 'PoppinsRegular',
+
+    color: '#7B8496',
+
+    fontSize: 9,
+
+    lineHeight: 14,
+
+    marginTop: 5,
+
+  },
+
+  messageFooter: {
+
+    marginTop: 11,
+
+    paddingTop: 10,
+
+    borderTopWidth: 1,
+
+    borderTopColor: '#F0F1F5',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+
+  },
+
+  footerLeft: {
 
     flex: 1,
 
-    height: 40,
+    flexDirection: 'row',
 
-    borderRadius: 10,
+    alignItems: 'center',
 
-    backgroundColor: "#7040D5",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
+    gap: 7,
 
   },
 
-  editButtonText: {
+  categoryBadge: {
 
-    fontFamily: "PoppinsSemiBold",
+    paddingHorizontal: 8,
 
-    fontSize: 10,
+    paddingVertical: 5,
 
-    color: "#FFFFFF",
+    borderRadius: 7,
 
-    marginLeft: 6,
+    backgroundColor: '#F1EAFF',
 
   },
 
-  viewButton: {
+  categoryText: {
 
-    flex: 1,
+    fontFamily: 'PoppinsMedium',
 
-    height: 40,
+    color: '#7040D5',
 
-    borderRadius: 10,
+    fontSize: 7.5,
 
-    backgroundColor: "#FFFFFF",
+  },
+
+  messageDate: {
+
+    fontFamily: 'PoppinsRegular',
+
+    color: '#8A93A4',
+
+    fontSize: 7.5,
+
+  },
+
+  statusBadge: {
+
+    paddingHorizontal: 8,
+
+    paddingVertical: 5,
+
+    borderRadius: 7,
+
+  },
+
+  statusText: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 7.5,
+
+  },
+
+  /* EMPTY */
+
+  emptyBox: {
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 15,
+
+    minHeight: 220,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
 
     borderWidth: 1,
 
-    borderColor: "#7040D5",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  viewButtonText: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 10,
-
-    color: "#7040D5",
-
-    marginLeft: 6,
-
-  },
-
-  emptyState: {
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 17,
-
-    paddingVertical: 50,
-
-    alignItems: "center",
+    borderColor: '#EEF0F5',
 
   },
 
   emptyTitle: {
 
-    fontFamily: "PoppinsSemiBold",
+    fontFamily: 'PoppinsSemiBold',
 
-    fontSize: 14,
+    color: '#59657A',
 
-    color: "#202A3D",
+    fontSize: 13,
 
     marginTop: 10,
 
@@ -2072,87 +4197,111 @@ const styles = StyleSheet.create({
 
   emptyText: {
 
-    fontFamily: "PoppinsRegular",
+    fontFamily: 'PoppinsRegular',
+
+    color: '#9AA2B1',
 
     fontSize: 10,
-
-    color: "#8A94A6",
 
     marginTop: 3,
 
   },
 
+  /* MODALS */
+
   modalOverlay: {
 
     flex: 1,
 
-    backgroundColor: "rgba(15,20,32,0.48)",
+    backgroundColor:
 
-    justifyContent: "center",
+      'rgba(20, 24, 35, 0.48)',
 
-    padding: 20,
-
-  },
-
-  modalCard: {
-
-    maxHeight: "82%",
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 19,
-
-    padding: 20,
+    justifyContent: 'flex-end',
 
   },
 
-  editModalCard: {
+  actionModal: {
 
-    maxHeight: "90%",
+    backgroundColor: '#FFFFFF',
 
-    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 22,
 
-    borderRadius: 19,
+    borderTopRightRadius: 22,
 
-    padding: 20,
+    padding: 18,
+
+    paddingBottom: 28,
+
+  },
+
+  largeModal: {
+
+    backgroundColor: '#FFFFFF',
+
+    borderTopLeftRadius: 22,
+
+    borderTopRightRadius: 22,
+
+    maxHeight: '92%',
+
+    padding: 18,
+
+    paddingBottom: 28,
 
   },
 
   modalHeader: {
 
-    flexDirection: "row",
+    flexDirection: 'row',
 
-    alignItems: "center",
+    alignItems: 'flex-start',
 
-    justifyContent: "space-between",
+    justifyContent: 'space-between',
 
-    marginBottom: 18,
+    marginBottom: 16,
 
   },
 
   modalTitle: {
 
-    fontFamily: "PoppinsSemiBold",
+    fontFamily: 'PoppinsBold',
 
     fontSize: 17,
 
-    color: "#202A3D",
+    color: '#172033',
 
   },
 
   modalSubtitle: {
 
-    fontFamily: "PoppinsRegular",
+    fontFamily: 'PoppinsRegular',
 
     fontSize: 10,
 
-    color: "#8B96A8",
+    color: '#8A93A4',
 
     marginTop: 2,
 
   },
 
-  closeButton: {
+  actionItem: {
+
+    minHeight: 53,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    borderBottomWidth: 1,
+
+    borderBottomColor: '#F0F1F5',
+
+    gap: 11,
+
+  },
+
+  actionIcon: {
 
     width: 36,
 
@@ -2160,267 +4309,355 @@ const styles = StyleSheet.create({
 
     borderRadius: 10,
 
-    backgroundColor: "#F5F6FA",
+    alignItems: 'center',
 
-    alignItems: "center",
-
-    justifyContent: "center",
+    justifyContent: 'center',
 
   },
 
-  modalSender: {
+  actionText: {
 
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 18,
-
-    color: "#202A3D",
-
-    marginBottom: 8,
-
-  },
-
-  modalSubject: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 13,
-
-    color: "#202A3D",
-
-    marginBottom: 6,
-
-  },
-
-  modalMessage: {
-
-    fontFamily: "PoppinsRegular",
+    fontFamily: 'PoppinsMedium',
 
     fontSize: 11,
 
-    lineHeight: 18,
-
-    color: "#687388",
-
-    marginBottom: 15,
+    color: '#313B4E',
 
   },
 
-  modalGrid: {
+  /* VIEW MESSAGE */
 
-    flexDirection: "row",
+  messageDetailHeader: {
 
-    flexWrap: "wrap",
+    backgroundColor: '#F8F9FC',
 
-  },
+    borderRadius: 13,
 
-  modalDetail: {
-
-    width: "50%",
-
-    paddingVertical: 9,
+    padding: 12,
 
   },
 
-  modalEditButton: {
+  detailSenderRow: {
 
-    height: 45,
+    flexDirection: 'row',
 
-    borderRadius: 11,
+    alignItems: 'center',
 
-    backgroundColor: "#7040D5",
+    gap: 10,
 
-    flexDirection: "row",
+  },
 
-    alignItems: "center",
+  largeAvatar: {
 
-    justifyContent: "center",
+    width: 53,
+
+    height: 53,
+
+    borderRadius: 16,
+
+    backgroundColor: '#F1EAFF',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+  },
+
+  largeAvatarText: {
+
+    fontFamily: 'PoppinsBold',
+
+    color: '#7040D5',
+
+    fontSize: 15,
+
+  },
+
+  detailSenderName: {
+
+    fontFamily: 'PoppinsSemiBold',
+
+    color: '#172033',
+
+    fontSize: 13.5,
+
+  },
+
+  detailSenderRole: {
+
+    fontFamily: 'PoppinsRegular',
+
+    color: '#8A93A4',
+
+    fontSize: 9,
+
+    marginTop: 1,
+
+  },
+
+  detailMessageMeta: {
+
+    marginTop: 9,
+
+    flexDirection: 'row',
+
+    gap: 12,
+
+  },
+
+  metaText: {
+
+    fontFamily: 'PoppinsRegular',
+
+    color: '#8A93A4',
+
+    fontSize: 8.5,
+
+  },
+
+  detailSubjectRow: {
 
     marginTop: 15,
 
-  },
+    flexDirection: 'row',
 
-  modalEditText: {
+    alignItems: 'center',
 
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 11,
-
-    color: "#FFFFFF",
-
-    marginLeft: 7,
+    gap: 7,
 
   },
 
-  inputLabel: {
+  detailSubject: {
 
-    fontFamily: "PoppinsSemiBold",
+    flex: 1,
+
+    fontFamily: 'PoppinsBold',
+
+    color: '#172033',
+
+    fontSize: 15,
+
+    lineHeight: 21,
+
+  },
+
+  detailTags: {
+
+    flexDirection: 'row',
+
+    gap: 7,
+
+    marginTop: 9,
+
+  },
+
+  recipientBox: {
+
+    marginTop: 14,
+
+    backgroundColor: '#F8F9FC',
+
+    borderRadius: 10,
+
+    padding: 11,
+
+    flexDirection: 'row',
+
+    gap: 8,
+
+  },
+
+  recipientLabel: {
+
+    fontFamily: 'PoppinsMedium',
+
+    color: '#8A93A4',
+
+    fontSize: 9,
+
+  },
+
+  recipientValue: {
+
+    flex: 1,
+
+    fontFamily: 'PoppinsMedium',
+
+    color: '#313B4E',
+
+    fontSize: 9,
+
+  },
+
+  messageBodyBox: {
+
+    marginTop: 12,
+
+    backgroundColor: '#FFFFFF',
+
+    borderWidth: 1,
+
+    borderColor: '#EEF0F5',
+
+    borderRadius: 11,
+
+    padding: 13,
+
+  },
+
+  messageBody: {
+
+    fontFamily: 'PoppinsRegular',
+
+    color: '#59657A',
 
     fontSize: 10,
 
-    color: "#58657A",
+    lineHeight: 17,
 
-    marginBottom: 6,
+  },
 
-    marginTop: 5,
+  primaryButton: {
+
+    minHeight: 45,
+
+    backgroundColor: '#7040D5',
+
+    borderRadius: 11,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    gap: 7,
+
+    marginTop: 15,
+
+    marginBottom: 5,
+
+  },
+
+  primaryButtonText: {
+
+    color: '#FFFFFF',
+
+    fontFamily: 'PoppinsSemiBold',
+
+    fontSize: 11,
+
+  },
+
+  /* FORM */
+
+  inputLabel: {
+
+    fontFamily: 'PoppinsMedium',
+
+    color: '#59657A',
+
+    fontSize: 9.5,
+
+    marginBottom: 5,
+
+    marginTop: 10,
 
   },
 
   input: {
 
-    minHeight: 45,
-
-    borderWidth: 1,
-
-    borderColor: "#E1E4EB",
+    minHeight: 44,
 
     borderRadius: 10,
 
-    paddingHorizontal: 12,
+    borderWidth: 1,
 
-    fontFamily: "PoppinsRegular",
+    borderColor: '#E0E3EA',
 
-    fontSize: 11,
+    paddingHorizontal: 11,
 
-    color: "#263047",
+    color: '#172033',
 
-    marginBottom: 10,
+    fontFamily: 'PoppinsRegular',
+
+    fontSize: 10.5,
+
+    backgroundColor: '#FFFFFF',
 
   },
 
   textArea: {
 
-    minHeight: 85,
+    minHeight: 125,
 
-    paddingTop: 11,
+    paddingTop: 10,
 
-    textAlignVertical: "top",
-
-  },
-
-  optionsRow: {
-
-    flexDirection: "row",
-
-    flexWrap: "wrap",
-
-    gap: 8,
-
-    marginBottom: 11,
+    textAlignVertical: 'top',
 
   },
 
-  option: {
+  optionContainer: {
 
-    paddingHorizontal: 12,
+    gap: 7,
 
-    paddingVertical: 9,
+    paddingBottom: 2,
 
-    borderRadius: 10,
+  },
 
-    backgroundColor: "#F7F8FC",
+  inlineOptions: {
+
+    flexDirection: 'row',
+
+    flexWrap: 'wrap',
+
+    gap: 7,
+
+  },
+
+  optionButton: {
+
+    minHeight: 34,
+
+    paddingHorizontal: 11,
+
+    borderRadius: 9,
+
+    backgroundColor: '#FFFFFF',
 
     borderWidth: 1,
 
-    borderColor: "#E5E7EE",
+    borderColor: '#E2E5EC',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
 
   },
 
-  optionActive: {
+  optionButtonActive: {
 
-    backgroundColor: "#F0E8FF",
+    backgroundColor: '#F1EAFF',
 
-    borderColor: "#7040D5",
+    borderColor: '#7040D5',
 
   },
 
   optionText: {
 
-    fontFamily: "PoppinsSemiBold",
+    fontFamily: 'PoppinsMedium',
 
-    fontSize: 9.5,
+    fontSize: 9,
 
-    color: "#788397",
+    color: '#687386',
 
   },
 
   optionTextActive: {
 
-    color: "#7040D5",
+    color: '#7040D5',
 
-  },
-
-  modalActions: {
-
-    flexDirection: "row",
-
-    justifyContent: "flex-end",
-
-    gap: 9,
-
-    paddingTop: 8,
-
-    paddingBottom: 5,
-
-  },
-
-  cancelButton: {
-
-    minHeight: 45,
-
-    paddingHorizontal: 20,
-
-    borderRadius: 11,
-
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-
-    borderColor: "#DDDFE7",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  cancelText: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 10.5,
-
-    color: "#687388",
-
-  },
-
-  saveButton: {
-
-    minHeight: 45,
-
-    paddingHorizontal: 19,
-
-    borderRadius: 11,
-
-    backgroundColor: "#7040D5",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  saveText: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 10.5,
-
-    color: "#FFFFFF",
-
-    marginLeft: 7,
+    fontFamily: 'PoppinsSemiBold',
 
   },
 

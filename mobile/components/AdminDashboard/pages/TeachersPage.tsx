@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import {
 
+  ActivityIndicator,
+  Alert,
   Modal,
 
   ScrollView,
@@ -33,6 +35,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar';
 
 import * as NavigationBar from 'expo-navigation-bar';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
 
 
 
@@ -46,111 +50,87 @@ import * as NavigationBar from 'expo-navigation-bar';
 
 type TeacherStatus = 'Active' | 'Inactive';
 
-
-
 type Teacher = {
-
   id: string;
-
+  recordId: string;
+  userId: string;
   name: string;
-
+  email: string;
+  mobileNumber: string;
   subject: string;
-
   department: string;
-
   branch: string;
-
+  branchId: string;
+  qualification: string;
+  experience: string;
+  address: string;
   status: TeacherStatus;
-
 };
 
+const getId = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return String(value._id || value.id || '');
+};
 
+const mapTeacher = (
+  raw: any,
+  branchNames: Record<string, string> = {},
+): Teacher => {
+  const user = raw?.userId && typeof raw.userId === 'object' ? raw.userId : {};
+  const branchValue = user?.branchId;
+  const branchId = getId(branchValue) || (typeof branchValue === 'string' ? branchValue : '');
 
-/* =========================================================
+  // Prefer the populated branch document. If the API returns only an ObjectId,
+  // resolve it through the branch list fetched by loadTeachers().
+  const branch =
+    branchValue && typeof branchValue === 'object'
+      ? String(
+          branchValue.name ||
+          branchValue.branchName ||
+          branchValue.code ||
+          branchNames[branchId] ||
+          'Unknown Branch',
+        )
+      : branchNames[branchId] || (branchValue ? 'Branch name unavailable' : '—');
 
-   SAMPLE DATA
+  const statusValue = String(raw?.status || user?.status || 'active').toLowerCase();
 
-\========================================================= */
+  return {
+    id: String(raw?.employeeId || getId(raw)),
+    recordId: getId(raw),
+    userId: getId(user) || getId(raw?.userId),
+    name: String(user?.fullName || 'Unknown Teacher'),
+    email: String(user?.email || ''),
+    mobileNumber: String(user?.mobileNumber || ''),
+    subject: String(raw?.specialization || '—'),
+    department: String(raw?.qualification || '—'),
+    branch,
+    branchId,
+    qualification: String(raw?.qualification || ''),
+    experience: String(raw?.experience || ''),
+    address: String(raw?.address || ''),
+    status: statusValue === 'inactive' || statusValue === 'rejected' ? 'Inactive' : 'Active',
+  };
+};
 
+const getTeacherArray = (payload: any): any[] => {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.data?.teachers)) return payload.data.teachers;
+  if (Array.isArray(payload?.teachers)) return payload.teachers;
+  return [];
+};
 
-
-const teachers: Teacher[] = [
-
-  {
-
-    id: 'TCH001',
-
-    name: 'Amit Deshmukh',
-
-    subject: 'Physics',
-
-    department: 'Science',
-
-    branch: 'Pune',
-
-    status: 'Active',
-
-  },
-
-  {
-
-    id: 'TCH002',
-
-    name: 'Sneha Patil',
-
-    subject: 'Mathematics',
-
-    department: 'Science',
-
-    branch: 'Pune',
-
-    status: 'Active',
-
-  },
-
-  {
-
-    id: 'TCH003',
-
-    name: 'Rahul Kulkarni',
-
-    subject: 'Chemistry',
-
-    department: 'Science',
-
-    branch: 'Mumbai',
-
-    status: 'Inactive',
-
-  },
-
-  {
-
-    id: 'TCH004',
-
-    name: 'Priya Joshi',
-
-    subject: 'English',
-
-    department: 'Humanities',
-
-    branch: 'Pune',
-
-    status: 'Active',
-
-  },
-
-];
-
-
+const getBranchArray = (payload: any): any[] => {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.data?.branches)) return payload.data.branches;
+  if (Array.isArray(payload?.branches)) return payload.branches;
+  return [];
+};
 
 /* =========================================================
-
    COMPONENT
-
-\========================================================= */
-
-
+========================================================= */
 
 export default function TeachersPage() {
   const { width } = useWindowDimensions();
@@ -159,6 +139,10 @@ export default function TeachersPage() {
   const isMobile = width < 700;
   const isTablet = width >= 700 && width < 1100;
 
+ const [teachers, setTeachers] = useState<Teacher[]>([]);
+const [branchNames, setBranchNames] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
 
 
@@ -188,6 +172,58 @@ export default function TeachersPage() {
   const [editBranch, setEditBranch] = useState('');
 
   const [editStatus, setEditStatus] = useState<TeacherStatus>('Active');
+
+  const apiRequest = async (path: string, options: RequestInit = {}) => {
+    const token = await getToken();
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.success === false) {
+      throw new Error(payload?.message || `Request failed (${response.status})`);
+    }
+    return payload;
+  };
+
+  const loadTeachers = async () => {
+    setLoading(true);
+    try {
+      // Fetch branches as a fallback in case /teachers returns branchId as an ID
+      // instead of a populated Branch document.
+      let namesById: Record<string, string> = {};
+      try {
+        const branchesPayload = await apiRequest('/branches');
+        namesById = Object.fromEntries(
+          getBranchArray(branchesPayload)
+            .filter((branch: any) => branch?._id || branch?.id)
+            .map((branch: any) => [
+              String(branch._id || branch.id),
+              String(branch.name || branch.branchName || branch.code || 'Unknown Branch'),
+            ]),
+        );
+      } catch {
+        // The teachers endpoint may already return populated branch documents.
+        // Keep loading teachers even if the branch-list endpoint is unavailable.
+      }
+
+      const payload = await apiRequest('/teachers');
+      setTeachers(getTeacherArray(payload).map((teacher) => mapTeacher(teacher, namesById)));
+    } catch (error: any) {
+      Alert.alert('Unable to load teachers', error?.message || 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTeachers();
+  }, []);
+
 
 
 
@@ -299,7 +335,7 @@ export default function TeachersPage() {
 
     });
 
-  }, [search, filter]);
+  }, [teachers, search, filter]);
 
 
 
@@ -311,12 +347,9 @@ export default function TeachersPage() {
 
 
 
-  const handleAddTeacher = () => {
-
-    router.push('/(admin)/add-teacher' as never);
-
+  const handleRefresh = () => {
+    void loadTeachers();
   };
-
 
 
   const handleView = (teacher: Teacher) => {
@@ -337,7 +370,7 @@ export default function TeachersPage() {
 
     setEditSubject(teacher.subject);
 
-    setEditDepartment(teacher.department);
+    setEditDepartment(teacher.experience);
 
     setEditBranch(teacher.branch);
 
@@ -369,30 +402,39 @@ export default function TeachersPage() {
 
 
 
-  const saveEdit = () => {
-
+  const saveEdit = async () => {
     if (!selectedTeacher) return;
-
-
-
-    selectedTeacher.name = editName.trim() || selectedTeacher.name;
-
-    selectedTeacher.subject = editSubject.trim() || selectedTeacher.subject;
-
-    selectedTeacher.department =
-
-      editDepartment.trim() || selectedTeacher.department;
-
-    selectedTeacher.branch = editBranch.trim() || selectedTeacher.branch;
-
-    selectedTeacher.status = editStatus;
-
-
-
-    setSelectedTeacher({ ...selectedTeacher });
-
-    setEditVisible(false);
-
+    if (!editName.trim() || !editDepartment.trim()) {
+      Alert.alert('Required fields', 'Qualification and experience are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiRequest(`/teachers/${selectedTeacher.recordId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          qualification: editName.trim(),
+          specialization: editSubject.trim(),
+          experience: editDepartment.trim(),
+          address: editBranch.trim(),
+        }),
+      });
+      const current = selectedTeacher.status;
+      if (editStatus !== current) {
+        await apiRequest(`/teachers/${selectedTeacher.recordId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: editStatus.toLowerCase() }),
+        });
+      }
+      setEditVisible(false);
+      setSelectedTeacher(null);
+      await loadTeachers();
+      Alert.alert('Success', 'Teacher updated successfully.');
+    } catch (error: any) {
+      Alert.alert('Update failed', error?.message || 'Unable to update teacher.');
+    } finally {
+      setSaving(false);
+    }
   };
 
 
@@ -513,33 +555,20 @@ export default function TeachersPage() {
 
 
 
-          {/* PLUS BUTTON */}
-
-
-
+          {/* REFRESH BUTTON */}
           <TouchableOpacity
-
-            style={[
-              styles.addButton,
-              isMobile && styles.addButtonMobile,
-            ]}
-
+            style={[styles.addButton, isMobile && styles.addButtonMobile]}
             activeOpacity={0.85}
-
-            onPress={handleAddTeacher}
-
+            onPress={handleRefresh}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Refresh teachers"
           >
-
             <MaterialCommunityIcons
-
-              name="plus"
-
-              size={24}
-
+              name="refresh"
+              size={23}
               color="#7040D5"
-
             />
-
           </TouchableOpacity>
 
 
@@ -774,7 +803,12 @@ export default function TeachersPage() {
 
 
 
-            {filteredTeachers.map((teacher) => (
+            {loading ? (
+              <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#7040D5" />
+                <Text style={{ marginTop: 10, color: '#667085' }}>Loading teachers...</Text>
+              </View>
+            ) : filteredTeachers.map((teacher) => (
 
 
 
@@ -1091,47 +1125,7 @@ export default function TeachersPage() {
                   </TouchableOpacity>
 
 
-
-                  <TouchableOpacity
-
-                    style={styles.actionButton}
-
-                    activeOpacity={0.8}
-
-                    onPress={() => handleEdit(teacher)}
-
-                  >
-
-
-
-                    <MaterialCommunityIcons
-
-                      name="pencil-outline"
-
-                      size={15}
-
-                      color="#7040D5"
-
-                    />
-
-
-
-                    <Text style={styles.actionText}>
-
-                      Edit
-
-                    </Text>
-
-
-
-                  </TouchableOpacity>
-
-
-
                 </View>
-
-
-
               </View>
 
 
@@ -1148,7 +1142,7 @@ export default function TeachersPage() {
 
 
 
-            {filteredTeachers.length === 0 && (
+            {!loading && filteredTeachers.length === 0 && (
 
 
 
@@ -1492,7 +1486,7 @@ export default function TeachersPage() {
 
             >
 
-              <Text style={styles.inputLabel}>Teacher Name</Text>
+              <Text style={styles.inputLabel}>Qualification *</Text>
 
               <TextInput
 
@@ -1502,7 +1496,7 @@ export default function TeachersPage() {
 
                 style={styles.modalInput}
 
-                placeholder="Teacher name"
+                placeholder="Qualification"
 
                 placeholderTextColor="#A0AABB"
 
@@ -1510,7 +1504,7 @@ export default function TeachersPage() {
 
 
 
-              <Text style={styles.inputLabel}>Subject</Text>
+              <Text style={styles.inputLabel}>Specialization / Subject</Text>
 
               <TextInput
 
@@ -1528,7 +1522,7 @@ export default function TeachersPage() {
 
 
 
-              <Text style={styles.inputLabel}>Department</Text>
+              <Text style={styles.inputLabel}>Experience *</Text>
 
               <TextInput
 
@@ -1538,7 +1532,7 @@ export default function TeachersPage() {
 
                 style={styles.modalInput}
 
-                placeholder="Department"
+                placeholder="e.g. 3 years"
 
                 placeholderTextColor="#A0AABB"
 
@@ -1546,7 +1540,7 @@ export default function TeachersPage() {
 
 
 
-              <Text style={styles.inputLabel}>Branch</Text>
+              <Text style={styles.inputLabel}>Address</Text>
 
               <TextInput
 
@@ -1556,7 +1550,7 @@ export default function TeachersPage() {
 
                 style={styles.modalInput}
 
-                placeholder="Branch"
+                placeholder="Address"
 
                 placeholderTextColor="#A0AABB"
 
@@ -1639,6 +1633,7 @@ export default function TeachersPage() {
                   activeOpacity={0.85}
 
                   onPress={saveEdit}
+                  disabled={saving}
 
                 >
 
@@ -1652,7 +1647,7 @@ export default function TeachersPage() {
 
                   />
 
-                  <Text style={styles.modalSaveText}>Save Changes</Text>
+                  <Text style={styles.modalSaveText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
 
                 </TouchableOpacity>
 
@@ -1744,7 +1739,7 @@ const styles = StyleSheet.create({
 
     paddingTop: 14,
 
-    paddingBottom: 24,
+    paddingBottom: 50,
 
   },
 
@@ -2489,7 +2484,7 @@ const styles = StyleSheet.create({
 
     columnGap: 20,
 
-
+    marginBottom: 10,
 
     rowGap: 8,
 
@@ -2504,6 +2499,7 @@ const styles = StyleSheet.create({
 
 
     flexGrow: 1,
+
 
   },
 
@@ -2544,6 +2540,7 @@ const styles = StyleSheet.create({
 
 
     color: '#202B3E',
+
 
   },
 
@@ -3174,7 +3171,4 @@ const styles = StyleSheet.create({
     marginLeft: 5,
 
   },
-
-
-
 });
