@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import * as SecureStore from "expo-secure-store";
+import { API_BASE_URL } from "@/config/api";
 
 import {
   Alert,
@@ -28,6 +30,7 @@ type Standard = "8th" | "9th" | "10th" | "11th" | "12th";
 
 type Batch = {
   id: string;
+  branchId: string;
   name: string;
   code: string;
   standard: Standard;
@@ -76,129 +79,6 @@ type Teacher = {
 /* =========================================================
    SAMPLE DATA
 ========================================================= */
-
-const initialBatches: Batch[] = [
-  {
-    id: "1",
-    name: "10th Standard - Morning",
-    code: "VC-10TH-MOR",
-    standard: "10th",
-    academicYear: "2026-27",
-    branch: "Talegaon",
-    startDate: "01 Jun 2026",
-    endDate: "31 Mar 2027",
-    students: 32,
-    capacity: 40,
-    schedule: {
-      startTime: "08:00 AM",
-      endTime: "10:00 AM",
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    },
-    description: "10th standard morning batch",
-  },
-
-  {
-    id: "2",
-    name: "10th Standard - Evening",
-    code: "VC-10TH-EVE",
-    standard: "10th",
-    academicYear: "2026-27",
-    branch: "Talegaon",
-    startDate: "01 Jun 2026",
-    endDate: "31 Mar 2027",
-    students: 28,
-    capacity: 40,
-    schedule: {
-      startTime: "05:00 PM",
-      endTime: "07:00 PM",
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    },
-    description: "10th standard evening batch",
-  },
-
-  {
-    id: "3",
-    name: "JEE 2026 Morning",
-    code: "VC-JEE-MOR",
-    standard: "12th",
-    academicYear: "2026-27",
-    branch: "Talegaon",
-    startDate: "01 Jun 2026",
-    endDate: "30 Apr 2027",
-    students: 41,
-    capacity: 50,
-    schedule: {
-      startTime: "07:00 AM",
-      endTime: "10:00 AM",
-      days: [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-      ],
-    },
-    description: "JEE preparation morning batch",
-  },
-
-  {
-    id: "4",
-    name: "9th Standard - Evening",
-    code: "VC-9TH-EVE",
-    standard: "9th",
-    academicYear: "2026-27",
-    branch: "Talegaon",
-    startDate: "15 Jun 2026",
-    endDate: "31 Mar 2027",
-    students: 24,
-    capacity: 35,
-    schedule: {
-      startTime: "05:30 PM",
-      endTime: "07:00 PM",
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    },
-    description: "9th standard evening batch",
-  },
-
-  {
-    id: "5",
-    name: "8th Foundation - Evening",
-    code: "VC-8TH-EVE",
-    standard: "8th",
-    academicYear: "2026-27",
-    branch: "Talegaon",
-    startDate: "01 Jul 2026",
-    endDate: "31 Mar 2027",
-    students: 21,
-    capacity: 30,
-    schedule: {
-      startTime: "05:00 PM",
-      endTime: "06:30 PM",
-      days: ["Monday", "Wednesday", "Friday"],
-    },
-    description: "8th standard foundation batch",
-  },
-
-  {
-    id: "6",
-    name: "12th Science - Evening",
-    code: "VC-12SCI-EVE",
-    standard: "12th",
-    academicYear: "2026-27",
-    branch: "Talegaon",
-    startDate: "01 Jun 2026",
-    endDate: "31 Mar 2027",
-    students: 34,
-    capacity: 40,
-    schedule: {
-      startTime: "05:00 PM",
-      endTime: "08:00 PM",
-      days: ["Monday", "Tuesday", "Thursday", "Friday", "Saturday"],
-    },
-    description: "12th Science regular batch",
-  },
-];
 
 const sampleSubjects: Subject[] = [
   {
@@ -279,6 +159,7 @@ const sampleTeachers: Teacher[] = [
     branch: "Talegaon",
   },
 ];
+
 
 const initialBatchSubjects: BatchSubject[] = [
   {
@@ -513,6 +394,93 @@ function BatchStatusDonut({
   );
 }
 
+type ApiBatch = {
+  _id: string;
+  name: string;
+  code: string;
+  standard: Standard;
+  academicYear: string;
+  branchId: string | { _id: string; name: string; code?: string };
+  startDate: string;
+  endDate: string;
+  schedule: { startTime: string; endTime: string; days: string[] };
+  capacity: number;
+  description?: string;
+  status?: string;
+  isRemoved?: boolean;
+};
+
+function displayDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function dateForApi(value: string): string | null {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function timeForApi(value: string): string | null {
+  const text = value.trim().toUpperCase();
+  const twelve = text.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (twelve) {
+    let hour = Number(twelve[1]);
+    const minute = Number(twelve[2]);
+    if (hour < 1 || hour > 12 || minute > 59) return null;
+    if (twelve[3] === 'AM') hour = hour === 12 ? 0 : hour;
+    else hour = hour === 12 ? 12 : hour + 12;
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  }
+  if (/^\d{2}:\d{2}$/.test(text)) return text;
+  return null;
+}
+
+function displayTime(value: string): string {
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return value;
+  const date = new Date();
+  date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function mapApiBatch(item: ApiBatch): Batch {
+  const branch = typeof item.branchId === 'string' ? null : item.branchId;
+  const branchId = typeof item.branchId === 'string' ? item.branchId : item.branchId?._id;
+  return {
+    id: item._id,
+    branchId: branchId || '',
+    name: item.name,
+    code: item.code,
+    standard: item.standard,
+    academicYear: item.academicYear,
+    branch: branch?.name || 'Unknown branch',
+    startDate: displayDate(item.startDate),
+    endDate: displayDate(item.endDate),
+    students: 0,
+    capacity: Number(item.capacity || 0),
+    schedule: {
+      startTime: displayTime(item.schedule?.startTime || ''),
+      endTime: displayTime(item.schedule?.endTime || ''),
+      days: item.schedule?.days || [],
+    },
+    description: item.description || '',
+    removed: Boolean(item.isRemoved),
+  };
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await SecureStore.getItemAsync('auth_token');
+  if (!token) throw new Error('Your session has expired. Please log in again.');
+  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+}
+
 /* =========================================================
    MAIN PAGE
 ========================================================= */
@@ -524,7 +492,9 @@ export default function BatchesPage() {
   const isSmallScreen = width < 390;
 
   const [batches, setBatches] =
-    useState<Batch[]>(initialBatches);
+    useState<Batch[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(true);
+  const [savingBatch, setSavingBatch] = useState(false);
 
   const [batchSubjects, setBatchSubjects] =
     useState<BatchSubject[]>(initialBatchSubjects);
@@ -578,6 +548,26 @@ export default function BatchesPage() {
     useState("");
   const [editEndTime, setEditEndTime] =
     useState("");
+
+  const fetchBatches = useCallback(async () => {
+    setLoadingBatches(true);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`${API_BASE_URL}/batches`, { method: 'GET', headers });
+      const result = await response.json();
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || 'Unable to load batches.');
+      }
+      const rows: ApiBatch[] = result.data?.batches || [];
+      setBatches(rows.map(mapApiBatch));
+    } catch (error) {
+      Alert.alert('Unable to load batches', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setLoadingBatches(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchBatches(); }, [fetchBatches]);
 
   /* =========================================================
      FILTERING
@@ -662,15 +652,18 @@ export default function BatchesPage() {
         {
           text: "Remove",
           style: "destructive",
-          onPress: () => {
-            setBatches((current) =>
-              current.map((batch) =>
-                batch.id === batchToRemove.id
-                  ? { ...batch, removed: true }
-                  : batch,
-              ),
-            );
-            setSelectedBatch(null);
+          onPress: async () => {
+            try {
+              const headers = await authHeaders();
+              const response = await fetch(`${API_BASE_URL}/batches/${batchToRemove.id}/remove`, { method: 'PATCH', headers });
+              const result = await response.json();
+              if (!response.ok || result.success === false) throw new Error(result.message || 'Unable to remove batch.');
+              setBatches((current) => current.filter((batch) => batch.id !== batchToRemove.id));
+              setSelectedBatch(null);
+              Alert.alert('Success', result.message || 'Batch removed successfully.');
+            } catch (error) {
+              Alert.alert('Remove failed', error instanceof Error ? error.message : 'Please try again.');
+            }
           },
         },
       ],
@@ -741,32 +734,55 @@ export default function BatchesPage() {
       return;
     }
 
-    setBatches((current) =>
-      current.map((batch) =>
-        batch.id === selectedBatch.id
-          ? {
-              ...batch,
-              name: editName.trim(),
-              startDate: editStartDate.trim(),
-              endDate: editEndDate.trim(),
-              capacity: capacityNumber,
-              schedule: {
-                ...batch.schedule,
-                startTime: editStartTime.trim(),
-                endTime: editEndTime.trim(),
-              },
-            }
-          : batch,
-      ),
-    );
+    const startDate = dateForApi(editStartDate);
+    const endDate = dateForApi(editEndDate);
+    const startTime = timeForApi(editStartTime);
+    const endTime = timeForApi(editEndTime);
+    if (!startDate || !endDate) {
+      Alert.alert('Invalid date', 'Enter dates such as 01 Jun 2027 or 2027-06-01.');
+      return;
+    }
+    if (!startTime || !endTime) {
+      Alert.alert('Invalid time', 'Enter times such as 08:00 AM or 17:00.');
+      return;
+    }
+    if (new Date(startDate) > new Date(endDate)) {
+      Alert.alert('Invalid date range', 'Start date cannot be after end date.');
+      return;
+    }
+    if (!selectedBatch.branchId) {
+      Alert.alert('Missing branch', 'This batch has no branch ID. Reload batches and try again.');
+      return;
+    }
 
-    setSelectedBatch(null);
-    setEditVisible(false);
-
-    Alert.alert(
-      "Success",
-      "Batch updated successfully.",
-    );
+    setSavingBatch(true);
+    void (async () => {
+      try {
+        const headers = await authHeaders();
+        const response = await fetch(`${API_BASE_URL}/batches/${selectedBatch.id}`, {
+          method: 'PUT', headers,
+          body: JSON.stringify({
+            name: editName.trim(), code: selectedBatch.code, standard: selectedBatch.standard,
+            academicYear: selectedBatch.academicYear, branchId: selectedBatch.branchId,
+            startDate, endDate,
+            schedule: { startTime, endTime, days: selectedBatch.schedule.days },
+            capacity: capacityNumber, description: selectedBatch.description || '',
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok || result.success === false) throw new Error(result.message || 'Unable to update batch.');
+        const updated = result.data?.batch as ApiBatch | undefined;
+        if (updated) setBatches((current) => current.map((batch) => batch.id === selectedBatch.id ? mapApiBatch(updated) : batch));
+        else await fetchBatches();
+        setSelectedBatch(null);
+        setEditVisible(false);
+        Alert.alert('Success', result.message || 'Batch updated successfully.');
+      } catch (error) {
+        Alert.alert('Update failed', error instanceof Error ? error.message : 'Please try again.');
+      } finally {
+        setSavingBatch(false);
+      }
+    })();
   };
 
   /* =========================================================
@@ -1273,6 +1289,8 @@ export default function BatchesPage() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {loadingBatches && <Text style={{ paddingVertical: 10, color: '#707584' }}>Loading batches from server...</Text>}
+        {!loadingBatches && batches.length === 0 && <View style={{ paddingVertical: 10, gap: 8 }}><Text style={{ color: '#707584' }}>No batches found yet.</Text><TouchableOpacity onPress={() => void fetchBatches()}><Text style={{ color: '#7040D5', fontWeight: '700' }}>Retry loading</Text></TouchableOpacity></View>}
         {/* TITLE */}
 
         <View style={styles.pageTitleContainer}>
@@ -2616,8 +2634,9 @@ export default function BatchesPage() {
               )}
 
               <TouchableOpacity
-                style={styles.saveButton}
+                style={[styles.saveButton, savingBatch && { opacity: 0.6 }]}
                 onPress={saveEdit}
+                disabled={savingBatch}
               >
                 <MaterialCommunityIcons
                   name="content-save-outline"
@@ -2628,7 +2647,7 @@ export default function BatchesPage() {
                 <Text
                   style={styles.saveButtonText}
                 >
-                  Save Changes
+                  {savingBatch ? 'Saving...' : 'Save Changes'}
                 </Text>
               </TouchableOpacity>
             </ScrollView>

@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { API_BASE_URL } from "@/config/api";
+import * as SecureStore from "expo-secure-store";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -117,6 +119,7 @@ export default function AddBranchPage() {
   const [contactNumber, setContactNumber] = useState("");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("Active");
+  const [saving, setSaving] = useState(false);
 
   const stateOptions = [
     "Maharashtra",
@@ -127,13 +130,13 @@ export default function AddBranchPage() {
 
   const statusOptions = ["Active", "Inactive"];
 
-  const handleAddBranch = () => {
+  const handleAddBranch = async () => {
     if (
       !branchName.trim() ||
       !branchCode.trim() ||
       !address.trim() ||
       !city.trim() ||
-      !state ||
+      !state.trim() ||
       !contactNumber.trim()
     ) {
       Alert.alert(
@@ -151,27 +154,55 @@ export default function AddBranchPage() {
       return;
     }
 
-    if (
-      email.trim() &&
-      !/^\S+@\S+\.\S+$/.test(email.trim())
-    ) {
-      Alert.alert(
-        "Invalid Email",
-        "Please enter a valid email address."
-      );
+    if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
       return;
     }
 
-    Alert.alert(
-      "Branch Added",
-      `${branchName} has been added successfully.`,
-      [
-        {
-          text: "OK",
-          onPress: () => router.back(),
+    try {
+      setSaving(true);
+      const token = await SecureStore.getItemAsync("auth_token");
+
+      if (!token) {
+        Alert.alert("Session Expired", "Please log in again.");
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/admin/branches`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-      ]
-    );
+        body: JSON.stringify({
+          name: branchName.trim(),
+          code: branchCode.trim().toUpperCase(),
+          address: address.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          contactNumber: contactNumber.trim(),
+          email: email.trim(),
+          status: status.toLowerCase(),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Unable to create branch.");
+      }
+
+      Alert.alert("Branch Added", `${branchName.trim()} has been added successfully.`, [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      Alert.alert(
+        "Unable to Add Branch",
+        error instanceof Error ? error.message : "Please try again."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -440,6 +471,7 @@ export default function AddBranchPage() {
             style={styles.addButton}
             activeOpacity={0.85}
             onPress={handleAddBranch}
+            disabled={saving}
           >
             <MaterialCommunityIcons
               name="plus"
@@ -448,7 +480,7 @@ export default function AddBranchPage() {
             />
 
             <Text style={styles.addButtonText}>
-              Add Branch
+              {saving ? "Saving..." : "Add Branch"}
             </Text>
           </TouchableOpacity>
         </View>

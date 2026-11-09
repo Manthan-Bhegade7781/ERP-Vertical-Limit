@@ -13,6 +13,8 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as SecureStore from "expo-secure-store";
+import { API_BASE_URL } from "@/config/api";
 
 const PURPLE = "#7040D5";
 
@@ -25,37 +27,70 @@ export default function AddAcademicYearPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [status, setStatus] = useState("Active");
+  const [saving, setSaving] = useState(false);
 
   const handleBack = () => {
     router.back();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!academicYear.trim()) {
       Alert.alert("Required Field", "Please enter the academic year.");
       return;
     }
-
-    if (!startDate.trim()) {
-      Alert.alert("Required Field", "Please enter the start date.");
+    const parseDate = (value: string) => {
+      const match = value.trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+      if (!match) return null;
+      const day = Number(match[1]);
+      const month = Number(match[2]);
+      const year = Number(match[3]);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+      return date.toISOString();
+    };
+    const apiStartDate = parseDate(startDate);
+    const apiEndDate = parseDate(endDate);
+    if (!apiStartDate) {
+      Alert.alert("Invalid Start Date", "Enter a valid start date in DD/MM/YYYY format.");
       return;
     }
-
-    if (!endDate.trim()) {
-      Alert.alert("Required Field", "Please enter the end date.");
+    if (!apiEndDate) {
+      Alert.alert("Invalid End Date", "Enter a valid end date in DD/MM/YYYY format.");
       return;
     }
-
-    Alert.alert(
-      "Academic Year Added",
-      `${academicYear.trim()} academic year has been added successfully.`,
-      [
-        {
-          text: "OK",
-          onPress: () => router.back(),
+    if (new Date(apiStartDate).getTime() >= new Date(apiEndDate).getTime()) {
+      Alert.alert("Invalid Date Range", "End date must be after start date.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const token = await SecureStore.getItemAsync("auth_token");
+      if (!token) throw new Error("Your session has expired. Please sign in again.");
+      const response = await fetch(`${API_BASE_URL}/academic-years`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      ]
-    );
+        body: JSON.stringify({
+          name: academicYear.trim(),
+          startDate: apiStartDate,
+          endDate: apiEndDate,
+          status: status.toLowerCase(),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || "Could not create the academic year.");
+      }
+      Alert.alert("Academic Year Added", result.message || `${academicYear.trim()} academic year has been added successfully.`, [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      Alert.alert("Save Failed", error instanceof Error ? error.message : "Could not create the academic year.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -188,8 +223,9 @@ export default function AddAcademicYearPage() {
               </Pressable>
 
               <Pressable
-                style={styles.saveButton}
+                style={[styles.saveButton, saving && { opacity: 0.6 }]}
                 onPress={handleSave}
+                disabled={saving}
               >
                 <MaterialCommunityIcons
                   name="check"
@@ -198,7 +234,7 @@ export default function AddAcademicYearPage() {
                 />
 
                 <Text style={styles.saveButtonText}>
-                  Save Academic Year
+                  {saving ? "Saving..." : "Save Academic Year"}
                 </Text>
               </Pressable>
             </View>

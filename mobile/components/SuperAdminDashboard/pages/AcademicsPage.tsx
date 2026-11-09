@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -13,6 +13,8 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { API_BASE_URL } from "@/config/api";
 
 const PURPLE = "#7040D5";
 
@@ -24,24 +26,44 @@ type AcademicYear = {
   status: "Active" | "Inactive";
 };
 
-const initialAcademicYears: AcademicYear[] = [
-  {
-    id: "ay-2026-27",
-    name: "2026-27",
-    startDate: "01/06/2026",
-    endDate: "31/03/2027",
-    status: "Active",
-  },
-  {
-    id: "ay-2025-26",
-    name: "2025-26",
-    startDate: "01/06/2025",
-    endDate: "31/03/2026",
-    status: "Inactive",
-  },
-];
-
 const FILTER_OPTIONS = ["All", "Active", "Inactive"];
+
+function formatDateForDisplay(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function dateForApi(value: string): string | null {
+  const trimmed = value.trim();
+  let year: number, month: number, day: number;
+  const dmy = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dmy) {
+    day = Number(dmy[1]); month = Number(dmy[2]); year = Number(dmy[3]);
+  } else if (iso) {
+    year = Number(iso[1]); month = Number(iso[2]); day = Number(iso[3]);
+  } else {
+    return null;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return date.toISOString();
+}
+
+function mapAcademicYear(item: any): AcademicYear {
+  return {
+    id: String(item._id ?? item.id),
+    name: String(item.name ?? ""),
+    startDate: formatDateForDisplay(item.startDate),
+    endDate: formatDateForDisplay(item.endDate),
+    status: String(item.status ?? "inactive").toLowerCase() === "active" ? "Active" : "Inactive",
+  };
+}
+
 
 export default function AcademicsPage() {
   const insets = useSafeAreaInsets();
@@ -53,9 +75,44 @@ export default function AcademicsPage() {
     ? Math.min(width - 250 - 40, 1500)
     : width - 32;
 
-  const [academicYears, setAcademicYears] = useState<AcademicYear[]>(
-    initialAcademicYears
-  );
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const getAuthHeaders = useCallback(async () => {
+    const token = await SecureStore.getItemAsync("auth_token");
+    if (!token) throw new Error("Your session has expired. Please sign in again.");
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+  }, []);
+
+  const fetchAcademicYears = useCallback(async () => {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/academic-years`, { headers });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || "Could not load academic years.");
+      }
+      const rows = result?.data?.academicYears;
+      setAcademicYears(Array.isArray(rows) ? rows.map(mapAcademicYear) : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load academic years.";
+      Alert.alert("Academic Years", message, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Retry", onPress: () => { void fetchAcademicYears(); } },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    void fetchAcademicYears();
+  }, [fetchAcademicYears]);
 
   const [search, setSearch] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("All");
@@ -116,34 +173,17 @@ export default function AcademicsPage() {
   };
 
   const handleToggleStatus = (year: AcademicYear) => {
-    const nextStatus =
-      year.status === "Active" ? "Inactive" : "Active";
-
-    if (nextStatus === "Active") {
-      const anotherActiveYear = academicYears.find(
-        (item) =>
-          item.id !== year.id &&
-          item.status === "Active"
-      );
-
-      if (anotherActiveYear) {
-        Alert.alert(
-          "Active Academic Year",
-          `${anotherActiveYear.name} is already active. Only one academic year should be active at a time.`
-        );
-        return;
-      }
-    }
-
-    setAcademicYears((current) =>
-      current.map((item) =>
-        item.id === year.id
-          ? {
-              ...item,
-              status: nextStatus,
-            }
-          : item
-      )
+    const nextStatus = year.status === "Active" ? "Inactive" : "Active";
+    Alert.alert(
+      `${nextStatus === "Active" ? "Activate" : "Deactivate"} Academic Year`,
+      `Are you sure you want to ${nextStatus === "Active" ? "activate" : "deactivate"} ${year.name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => { void saveAcademicYear(year, year.name, year.startDate, year.endDate, nextStatus); },
+        },
+      ]
     );
   };
 
@@ -155,69 +195,63 @@ export default function AcademicsPage() {
     setEditStatus(year.status);
   };
 
+  const saveAcademicYear = async (
+    original: AcademicYear,
+    name: string,
+    startDate: string,
+    endDate: string,
+    status: "Active" | "Inactive"
+  ) => {
+    const cleanName = name.trim();
+    if (!cleanName) {
+      Alert.alert("Required Field", "Please enter the academic year.");
+      return;
+    }
+    const apiStartDate = dateForApi(startDate);
+    const apiEndDate = dateForApi(endDate);
+    if (!apiStartDate) {
+      Alert.alert("Invalid Date", "Enter a valid start date in DD/MM/YYYY format.");
+      return;
+    }
+    if (!apiEndDate) {
+      Alert.alert("Invalid Date", "Enter a valid end date in DD/MM/YYYY format.");
+      return;
+    }
+    if (new Date(apiStartDate).getTime() >= new Date(apiEndDate).getTime()) {
+      Alert.alert("Invalid Date Range", "End date must be after start date.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/academic-years/${original.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ name: cleanName, startDate: apiStartDate, endDate: apiEndDate, status: status.toLowerCase() }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || "Could not update the academic year.");
+      }
+      const updated = result?.data?.academicYear;
+      if (updated) {
+        setAcademicYears((current) => current.map((item) => item.id === original.id ? mapAcademicYear(updated) : (status === "Active" ? { ...item, status: "Inactive" } : item)));
+      } else {
+        await fetchAcademicYears();
+      }
+      setEditingYear(null);
+      Alert.alert("Academic Year Updated", result.message || `${cleanName} has been updated successfully.`);
+      if (status === "Active") await fetchAcademicYears();
+    } catch (error) {
+      Alert.alert("Update Failed", error instanceof Error ? error.message : "Could not update the academic year.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveEditedAcademicYear = () => {
     if (!editingYear) return;
-
-    if (!editYearName.trim()) {
-      Alert.alert(
-        "Required Field",
-        "Please enter the academic year."
-      );
-      return;
-    }
-
-    if (!editStartDate.trim()) {
-      Alert.alert(
-        "Required Field",
-        "Please enter the start date."
-      );
-      return;
-    }
-
-    if (!editEndDate.trim()) {
-      Alert.alert(
-        "Required Field",
-        "Please enter the end date."
-      );
-      return;
-    }
-
-    if (editStatus === "Active") {
-      const anotherActiveYear = academicYears.find(
-        (item) =>
-          item.id !== editingYear.id &&
-          item.status === "Active"
-      );
-
-      if (anotherActiveYear) {
-        Alert.alert(
-          "Active Academic Year",
-          `${anotherActiveYear.name} is already active. Only one academic year should be active at a time.`
-        );
-        return;
-      }
-    }
-
-    setAcademicYears((current) =>
-      current.map((item) =>
-        item.id === editingYear.id
-          ? {
-              ...item,
-              name: editYearName.trim(),
-              startDate: editStartDate.trim(),
-              endDate: editEndDate.trim(),
-              status: editStatus,
-            }
-          : item
-      )
-    );
-
-    setEditingYear(null);
-
-    Alert.alert(
-      "Academic Year Updated",
-      `${editYearName.trim()} has been updated successfully.`
-    );
+    void saveAcademicYear(editingYear, editYearName, editStartDate, editEndDate, editStatus);
   };
 
   return (
@@ -684,8 +718,7 @@ export default function AcademicsPage() {
                 />
 
                 <Text style={styles.editNoteText}>
-                  Changes are currently saved locally. The API
-                  update will be connected later.
+                  Changes are saved to the academic year records in the system.
                 </Text>
               </View>
             </ScrollView>
@@ -703,8 +736,9 @@ export default function AcademicsPage() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.editSaveButton}
+                style={[styles.editSaveButton, saving && { opacity: 0.6 }]}
                 onPress={handleSaveEditedAcademicYear}
+                disabled={saving}
                 activeOpacity={0.85}
               >
                 <MaterialCommunityIcons
@@ -714,7 +748,7 @@ export default function AcademicsPage() {
                 />
 
                 <Text style={styles.editSaveText}>
-                  Save Changes
+                  {saving ? "Saving..." : "Save Changes"}
                 </Text>
               </TouchableOpacity>
             </View>

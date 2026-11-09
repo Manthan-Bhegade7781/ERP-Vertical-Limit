@@ -6,7 +6,16 @@ const { hashPassword } = require("./password");
 
 const seedSuperAdmin = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    
+const mongoUri =
+  process.env.MONGODB_URI || process.env.MONGO_URI;
+
+if (!mongoUri) {
+  throw new Error("MongoDB URI is missing from .env");
+}
+
+await mongoose.connect(mongoUri);
+
 
     const email = "superadmin@verticalclasses.com";
     const password = "SuperAdmin@123";

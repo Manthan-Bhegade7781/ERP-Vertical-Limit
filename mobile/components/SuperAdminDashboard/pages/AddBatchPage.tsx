@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  FlatList,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +13,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { API_BASE_URL } from '@/config/api';
+import * as SecureStore from 'expo-secure-store';
 
 type Option = {
   label: string;
@@ -25,19 +29,84 @@ const standardOptions: Option[] = [
   { label: '12th', value: '12th' },
 ];
 
-const academicYearOptions: Option[] = [
-  { label: '2026-27', value: '2026-27' },
-  { label: '2027-28', value: '2027-28' },
-  { label: '2028-29', value: '2028-29' },
-];
+type BranchItem = { _id: string; name: string; code?: string; status?: string; isActive?: boolean; isRemoved?: boolean };
+type AcademicYearItem = { _id: string; name: string; status?: string; isActive?: boolean; isRemoved?: boolean };
 
-const branchOptions: Option[] = [
-  { label: 'Pune Branch', value: 'pune' },
-  { label: 'Mumbai Branch', value: 'mumbai' },
-  { label: 'Nashik Branch', value: 'nashik' },
-  { label: 'Nagpur Branch', value: 'nagpur' },
-  { label: 'Main Branch', value: 'main' },
-];
+type ApiEnvelope = {
+  success?: boolean;
+  message?: string;
+  data?: unknown;
+  branches?: unknown;
+  academicYears?: unknown;
+};
+
+function getRows<T>(payload: ApiEnvelope, key: 'branches' | 'academicYears'): T[] {
+  const data = payload?.data;
+  let rows: unknown;
+
+  if (Array.isArray(data)) {
+    rows = data;
+  } else if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    rows = record[key] ?? record.items ?? record.results;
+  }
+
+  if (!Array.isArray(rows)) {
+    rows = payload?.[key];
+  }
+
+  return Array.isArray(rows) ? (rows as T[]) : [];
+}
+
+function isActiveOption(item: { status?: string; isActive?: boolean; isRemoved?: boolean }): boolean {
+  if (item.isRemoved === true || item.isActive === false) return false;
+  if (!item.status) return true;
+  const status = item.status.trim().toLowerCase();
+  return status === 'active' || status === 'current' || status === 'ongoing';
+}
+
+async function readApiResponse(response: Response): Promise<ApiEnvelope> {
+  const rawText = await response.text();
+  let payload: ApiEnvelope = {};
+  if (rawText.trim()) {
+    try {
+      payload = JSON.parse(rawText) as ApiEnvelope;
+    } catch {
+      throw new Error(`Server returned an invalid response (HTTP ${response.status}).`);
+    }
+  }
+  if (!response.ok || payload.success === false) {
+    throw new Error(payload.message || `Request failed (HTTP ${response.status}).`);
+  }
+  return payload;
+}
+
+function toApiDate(value: string): string | null {
+  const text = value.trim();
+  const dmy = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmy) {
+    const date = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    if (date.getFullYear() !== Number(dmy[3]) || date.getMonth() !== Number(dmy[2]) - 1 || date.getDate() !== Number(dmy[1])) return null;
+    return `${dmy[3]}-${String(Number(dmy[2])).padStart(2, '0')}-${String(Number(dmy[1])).padStart(2, '0')}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  return null;
+}
+
+function toApiTime(value: string): string | null {
+  const text = value.trim().toUpperCase();
+  const match = text.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (match) {
+    let hour = Number(match[1]); const minute = Number(match[2]);
+    if (hour < 1 || hour > 12 || minute > 59) return null;
+    if (match[3] === 'AM') hour = hour === 12 ? 0 : hour;
+    else hour = hour === 12 ? 12 : hour + 12;
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  }
+  const h24 = text.match(/^(\d{2}):(\d{2})$/);
+  if (h24 && Number(h24[1]) < 24 && Number(h24[2]) < 60) return text;
+  return null;
+}
 
 const dayOptions: Option[] = [
   { label: 'Monday', value: 'Monday' },
@@ -56,6 +125,8 @@ function SelectField({
   options,
   required = false,
   onChange,
+  disabled = false,
+  loading = false,
 }: {
   label: string;
   value: string;
@@ -63,8 +134,12 @@ function SelectField({
   options: Option[];
   required?: boolean;
   onChange: (value: string) => void;
+  disabled?: boolean;
+  loading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const selectedOption = options.find((option) => option.value === value);
+  const displayedValue = selectedOption?.label ?? '';
 
   return (
     <View style={styles.fieldContainer}>
@@ -74,62 +149,110 @@ function SelectField({
       </Text>
 
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}. ${displayedValue || placeholder}`}
+        accessibilityState={{ disabled, expanded: open }}
+        disabled={disabled}
         style={[
           styles.select,
           open && styles.selectOpen,
+          disabled && styles.selectDisabled,
         ]}
-        onPress={() => setOpen(!open)}
+        onPress={() => setOpen(true)}
       >
         <Text
           style={[
             styles.selectText,
-            !value && styles.placeholderText,
+            !displayedValue && styles.placeholderText,
           ]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
-          {value || placeholder}
+          {loading ? 'Loading options...' : displayedValue || placeholder}
         </Text>
-
         <MaterialCommunityIcons
-          name={open ? 'chevron-up' : 'chevron-down'}
-          size={18}
-          color="#7B7F8D"
+          name="chevron-down"
+          size={20}
+          color={disabled ? '#B8BAC4' : '#7B7F8D'}
         />
       </Pressable>
 
-      {open && (
-        <View style={styles.dropdown}>
-          {options.map((option) => (
-            <Pressable
-              key={option.value}
-              style={styles.dropdownItem}
-              onPress={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              <Text
-                style={[
-                  styles.dropdownText,
-                  value === option.value &&
-                    styles.dropdownTextSelected,
-                ]}
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpen(false)}
+            accessibilityLabel="Close dropdown"
+          />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{label}</Text>
+              <Pressable
+                onPress={() => setOpen(false)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Close options"
               >
-                {option.label}
-              </Text>
+                <MaterialCommunityIcons name="close" size={22} color="#555866" />
+              </Pressable>
+            </View>
 
-              {value === option.value && (
-                <MaterialCommunityIcons
-                  name="check"
-                  size={17}
-                  color="#7040D5"
-                />
-              )}
-            </Pressable>
-          ))}
+            {options.length === 0 ? (
+              <View style={styles.emptyOptions}>
+                <Text style={styles.emptyOptionsText}>
+                  {loading ? 'Loading options...' : `No ${label.toLowerCase()} options available.`}
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={options}
+                keyExtractor={(item) => item.value}
+                keyboardShouldPersistTaps="handled"
+                style={styles.optionsList}
+                renderItem={({ item }) => {
+                  const selected = item.value === value;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      style={[
+                        styles.dropdownItem,
+                        selected && styles.dropdownItemSelected,
+                      ]}
+                      onPress={() => {
+                        onChange(item.value);
+                        setOpen(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownText,
+                          selected && styles.dropdownTextSelected,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                      {selected && (
+                        <MaterialCommunityIcons
+                          name="check"
+                          size={18}
+                          color="#7040D5"
+                        />
+                      )}
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+          </View>
         </View>
-      )}
+      </Modal>
     </View>
   );
 }
@@ -166,6 +289,11 @@ function SectionHeader({
 }
 
 export default function AddBatchPage() {
+  const [branches, setBranches] = useState<BranchItem[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYearItem[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [saving, setSaving] = useState(false);
+
   const [batchName, setBatchName] = useState('');
   const [batchCode, setBatchCode] = useState('');
   const [standard, setStandard] = useState('');
@@ -188,6 +316,76 @@ export default function AddBatchPage() {
 
   const [description, setDescription] = useState('');
 
+  const loadOptions = useCallback(async () => {
+    setLoadingOptions(true);
+    try {
+      const token = await SecureStore.getItemAsync('auth_token');
+      if (!token) {
+        throw new Error('Your session has expired. Please log in again.');
+      }
+
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      };
+
+      const [branchResponse, yearResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/admin/branches/active`, { headers }),
+        fetch(`${API_BASE_URL}/academic-years`, { headers }),
+      ]);
+
+      const [branchResult, yearResult] = await Promise.all([
+        readApiResponse(branchResponse),
+        readApiResponse(yearResponse),
+      ]);
+
+      const branchRows = getRows<BranchItem>(branchResult, 'branches');
+      const yearRows = getRows<AcademicYearItem>(yearResult, 'academicYears');
+
+      const validBranches = branchRows.filter(
+        (item) => Boolean(item?._id && item?.name) && isActiveOption(item),
+      );
+      const validYears = yearRows.filter(
+        // Academic years may be marked Upcoming/Current rather than Active.
+        // Keep every selectable year unless it is explicitly removed/disabled.
+        (item) => Boolean(item?.name) && item?.isRemoved !== true && item?.isActive !== false,
+      );
+
+      setBranches(validBranches);
+      setAcademicYears(validYears);
+
+      // Reset selections only when the currently selected item is no longer available.
+      setBranch((current) =>
+        validBranches.some((item) => item._id === current) ? current : '',
+      );
+      setAcademicYear((current) =>
+        validYears.some((item) => item.name === current) ? current : '',
+      );
+
+      if (validBranches.length === 0 || validYears.length === 0) {
+        console.warn('Batch dropdown options are empty.', {
+          branchCount: validBranches.length,
+          academicYearCount: validYears.length,
+        });
+      }
+    } catch (error) {
+      Alert.alert(
+        'Unable to load options',
+        error instanceof Error
+          ? error.message
+          : 'Could not load branches and academic years. Please try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => { void loadOptions(); } },
+        ],
+      );
+    } finally {
+      setLoadingOptions(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadOptions(); }, [loadOptions]);
+
   const toggleDay = (day: string) => {
     if (classDays.includes(day)) {
       setClassDays(
@@ -198,50 +396,55 @@ export default function AddBatchPage() {
     }
   };
 
-  const handleAddBatch = () => {
-    if (
-      !batchName.trim() ||
-      !batchCode.trim() ||
-      !standard ||
-      !academicYear ||
-      !branch ||
-      !startDate.trim() ||
-      !endDate.trim() ||
-      !startTime.trim() ||
-      !endTime.trim() ||
-      classDays.length === 0 ||
-      !maximumStudents.trim()
-    ) {
-      Alert.alert(
-        'Required Fields',
-        'Please fill all required fields marked with *.'
-      );
+  const handleAddBatch = async () => {
+    if (!batchName.trim() || !batchCode.trim() || !standard || !academicYear || !branch || !startDate.trim() || !endDate.trim() || !startTime.trim() || !endTime.trim() || classDays.length === 0 || !maximumStudents.trim()) {
+      Alert.alert('Required Fields', 'Please fill all required fields marked with *.');
       return;
     }
-
     const capacity = Number(maximumStudents);
-
-    if (
-      !Number.isInteger(capacity) ||
-      capacity <= 0
-    ) {
-      Alert.alert(
-        'Invalid Capacity',
-        'Maximum Students must be a positive whole number.'
-      );
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      Alert.alert('Invalid Capacity', 'Maximum Students must be a positive whole number.');
       return;
     }
-
-    Alert.alert(
-      'Batch Added',
-      `${batchName} has been added successfully.`,
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]
-    );
+    const apiStartDate = toApiDate(startDate);
+    const apiEndDate = toApiDate(endDate);
+    const apiStartTime = toApiTime(startTime);
+    const apiEndTime = toApiTime(endTime);
+    if (!apiStartDate || !apiEndDate) {
+      Alert.alert('Invalid Date', 'Enter dates as DD/MM/YYYY or YYYY-MM-DD.');
+      return;
+    }
+    if (new Date(apiStartDate) > new Date(apiEndDate)) {
+      Alert.alert('Invalid Date Range', 'Start date cannot be after end date.');
+      return;
+    }
+    if (!apiStartTime || !apiEndTime) {
+      Alert.alert('Invalid Time', 'Enter times like 08:00 AM or 17:00.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const token = await SecureStore.getItemAsync('auth_token');
+      if (!token) throw new Error('Please log in again to create a batch.');
+      const response = await fetch(`${API_BASE_URL}/batches`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: batchName.trim(), code: batchCode.trim().toUpperCase(), standard,
+          academicYear: academicYear.trim(), branchId: branch,
+          startDate: apiStartDate, endDate: apiEndDate,
+          schedule: { startTime: apiStartTime, endTime: apiEndTime, days: classDays },
+          capacity, description: description.trim(),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) throw new Error(result.message || 'Unable to create batch.');
+      Alert.alert('Batch Added', result.message || `${batchName} has been added successfully.`, [{ text: 'OK', onPress: () => router.back() }]);
+    } catch (error) {
+      Alert.alert('Unable to add batch', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -285,6 +488,19 @@ export default function AddBatchPage() {
             <Text style={styles.pageSubtitle}>
               Create and configure an academic batch.
             </Text>
+            {loadingOptions && <Text style={{ marginTop: 8, color: '#7B7F8D' }}>Loading branches and academic years...</Text>}
+            {!loadingOptions && (branches.length === 0 || academicYears.length === 0) && (
+              <View style={styles.optionsWarning}>
+                <Text style={styles.optionsWarningText}>
+                  {branches.length === 0 ? 'No active branches found. ' : ''}
+                  {academicYears.length === 0 ? 'No active academic years found. ' : ''}
+                  Check the backend records or retry loading.
+                </Text>
+                <Pressable style={styles.retryButton} onPress={() => { void loadOptions(); }}>
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
 
           {/* BASIC INFORMATION */}
@@ -352,8 +568,10 @@ export default function AddBatchPage() {
                     label="Academic Year"
                     value={academicYear}
                     placeholder="Select year"
-                    options={academicYearOptions}
+                    options={academicYears.map((item) => ({ label: item.name, value: item.name }))}
                     required
+                    loading={loadingOptions}
+                    disabled={loadingOptions}
                     onChange={setAcademicYear}
                   />
                 </View>
@@ -363,8 +581,13 @@ export default function AddBatchPage() {
                     label="Branch"
                     value={branch}
                     placeholder="Select branch"
-                    options={branchOptions}
+                    options={branches.map((item) => ({
+                      label: item.code ? `${item.name} (${item.code})` : item.name,
+                      value: item._id,
+                    }))}
                     required
+                    loading={loadingOptions}
+                    disabled={loadingOptions}
                     onChange={setBranch}
                   />
                 </View>
@@ -636,6 +859,7 @@ export default function AddBatchPage() {
             <Pressable
               style={styles.addButton}
               onPress={handleAddBatch}
+          disabled={saving || loadingOptions || branches.length === 0 || academicYears.length === 0}
             >
               <MaterialCommunityIcons
                 name="plus"
@@ -644,7 +868,7 @@ export default function AddBatchPage() {
               />
 
               <Text style={styles.addButtonText}>
-                Add Batch
+                {saving ? 'Saving...' : 'Add Batch'}
               </Text>
             </Pressable>
           </View>
@@ -888,6 +1112,100 @@ const styles = StyleSheet.create({
 
   selectOpen: {
     borderColor: '#7040D5',
+  },
+
+  selectDisabled: {
+    backgroundColor: '#F4F5F8',
+    borderColor: '#E8E9EF',
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(20, 16, 35, 0.42)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+
+  modalCard: {
+    width: '100%',
+    maxWidth: 460,
+    maxHeight: '75%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+  },
+
+  modalHeader: {
+    minHeight: 54,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0F5',
+  },
+
+  modalTitle: {
+    flex: 1,
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 15,
+    color: '#302B40',
+    marginRight: 12,
+  },
+
+  optionsList: {
+    flexGrow: 0,
+  },
+
+  dropdownItemSelected: {
+    backgroundColor: '#F5F1FF',
+  },
+
+  emptyOptions: {
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+  },
+
+  emptyOptionsText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 13,
+    color: '#7B7F8D',
+    textAlign: 'center',
+  },
+
+  optionsWarning: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#FFF7ED',
+  },
+
+  optionsWarningText: {
+    color: '#9A3412',
+    fontSize: 12,
+    fontFamily: 'PoppinsRegular',
+  },
+
+  retryButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 7,
+    backgroundColor: '#7040D5',
+  },
+
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: 'PoppinsSemiBold',
   },
 
   selectText: {

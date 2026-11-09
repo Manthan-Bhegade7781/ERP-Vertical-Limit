@@ -13,6 +13,7 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { createSubject } from "../../../services/subjects";
 
 type SelectFieldProps = {
   label: string;
@@ -135,7 +136,9 @@ export default function AddSubjectPage() {
     "Inactive",
   ];
 
-  const handleAddSubject = () => {
+  const [saving, setSaving] = useState(false);
+
+  const handleAddSubject = async () => {
     if (
       !subjectName.trim() ||
       !subjectCode.trim() ||
@@ -151,10 +154,25 @@ export default function AddSubjectPage() {
       return;
     }
 
-    Alert.alert(
-      "Subject Added",
-      `${subjectName} has been added successfully.`
-    );
+    try {
+      setSaving(true);
+      await createSubject({
+        name: subjectName.trim(),
+        code: subjectCode.trim().toUpperCase(),
+        standard,
+        type: subjectType,
+        duration: duration.trim(),
+        status: status === "Active" ? "active" : "inactive",
+        description: description.trim(),
+      });
+      Alert.alert("Subject Added", `${subjectName.trim()} has been added successfully.`, [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      Alert.alert("Unable to Add Subject", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -418,6 +436,7 @@ export default function AddSubjectPage() {
             style={styles.addButton}
             activeOpacity={0.85}
             onPress={handleAddSubject}
+            disabled={saving}
           >
             <MaterialCommunityIcons
               name="plus"
@@ -426,7 +445,7 @@ export default function AddSubjectPage() {
             />
 
             <Text style={styles.addButtonText}>
-              Add Subject
+              {saving ? "Saving..." : "Add Subject"}
             </Text>
           </TouchableOpacity>
         </View>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -44,18 +45,6 @@ const branches = [
   'Main Branch',
 ];
 
-const languages = [
-  'English',
-  'Hindi',
-  'Marathi',
-];
-
-const dateFormats = [
-  'DD MMM YYYY',
-  'DD/MM/YYYY',
-  'MM/DD/YYYY',
-];
-
 export default function SettingsPage() {
   const insets = useSafeAreaInsets();
   const { user, updateUser } = useAuth();
@@ -81,25 +70,20 @@ export default function SettingsPage() {
   const [branch, setBranch] = useState('');
 
   useEffect(() => {
-  if (!user) return;
+    if (!user) return;
 
-  setFullName(user.fullName ?? '');
-  setEmail(user.email ?? '');
+    setFullName(user.fullName ?? '');
+    setEmail(user.email ?? '');
 
-  const mobileDigits = (user.mobileNumber ?? '').replace(/\D/g, '');
-  setMobile(mobileDigits.slice(-10));
+    const mobileDigits = (user.mobileNumber ?? '').replace(/\D/g, '');
+    setMobile(mobileDigits.slice(-10));
 
-  setBranch(user.branchId ?? '');
-}, [user]);
+    setBranch(user.branchId ?? '');
+  }, [user]);
 
-  const [currentPassword, setCurrentPassword] =
-    useState('');
-
-  const [newPassword, setNewPassword] =
-    useState('');
-
-  const [confirmPassword, setConfirmPassword] =
-    useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const [selectedBranch, setSelectedBranch] =
     useState('Main Branch');
@@ -128,11 +112,7 @@ export default function SettingsPage() {
   const [autoLogout, setAutoLogout] =
     useState(true);
 
-  const [selectedLanguage, setSelectedLanguage] =
-    useState('English');
-
-  const [selectedDateFormat, setSelectedDateFormat] =
-    useState('DD MMM YYYY');
+  const selectedLanguage = 'English';
 
   const saveProfile = async () => {
     const phoneDigits = mobile.replace(/\D/g, '');
@@ -170,10 +150,8 @@ export default function SettingsPage() {
         return;
       }
 
-      // Update global auth state immediately
       updateUser(response.data.user);
 
-      // Keep the API value normalized in the form
       setMobile(response.data.user.mobileNumber ?? '');
 
       setProfileModalVisible(false);
@@ -190,11 +168,7 @@ export default function SettingsPage() {
   };
 
   const changePassword = () => {
-    if (
-      !currentPassword ||
-      !newPassword ||
-      !confirmPassword
-    ) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       Alert.alert(
         'Required Fields',
         'Please fill in all password fields.'
@@ -269,8 +243,6 @@ export default function SettingsPage() {
             setExamAlerts(true);
             setDarkMode(false);
             setAutoLogout(true);
-            setSelectedLanguage('English');
-            setSelectedDateFormat('DD MMM YYYY');
 
             Alert.alert(
               'Settings Reset',
@@ -335,8 +307,7 @@ export default function SettingsPage() {
         contentContainerStyle={[
           styles.content,
           {
-            paddingBottom:
-              insets.bottom + 30,
+            paddingBottom: insets.bottom + 30,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -362,9 +333,7 @@ export default function SettingsPage() {
             iconColor="#7040D5"
             title="Profile Settings"
             description="Manage your name, email, mobile number and profile information."
-            onPress={() =>
-              setProfileModalVisible(true)
-            }
+            onPress={() => setProfileModalVisible(true)}
           />
 
           <SettingItem
@@ -455,9 +424,7 @@ export default function SettingsPage() {
             iconColor="#D84B63"
             title="Change Password"
             description="Update your account password."
-            onPress={() =>
-              setPasswordModalVisible(true)
-            }
+            onPress={() => setPasswordModalVisible(true)}
           />
 
           <ToggleItem
@@ -497,7 +464,7 @@ export default function SettingsPage() {
           />
         </View>
 
-        {/* SYSTEM */}
+        {/* SYSTEM PREFERENCES */}
 
         <SectionTitle
           icon="tune-variant"
@@ -508,43 +475,13 @@ export default function SettingsPage() {
           <SettingItem
             icon="cog-outline"
             iconColor="#2675E8"
-            title="Language & Date Format"
-            description={`${selectedLanguage} • ${selectedDateFormat}`}
-            onPress={() =>
-              setPreferencesModalVisible(true)
-            }
-          />
-
-          <SettingItem
-            icon="database-outline"
-            iconColor="#35B878"
-            title="Data & Backup"
-            description="Manage system data and backup preferences."
-            onPress={() =>
-              Alert.alert(
-                'Data & Backup',
-                'Backup and data-management options can be connected to the backend here.'
-              )
-            }
-          />
-
-          <SettingItem
-            icon="history"
-            iconColor="#F7941D"
-            title="Activity Logs"
-            description="Review recent account and system activities."
-            onPress={() =>
-              router.push({
-                pathname: '/(tabs)/explore',
-                params: {
-                  feature: 'Audit Logs',
-                },
-              })
-            }
+            title="Language"
+            description={selectedLanguage}
+            onPress={() => setPreferencesModalVisible(true)}
           />
         </View>
 
-        {/* SYSTEM ACTIONS */}
+        {/* SYSTEM */}
 
         <SectionTitle
           icon="application-cog-outline"
@@ -557,9 +494,7 @@ export default function SettingsPage() {
             iconColor="#7040D5"
             title="About VLCC ERP"
             description="Application version, information and support."
-            onPress={() =>
-              setAboutModalVisible(true)
-            }
+            onPress={() => setAboutModalVisible(true)}
           />
 
           <SettingItem
@@ -571,46 +506,6 @@ export default function SettingsPage() {
             danger
           />
         </View>
-
-        {/* ACCOUNT SUMMARY */}
-
-        <View style={styles.accountSummary}>
-          <View style={styles.accountAvatar}>
-            <MaterialCommunityIcons
-              name="account"
-              size={27}
-              color="#7040D5"
-            />
-          </View>
-
-          <View style={styles.accountSummaryContent}>
-            <Text style={styles.accountName}>
-              {fullName}
-            </Text>
-
-            <Text style={styles.accountEmail}>
-              {email}
-            </Text>
-
-            <View style={styles.accountRoleBadge}>
-              <Text style={styles.accountRoleText}>
-                Super Admin
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            onPress={() =>
-              setProfileModalVisible(true)
-            }
-          >
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={19}
-              color="#7040D5"
-            />
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
       {/* PROFILE MODAL */}
@@ -619,9 +514,7 @@ export default function SettingsPage() {
         visible={profileModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setProfileModalVisible(false)
-        }
+        onRequestClose={() => setProfileModalVisible(false)}
       >
         <KeyboardAvoidingView
           style={styles.keyboardAvoidingView}
@@ -631,14 +524,10 @@ export default function SettingsPage() {
             <ModalHeader
               title="Profile Settings"
               subtitle="Update your profile information"
-              onClose={() =>
-                setProfileModalVisible(false)
-              }
+              onClose={() => setProfileModalVisible(false)}
             />
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-            >
+            <ScrollView showsVerticalScrollIndicator={false}>
               <InputField
                 label="Full Name"
                 value={fullName}
@@ -709,23 +598,17 @@ export default function SettingsPage() {
         visible={passwordModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setPasswordModalVisible(false)
-        }
+        onRequestClose={() => setPasswordModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.largeModal}>
             <ModalHeader
               title="Change Password"
               subtitle="Update your account password"
-              onClose={() =>
-                setPasswordModalVisible(false)
-              }
+              onClose={() => setPasswordModalVisible(false)}
             />
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-            >
+            <ScrollView showsVerticalScrollIndicator={false}>
               <InputField
                 label="Current Password"
                 value={currentPassword}
@@ -787,18 +670,14 @@ export default function SettingsPage() {
         visible={branchModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setBranchModalVisible(false)
-        }
+        onRequestClose={() => setBranchModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.largeModal}>
             <ModalHeader
               title="Branch Settings"
               subtitle="Select your active branch"
-              onClose={() =>
-                setBranchModalVisible(false)
-              }
+              onClose={() => setBranchModalVisible(false)}
             />
 
             {branches.map((item) => (
@@ -806,36 +685,27 @@ export default function SettingsPage() {
                 key={item}
                 style={[
                   styles.selectionRow,
-                  selectedBranch === item &&
-                    styles.selectionRowActive,
+                  selectedBranch === item && styles.selectionRowActive,
                 ]}
-                onPress={() =>
-                  setSelectedBranch(item)
-                }
+                onPress={() => setSelectedBranch(item)}
               >
                 <View
                   style={[
                     styles.selectionIcon,
-                    selectedBranch === item &&
-                      styles.selectionIconActive,
+                    selectedBranch === item && styles.selectionIconActive,
                   ]}
                 >
                   <MaterialCommunityIcons
                     name="office-building-outline"
                     size={19}
-                    color={
-                      selectedBranch === item
-                        ? '#7040D5'
-                        : '#7B8496'
-                    }
+                    color={selectedBranch === item ? '#7040D5' : '#7B8496'}
                   />
                 </View>
 
                 <Text
                   style={[
                     styles.selectionText,
-                    selectedBranch === item &&
-                      styles.selectionTextActive,
+                    selectedBranch === item && styles.selectionTextActive,
                   ]}
                 >
                   {item}
@@ -875,18 +745,14 @@ export default function SettingsPage() {
         visible={preferencesModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          setPreferencesModalVisible(false)
-        }
+        onRequestClose={() => setPreferencesModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.largeModal}>
             <ModalHeader
               title="System Preferences"
-              subtitle="Configure language and date format"
-              onClose={() =>
-                setPreferencesModalVisible(false)
-              }
+              subtitle="Configure your language preference"
+              onClose={() => setPreferencesModalVisible(false)}
             />
 
             <Text style={styles.inputLabel}>
@@ -894,59 +760,21 @@ export default function SettingsPage() {
             </Text>
 
             <View style={styles.optionWrap}>
-              {languages.map((language) => (
-                <TouchableOpacity
-                  key={language}
+              <View
+                style={[
+                  styles.optionButton,
+                  styles.optionButtonActive,
+                ]}
+              >
+                <Text
                   style={[
-                    styles.optionButton,
-                    selectedLanguage === language &&
-                      styles.optionButtonActive,
+                    styles.optionText,
+                    styles.optionTextActive,
                   ]}
-                  onPress={() =>
-                    setSelectedLanguage(language)
-                  }
                 >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      selectedLanguage === language &&
-                        styles.optionTextActive,
-                    ]}
-                  >
-                    {language}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.inputLabel}>
-              Date Format
-            </Text>
-
-            <View style={styles.optionWrap}>
-              {dateFormats.map((format) => (
-                <TouchableOpacity
-                  key={format}
-                  style={[
-                    styles.optionButton,
-                    selectedDateFormat === format &&
-                      styles.optionButtonActive,
-                  ]}
-                  onPress={() =>
-                    setSelectedDateFormat(format)
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      selectedDateFormat === format &&
-                        styles.optionTextActive,
-                    ]}
-                  >
-                    {format}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                  English
+                </Text>
+              </View>
             </View>
 
             <TouchableOpacity
@@ -973,21 +801,15 @@ export default function SettingsPage() {
         visible={aboutModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() =>
-          setAboutModalVisible(false)
-        }
+        onRequestClose={() => setAboutModalVisible(false)}
       >
         <Pressable
           style={styles.modalOverlay}
-          onPress={() =>
-            setAboutModalVisible(false)
-          }
+          onPress={() => setAboutModalVisible(false)}
         >
           <Pressable
             style={styles.aboutModal}
-            onPress={(event) =>
-              event.stopPropagation()
-            }
+            onPress={(event) => event.stopPropagation()}
           >
             <View style={styles.aboutIcon}>
               <MaterialCommunityIcons
@@ -1041,9 +863,7 @@ export default function SettingsPage() {
 
             <TouchableOpacity
               style={styles.primaryButton}
-              onPress={() =>
-                setAboutModalVisible(false)
-              }
+              onPress={() => setAboutModalVisible(false)}
             >
               <Text style={styles.primaryButtonText}>
                 Close
@@ -1187,9 +1007,7 @@ function ToggleItem({
           false: '#DDE1E8',
           true: '#CFC0F5',
         }}
-        thumbColor={
-          value ? '#7040D5' : '#FFFFFF'
-        }
+        thumbColor={value ? '#7040D5' : '#FFFFFF'}
       />
     </View>
   );
@@ -1334,8 +1152,6 @@ const styles = StyleSheet.create({
     marginBottom: 17,
   },
 
-  /* SECTIONS */
-
   sectionTitle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1358,8 +1174,6 @@ const styles = StyleSheet.create({
     color: '#313B4E',
     fontSize: 13,
   },
-
-  /* SETTINGS CARD */
 
   settingsCard: {
     backgroundColor: '#FFFFFF',
@@ -1423,67 +1237,9 @@ const styles = StyleSheet.create({
     color: '#D84B63',
   },
 
-  /* ACCOUNT SUMMARY */
-
-  accountSummary: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#E4DDF7',
-    padding: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-
-  accountAvatar: {
-    width: 53,
-    height: 53,
-    borderRadius: 16,
-    backgroundColor: '#F1EAFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  accountSummaryContent: {
-    flex: 1,
-    marginLeft: 10,
-  },
-
-  accountName: {
-    fontFamily: 'PoppinsSemiBold',
-    color: '#172033',
-    fontSize: 12.5,
-  },
-
-  accountEmail: {
-    fontFamily: 'PoppinsRegular',
-    color: '#8A93A4',
-    fontSize: 8.5,
-    marginTop: 1,
-  },
-
-  accountRoleBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#F1EAFF',
-    borderRadius: 7,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    marginTop: 4,
-  },
-
-  accountRoleText: {
-    fontFamily: 'PoppinsMedium',
-    color: '#7040D5',
-    fontSize: 7.5,
-  },
-
-  /* MODALS */
-
   modalOverlay: {
     flex: 1,
-    backgroundColor:
-      'rgba(20, 24, 35, 0.48)',
+    backgroundColor: 'rgba(20, 24, 35, 0.48)',
     justifyContent: 'flex-end',
   },
 
@@ -1596,8 +1352,6 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
 
-  /* BRANCH */
-
   selectionRow: {
     minHeight: 57,
     borderRadius: 11,
@@ -1640,8 +1394,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
   },
 
-  /* OPTIONS */
-
   optionWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1674,8 +1426,6 @@ const styles = StyleSheet.create({
     color: '#7040D5',
     fontFamily: 'PoppinsSemiBold',
   },
-
-  /* ABOUT */
 
   aboutIcon: {
     width: 64,

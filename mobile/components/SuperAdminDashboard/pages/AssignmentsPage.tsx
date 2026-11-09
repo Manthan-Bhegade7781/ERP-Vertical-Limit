@@ -19,6 +19,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { fetchAssignments, deleteAssignment as deleteAssignmentApi, type AssignmentRecord } from '@/services/assignments';
 
 type AssignmentStatus =
   | 'Active'
@@ -33,7 +34,7 @@ type SubmissionStatus =
   | 'Late';
 
 type Assignment = {
-  id: number;
+  id: string | number;
   title: string;
   code: string;
   course: string;
@@ -810,7 +811,9 @@ export default function AssignmentsPage() {
     'All' | AssignmentStatus
   >('All');
 
-  const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(true);
+  const [assignmentsError, setAssignmentsError] = useState('');
 
   const [selectedAssignment, setSelectedAssignment] =
     useState<Assignment | null>(null);
@@ -837,42 +840,72 @@ export default function AssignmentsPage() {
 
   const [remarks, setRemarks] = useState('');
 
-  useEffect(() => {
-    if (params.newAssignment !== 'true') return;
+  const formatAssignmentDate = (value?: string) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
-    const title = params.assignmentTitle || '';
-    const code = params.assignmentCode || '';
+  const getRelationName = (value: any, fallback = '-') =>
+    typeof value === 'string' ? fallback : value?.name || value?.fullName || fallback;
 
-    if (!title || !code || processedAssignmentCode.current === code) {
-      return;
-    }
+  const mapAssignmentRecord = (item: AssignmentRecord): Assignment => {
+    const batch: any = item.batchId;
+    const subject: any = item.subjectId;
+    const branch: any = item.branchId || batch?.branchId;
+    const assigned = new Date(item.assignedDate);
+    const due = new Date(item.submissionDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const assignedDay = new Date(assigned);
+    assignedDay.setHours(0, 0, 0, 0);
+    const dueDay = new Date(due);
+    dueDay.setHours(0, 0, 0, 0);
+    const status: AssignmentStatus =
+      assignedDay > today ? 'Upcoming' :
+      dueDay.getTime() === today.getTime() ? 'Due Today' :
+      dueDay < today ? 'Completed' : 'Active';
 
-    processedAssignmentCode.current = code;
-
-    const newAssignment: Assignment = {
-      id: Date.now(),
-      title,
-      code,
-      course: params.assignmentSubject || 'Subject',
-      batch: params.assignmentBatch || 'Batch',
-      branch: 'Main Branch',
-      assignedDate: params.assignmentAssignedDate || '-',
-      dueDate: params.assignmentSubmissionDate || '-',
-      dueTime: '11:59 PM',
+    return {
+      id: item._id,
+      title: item.assignmentTitle || 'Untitled assignment',
+      code: item.assignmentCode || '-',
+      course: getRelationName(subject, 'Subject'),
+      batch: getRelationName(batch, 'Batch'),
+      branch: getRelationName(branch, 'Branch'),
+      assignedDate: formatAssignmentDate(item.assignedDate),
+      dueDate: formatAssignmentDate(item.submissionDate),
+      dueTime: '—',
       students: 0,
       submitted: 0,
       pending: 0,
       late: 0,
-      maxMarks: Number(params.assignmentTotalMarks) || 0,
-      description: params.assignmentDescription || 'No description provided.',
-      instructions: params.assignmentInstructions || '',
-      pdfUri: params.assignmentPdfUri || '',
-      pdfName: params.assignmentPdfName || '',
-      status: 'Active',
+      maxMarks: Number(item.totalMarks) || 0,
+      description: item.description || '',
+      instructions: item.instructions || '',
+      pdfName: item.attachment?.fileName || '',
+      status,
     };
+  };
 
-    setAssignments((current) => [newAssignment, ...current]);
-  }, [params.newAssignment, params.assignmentTitle, params.assignmentCode]);
+  const loadAssignments = async () => {
+    try {
+      setAssignmentsError('');
+      setLoadingAssignments(true);
+      const records = await fetchAssignments();
+      setAssignments(records.map(mapAssignmentRecord));
+    } catch (error) {
+      setAssignmentsError(error instanceof Error ? error.message : 'Unable to load assignments.');
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAssignments();
+  }, [params.refreshAssignments]);
+
 
   /* =====================================================
      FILTER
@@ -912,7 +945,7 @@ export default function AssignmentsPage() {
         matchesFilter
       );
     });
-  }, [search, filter]);
+  }, [search, filter, assignments]);
 
   /* =====================================================
      SUMMARY
@@ -1000,27 +1033,27 @@ export default function AssignmentsPage() {
      DELETE
      ===================================================== */
 
-  const deleteAssignment = (
-    assignment: Assignment
-  ) => {
+  const deleteAssignment = (assignment: Assignment) => {
     setShowActions(false);
-
     Alert.alert(
       'Delete Assignment',
       `Are you sure you want to delete "${assignment.title}"?`,
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Deleted',
-              'The assignment has been deleted successfully.'
-            );
+          onPress: async () => {
+            try {
+              await deleteAssignmentApi(String(assignment.id));
+              setAssignments((current) => current.filter((item) => String(item.id) !== String(assignment.id)));
+              if (selectedAssignment && String(selectedAssignment.id) === String(assignment.id)) {
+                setSelectedAssignment(null);
+              }
+              Alert.alert('Deleted', 'The assignment has been deleted successfully.');
+            } catch (error) {
+              Alert.alert('Delete failed', error instanceof Error ? error.message : 'Unable to delete assignment.');
+            }
           },
         },
       ]
@@ -2256,7 +2289,19 @@ export default function AssignmentsPage() {
             LIST
             ===================================================== */}
 
-        {filteredAssignments.length ===
+        {loadingAssignments ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Loading assignments...</Text>
+          </View>
+        ) : assignmentsError ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Could not load assignments</Text>
+            <Text style={styles.emptySubtitle}>{assignmentsError}</Text>
+            <TouchableOpacity onPress={() => void loadAssignments()} style={styles.addButton}>
+              <Text style={styles.addButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filteredAssignments.length ===
         0 ? (
           <View
             style={styles.emptyState}

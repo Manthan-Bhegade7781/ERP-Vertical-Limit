@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { createExamination, fetchExamBatches, fetchExamSubjects, fetchBatchSubjectAssignments, type ExamBatch, type ExamSubject, type ExamBatchSubject } from "../../../services/examinations";
 import {
   Alert,
   Pressable,
@@ -141,61 +142,79 @@ export default function AddExaminationPage() {
   const [passingMarks, setPassingMarks] = useState("");
 
   const [instructions, setInstructions] = useState("");
+  const [batches, setBatches] = useState<ExamBatch[]>([]);
+  const [subjects, setSubjects] = useState<ExamSubject[]>([]);
+  const [assignedSubjectIds, setAssignedSubjectIds] = useState<string[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  /* =======================================================
-     MOCK OPTIONS
-  ======================================================= */
+  const getId = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object') {
+      const ref = value as { _id?: string; id?: string };
+      return ref._id || ref.id || '';
+    }
+    return '';
+  };
 
-  const standardOptions: SelectOption[] = useMemo(
-    () => [
-      { label: "8th", value: "8th" },
-      { label: "9th", value: "9th" },
-      { label: "10th", value: "10th" },
-      { label: "11th", value: "11th" },
-      { label: "12th", value: "12th" },
-    ],
-    []
-  );
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoadingOptions(true);
+        const [batchRows, subjectRows] = await Promise.all([fetchExamBatches(), fetchExamSubjects()]);
+        if (!mounted) return;
+        setBatches(batchRows.filter((item) => !item.isRemoved && item.status !== 'inactive'));
+        setSubjects(subjectRows.filter((item) => item.status !== 'inactive'));
+      } catch (error) {
+        if (mounted) Alert.alert('Unable to load options', error instanceof Error ? error.message : 'Could not load batches and subjects.');
+      } finally {
+        if (mounted) setLoadingOptions(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
-  const subjectOptions: SelectOption[] = useMemo(
-    () => [
-      { label: "Physics", value: "Physics" },
-      { label: "Mathematics", value: "Mathematics" },
-      { label: "Chemistry", value: "Chemistry" },
-      { label: "Biology", value: "Biology" },
-    ],
-    []
-  );
+  const loadAssignmentsForBatch = async (batchId: string) => {
+    setSubject('');
+    setAssignedSubjectIds([]);
+    if (!batchId) return;
+    try {
+      const assignments: ExamBatchSubject[] = await fetchBatchSubjectAssignments(batchId);
+      // Some backend records omit status or use different casing (e.g. "Active").
+      // Keep assignments unless explicitly marked inactive/removed.
+      const activeAssignments = assignments.filter((item) => {
+        const status = String(item.status ?? '').trim().toLowerCase();
+        return status !== 'inactive' && status !== 'removed' && status !== 'disabled';
+      });
+      setAssignedSubjectIds(
+        Array.from(new Set(activeAssignments.map((item) => getId(item.subjectId)).filter(Boolean)))
+      );
+    } catch (error) {
+      Alert.alert('Unable to load assigned subjects', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
 
-  const batchOptions: SelectOption[] = useMemo(
-    () => [
-      {
-        label: "8th Foundation - Evening",
-        value: "8th Foundation - Evening",
-      },
-      {
-        label: "9th Foundation - Evening",
-        value: "9th Foundation - Evening",
-      },
-      {
-        label: "10th Foundation - Afternoon",
-        value: "10th Foundation - Afternoon",
-      },
-      {
-        label: "11th MHT-CET - Evening",
-        value: "11th MHT-CET - Evening",
-      },
-      {
-        label: "12th JEE - Morning",
-        value: "12th JEE - Morning",
-      },
-      {
-        label: "12th NEET - Morning",
-        value: "12th NEET - Morning",
-      },
-    ],
-    []
-  );
+  /* =========================================================
+     OPTIONS FROM BACKEND
+  ========================================================= */
+
+  const standardOptions: SelectOption[] = useMemo(() => {
+    const standards = Array.from(new Set(batches.map((item) => item.standard).filter(Boolean)));
+    return standards.map((value) => ({ label: value, value }));
+  }, [batches]);
+
+  const batchOptions: SelectOption[] = useMemo(() => batches
+    .filter((item) => !standard || item.standard === standard)
+    .map((item) => ({ label: item.name, value: item._id })), [batches, standard]);
+
+  // Batch-subject assignment is the source of truth. Do not additionally
+  // filter by subject.standard because backend data may store that field
+  // differently or leave it empty even when the subject is assigned.
+  const subjectOptions: SelectOption[] = useMemo(() => subjects
+    .filter((item) => assignedSubjectIds.includes(getId(item._id)))
+    .map((item) => ({ label: item.name, value: getId(item._id) }))
+    .filter((item) => item.value && item.label), [subjects, assignedSubjectIds]);
 
   /* =======================================================
      VALIDATION
@@ -227,7 +246,7 @@ export default function AddExaminationPage() {
     );
   };
 
-  const handleAddExamination = () => {
+  const handleAddExamination = async () => {
     // Check required fields
     if (
       !examinationName.trim() ||
@@ -308,17 +327,41 @@ export default function AddExaminationPage() {
       return;
     }
 
-    // Mock-only: backend integration will be done later.
-    Alert.alert(
-      "Validation Successful",
-      "The examination details are valid. Saving to the backend will be added during the integration phase.",
-      [
-        {
-          text: "OK",
-          onPress: () => router.back(),
-        },
-      ]
-    );
+    if (loadingOptions) {
+      Alert.alert("Please wait", "Batch and subject options are still loading.");
+      return;
+    }
+    if (!batchOptions.some((item) => item.value === batch)) {
+      Alert.alert("Invalid Batch", "Please select a valid batch.");
+      return;
+    }
+    if (!subjectOptions.some((item) => item.value === subject)) {
+      Alert.alert("Invalid Subject", "Choose a subject assigned to the selected batch.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await createExamination({
+        examinationName: examinationName.trim(),
+        examinationCode: examinationCode.trim().toUpperCase(),
+        batchId: batch,
+        subjectId: subject,
+        examinationDate: examinationDate.trim(),
+        startTime: startTime.trim().toUpperCase(),
+        durationMinutes: parsedDuration,
+        totalMarks: total,
+        passingMarks: passing,
+        instructions: instructions.trim(),
+      });
+      Alert.alert("Examination Created", "The examination has been saved successfully.", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      Alert.alert("Unable to Save Examination", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   /* =======================================================
@@ -437,7 +480,7 @@ export default function AddExaminationPage() {
               value={standard}
               placeholder="Select standard"
               options={standardOptions}
-              onChange={setStandard}
+              onChange={(value) => { setStandard(value); setBatch(""); setSubject(""); setAssignedSubjectIds([]); }}
               required
             />
           </View>
@@ -449,7 +492,15 @@ export default function AddExaminationPage() {
               <SelectField
                 label="Subject"
                 value={subject}
-                placeholder="Select subject"
+                placeholder={
+                  loadingOptions
+                    ? "Loading subjects..."
+                    : !batch
+                      ? "Select batch first"
+                      : subjectOptions.length === 0
+                        ? "No subjects assigned"
+                        : "Select subject"
+                }
                 options={subjectOptions}
                 onChange={setSubject}
                 required
@@ -462,7 +513,7 @@ export default function AddExaminationPage() {
                 value={batch}
                 placeholder="Select batch"
                 options={batchOptions}
-                onChange={setBatch}
+                onChange={(value) => { setBatch(value); const selectedBatch = batches.find((item) => item._id === value); if (selectedBatch) setStandard(selectedBatch.standard); void loadAssignmentsForBatch(value); }}
                 required
               />
             </View>
@@ -711,7 +762,7 @@ export default function AddExaminationPage() {
               color="#FFFFFF"
             />
 
-            <Text style={styles.addButtonText}>Add Examination</Text>
+            <Text style={styles.addButtonText}>{saving ? "Saving..." : "Add Examination"}</Text>
           </Pressable>
         </View>
 
