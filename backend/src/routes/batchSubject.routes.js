@@ -4,7 +4,7 @@ const {
   assignSubjectToBatch,
   getBatchSubjects,
   changeTeacher,
-  updateBatchSubjectStatus
+  updateBatchSubjectStatus,
 } = require("../controllers/batchSubject.controller");
 
 const { protect } = require("../middleware/auth.middleware");
@@ -12,35 +12,16 @@ const { authorizeRoles } = require("../middleware/role.middleware");
 
 const router = express.Router();
 
-// Assign subject to batch
-router.post(
-  "/",
-  protect,
-  authorizeRoles("super_admin"),
-  assignSubjectToBatch
-);
+// Super Admin and Admin can assign subjects; controller enforces branch access.
+router.post("/", protect, authorizeRoles("super_admin", "admin"), assignSubjectToBatch);
 
-// Get all subjects assigned to a batch
-router.get(
-  "/batch/:batchId",
-  protect,
-  getBatchSubjects
-);
+// Authenticated users may read assignments only when permitted by controller checks.
+router.get("/batch/:batchId", protect, getBatchSubjects);
 
-// Change teacher
-router.put(
-  "/:id",
-  protect,
-  authorizeRoles("super_admin"),
-  changeTeacher
-);
+// Super Admin and Admin can change teachers within authorized branches.
+router.put("/:id", protect, authorizeRoles("super_admin", "admin"), changeTeacher);
 
-// Activate / deactivate assignment
-router.patch(
-  "/:id/status",
-  protect,
-  authorizeRoles("super_admin"),
-  updateBatchSubjectStatus
-);
+// Super Admin and Admin can toggle assignment status within authorized branches.
+router.patch("/:id/status", protect, authorizeRoles("super_admin", "admin"), updateBatchSubjectStatus);
 
 module.exports = router;

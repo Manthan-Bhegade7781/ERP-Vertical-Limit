@@ -8,6 +8,47 @@ const { hashPassword } = require("../utils/password");
 const { generateStudentId } = require("../utils/studentId");
 const createNotification = require("../utils/createNotification");
 
+
+
+const isSuperAdmin = (user) =>
+  Array.isArray(user.roles) && user.roles.includes("super_admin");
+
+const getAdminBranchId = (user) => {
+  if (isSuperAdmin(user)) return null;
+  return user.branchId ? user.branchId.toString() : null;
+};
+
+const canAccessStudent = async (student, user) => {
+  if (isSuperAdmin(user)) return true;
+
+  const branchId = getAdminBranchId(user);
+  if (!branchId || !student) return false;
+
+  const batch = await Batch.findById(student.batchId).select("branchId");
+
+  return Boolean(
+    batch && batch.branchId &&
+    batch.branchId.toString() === branchId
+  );
+};
+
+const canAccessBatch = async (batchId, user) => {
+  if (isSuperAdmin(user)) return true;
+
+  const branchId = getAdminBranchId(user);
+  if (!branchId || !mongoose.isValidObjectId(batchId)) return false;
+
+  const batch = await Batch.findById(batchId).select("branchId isRemoved");
+
+  return Boolean(
+    batch &&
+    batch.isRemoved !== true &&
+    batch.branchId &&
+    batch.branchId.toString() === branchId
+  );
+};
+
+
 // =====================================================
 // CREATE STUDENT
 // =====================================================
@@ -35,6 +76,13 @@ const createStudent = async (req, res) => {
     }
 
     const batch = await Batch.findById(batchId);
+
+    if (!(await canAccessBatch(batchId, req.user))) {
+    return res.status(403).json({
+      success: false,
+      message: "You can only add students to batches in your assigned branch",
+    });
+  }
 
     if (!batch) {
       return res.status(404).json({
@@ -165,7 +213,26 @@ const createStudent = async (req, res) => {
 
 const getStudents = async (req, res) => {
   try {
-    const students = await Student.find({})
+      let studentFilter = {};
+
+    if (!isSuperAdmin(req.user)) {
+      const branchId = getAdminBranchId(req.user);
+
+      if (!branchId) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account has no assigned branch",
+        });
+      }
+
+      const batches = await Batch.find({ branchId }).select("_id");
+
+      studentFilter = {
+        batchId: { $in: batches.map((batch) => batch._id) },
+      };
+    }
+
+    const students = await Student.find(studentFilter)
       .populate({
         path: "userId",
         select: "fullName email mobileNumber roles branchId status",
@@ -230,6 +297,13 @@ const getStudentById = async (req, res) => {
       });
     }
 
+    if (!(await canAccessStudent(student, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to access this student",
+      });
+    }
+
     return res.status(200).json({
       success: true,
       data: student,
@@ -273,6 +347,13 @@ const updateStudent = async (req, res) => {
       });
     }
 
+    if (!(await canAccessStudent(student, req.user))) {
+    return res.status(403).json({
+      success: false,
+      message: "You are not authorized to update this student",
+    });
+  }
+
     // Capture original values before updating
     const previousBatchId = student.batchId?.toString();
     const previousStatus = student.status;
@@ -296,6 +377,13 @@ const updateStudent = async (req, res) => {
       }
 
       student.batchId = batchId;
+    }
+
+    if (!(await canAccessBatch(batchId, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only assign students to batches in your branch",
+      });
     }
 
     // Update Student profile
@@ -446,6 +534,13 @@ const updateStudentStatus = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Student not found",
+      });
+    }
+
+    if (!(await canAccessStudent(student, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to change this student's status",
       });
     }
 

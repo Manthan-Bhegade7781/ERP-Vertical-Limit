@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -10,35 +12,319 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { API_BASE_URL } from "@/config/api";
+import { getToken } from "@/services/auth";
 
-const statuses = ["Scheduled", "Completed", "Cancelled"];
+type Student = {
+  _id: string;
+  guardianName?: string;
+  studentId?: string;
+  userId?: { fullName?: string; name?: string; mobileNumber?: string };
+  batchId?: { name?: string; batchName?: string; code?: string; standard?: string };
+};
+
+type Teacher = {
+  _id: string;
+  employeeId?: string;
+  userId?: { fullName?: string; name?: string; mobileNumber?: string };
+};
+
+const getName = (value?: { fullName?: string; name?: string }) =>
+  value?.fullName || value?.name || "";
+
+async function apiRequest(path: string, options: RequestInit = {}) {
+  const token = await getToken();
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(result.message || "Request failed. Please try again.");
+  }
+
+  return result;
+}
 
 export default function AddPTGPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [parent, setParent] = useState("");
-  const [student, setStudent] = useState("");
-  const [teacher, setTeacher] = useState("");
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [studentId, setStudentId] = useState("");
+  const [teacherId, setTeacherId] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
+  const [teacherSearch, setTeacherSearch] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
   const [time, setTime] = useState("");
   const [purpose, setPurpose] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [status, setStatus] = useState("");
+  const [notes, setNotes] = useState("");
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const selectedStudent = students.find((student) => student._id === studentId);
+  const selectedTeacher = teachers.find((teacher) => teacher._id === teacherId);
+
+  const filteredStudents = useMemo(() => {
+    const query = studentSearch.trim().toLowerCase();
+    if (!query || selectedStudent) return [];
+
+    return students
+      .filter((student) => {
+        const values = [
+          getName(student.userId),
+          student.studentId || "",
+          student.guardianName || "",
+          student.batchId?.name || "",
+          student.batchId?.batchName || "",
+          student.batchId?.code || "",
+          student.batchId?.standard || "",
+          student.userId?.mobileNumber || "",
+        ];
+
+        return values.some((value) => value.toLowerCase().includes(query));
+      })
+      .slice(0, 8);
+  }, [students, studentSearch, selectedStudent]);
+
+  const filteredTeachers = useMemo(() => {
+    const query = teacherSearch.trim().toLowerCase();
+    if (!query || selectedTeacher) return [];
+
+    return teachers
+      .filter((teacher) => {
+        const values = [
+          getName(teacher.userId),
+          teacher.employeeId || "",
+          teacher.userId?.mobileNumber || "",
+        ];
+
+        return values.some((value) => value.toLowerCase().includes(query));
+      })
+      .slice(0, 8);
+  }, [teachers, teacherSearch, selectedTeacher]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadOptions = async () => {
+      try {
+        setLoadingOptions(true);
+
+        const [studentResult, teacherResult] = await Promise.all([
+          apiRequest("/ptg/students"),
+          apiRequest("/ptg/teachers"),
+        ]);
+
+        if (!mounted) return;
+
+        setStudents(studentResult?.data || []);
+        setTeachers(teacherResult?.data || []);
+      } catch (error) {
+        Alert.alert(
+          "Unable to load participants",
+          error instanceof Error ? error.message : "Please try again."
+        );
+      } finally {
+        if (mounted) setLoadingOptions(false);
+      }
+    };
+
+    loadOptions();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const makeMeetingDate = () => {
+    const dateMatch = meetingDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const timeMatch = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+
+    if (!dateMatch || !timeMatch) return null;
+
+    const [, year, month, day] = dateMatch;
+    let hours = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2]);
+    const meridiem = timeMatch[3]?.toUpperCase();
+
+    if (minutes > 59 || hours > 23) return null;
+
+    if (meridiem) {
+      if (hours < 1 || hours > 12) return null;
+      hours = (hours % 12) + (meridiem === "PM" ? 12 : 0);
+    }
+
+    const date = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      hours,
+      minutes
+    );
+
+    if (
+      date.getFullYear() !== Number(year) ||
+      date.getMonth() !== Number(month) - 1 ||
+      date.getDate() !== Number(day)
+    ) {
+      return null;
+    }
+
+    return date.toISOString();
+  };
+
+  const save = async () => {
+    Keyboard.dismiss();
+
+    if (
+      !studentId ||
+      !teacherId ||
+      !meetingDate.trim() ||
+      !time.trim() ||
+      !purpose.trim()
+    ) {
+      Alert.alert("Required fields", "Please complete all required fields.");
+      return;
+    }
+
+    const isoMeetingDate = makeMeetingDate();
+
+    if (!isoMeetingDate) {
+      Alert.alert(
+        "Invalid date or time",
+        "Enter date as YYYY-MM-DD and time as HH:MM AM/PM or 24-hour HH:MM."
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      await apiRequest("/ptg", {
+        method: "POST",
+        body: JSON.stringify({
+          studentId,
+          teacherId,
+          meetingDate: isoMeetingDate,
+          purpose: purpose.trim(),
+          notes: notes.trim(),
+        }),
+      });
+
+      Alert.alert("PTG added", "The meeting was created successfully.", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      Alert.alert(
+        "Unable to add PTG",
+        error instanceof Error ? error.message : "Please try again."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const renderStudentResults = () => {
+    if (!studentSearch.trim()) return null;
+
+    if (filteredStudents.length === 0) {
+      return <Text style={styles.emptyText}>No matching students found.</Text>;
+    }
+
+    return (
+      <View style={styles.results}>
+        {filteredStudents.map((student) => {
+          const details = [
+            student.studentId ? `ID: ${student.studentId}` : "",
+            student.batchId?.name ||
+              student.batchId?.batchName ||
+              student.batchId?.standard ||
+              "",
+          ]
+            .filter(Boolean)
+            .join(" • ");
+
+          return (
+            <TouchableOpacity
+              key={student._id}
+              style={styles.resultOption}
+              onPress={() => {
+                setStudentId(student._id);
+                setStudentSearch("");
+                Keyboard.dismiss();
+              }}
+            >
+              <Text style={styles.resultName}>
+                {getName(student.userId) || "Student"}
+              </Text>
+              {!!details && <Text style={styles.resultDetails}>{details}</Text>}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
+  const renderTeacherResults = () => {
+    if (!teacherSearch.trim()) return null;
+
+    if (filteredTeachers.length === 0) {
+      return <Text style={styles.emptyText}>No matching teachers found.</Text>;
+    }
+
+    return (
+      <View style={styles.results}>
+        {filteredTeachers.map((teacher) => {
+          const details = [
+            teacher.employeeId ? `ID: ${teacher.employeeId}` : "",
+            teacher.userId?.mobileNumber || "",
+          ]
+            .filter(Boolean)
+            .join(" • ");
+
+          return (
+            <TouchableOpacity
+              key={teacher._id}
+              style={styles.resultOption}
+              onPress={() => {
+                setTeacherId(teacher._id);
+                setTeacherSearch("");
+                Keyboard.dismiss();
+              }}
+            >
+              <Text style={styles.resultName}>
+                {getName(teacher.userId) || "Teacher"}
+              </Text>
+              {!!details && <Text style={styles.resultDetails}>{details}</Text>}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
   const field = (
     label: string,
     value: string,
-    setter: (v: string) => void,
+    setter: (value: string) => void,
     placeholder: string,
+    required = true
   ) => (
     <View style={styles.field}>
       <Text style={styles.label}>
-        {label} <Text style={styles.req}>*</Text>
+        {label} {required && <Text style={styles.req}>*</Text>}
       </Text>
       <TextInput
         value={value}
@@ -46,34 +332,17 @@ export default function AddPTGPage() {
         placeholder={placeholder}
         placeholderTextColor="#9AA2B1"
         style={styles.input}
+        returnKeyType="done"
       />
     </View>
   );
-  const save = () => {
-    if (
-      !parent ||
-      !student ||
-      !teacher ||
-      !meetingDate ||
-      !time ||
-      !purpose ||
-      !remarks ||
-      !status
-    ) {
-      Alert.alert("Required Fields", "Please fill all required PTG details.");
-      return;
-    }
-    Alert.alert(
-      "PTG Added",
-      `${student}'s PTG meeting has been added successfully.`,
-      [{ text: "OK", onPress: () => router.back() }],
-    );
-  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
       >
         <View
           style={[
@@ -87,16 +356,21 @@ export default function AddPTGPage() {
           <View style={styles.headerTitleBox}>
             <Text style={styles.headerTitle}>Add PTG</Text>
           </View>
-          
         </View>
+
         <ScrollView
+          style={styles.formScroll}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
+          showsVerticalScrollIndicator
         >
           <Text style={styles.pageTitle}>PTG Management</Text>
           <Text style={styles.subtitle}>
-            Create and manage parent teacher group meetings.
+            Create a parent-teacher group meeting.
           </Text>
+
           <View style={styles.card}>
             <View style={styles.section}>
               <View style={styles.sectionIcon}>
@@ -108,33 +382,131 @@ export default function AddPTGPage() {
               </View>
               <View>
                 <Text style={styles.sectionTitle}>Meeting Participants</Text>
-                <Text style={styles.sectionSub}>
-                  Parent, student and teacher details
-                </Text>
+                <Text style={styles.sectionSub}>Select a student and teacher</Text>
               </View>
             </View>
-            <View style={styles.two}>
-              <View style={styles.colL}>
-                {field("Parent", parent, setParent, "Enter parent name")}
-              </View>
-              <View style={styles.colR}>
-                {field("Student", student, setStudent, "Enter student name")}
-              </View>
-            </View>
-            <View style={styles.two}>
-              <View style={styles.colL}>
-                {field("Teacher", teacher, setTeacher, "Enter teacher name")}
-              </View>
-              <View style={styles.colR}>
-                {field(
-                  "Purpose",
-                  purpose,
-                  setPurpose,
-                  "e.g. Academic Progress",
-                )}
-              </View>
-            </View>
+
+            {loadingOptions ? (
+              <ActivityIndicator color="#7040D5" style={{ padding: 18 }} />
+            ) : (
+              <>
+                <View style={styles.field}>
+                  <Text style={styles.label}>
+                    Student <Text style={styles.req}>*</Text>
+                  </Text>
+
+                  {selectedStudent ? (
+                    <View style={styles.selectedOption}>
+                      <View style={styles.selectedText}>
+                        <Text style={styles.resultName}>
+                          {getName(selectedStudent.userId) || "Student"}
+                        </Text>
+                        <Text style={styles.resultDetails}>
+                          {[
+                            selectedStudent.studentId
+                              ? `ID: ${selectedStudent.studentId}`
+                              : "",
+                            selectedStudent.batchId?.name ||
+                              selectedStudent.batchId?.batchName ||
+                              selectedStudent.batchId?.standard ||
+                              "",
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setStudentId("");
+                          setStudentSearch("");
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="close-circle"
+                          size={20}
+                          color="#8994A7"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.searchInputWrap}>
+                        <MaterialCommunityIcons
+                          name="magnify"
+                          size={18}
+                          color="#8994A7"
+                        />
+                        <TextInput
+                          value={studentSearch}
+                          onChangeText={setStudentSearch}
+                          placeholder="Search student name, ID or batch"
+                          placeholderTextColor="#9AA2B1"
+                          style={styles.searchInput}
+                          returnKeyType="search"
+                        />
+                      </View>
+                      {renderStudentResults()}
+                    </>
+                  )}
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>
+                    Teacher <Text style={styles.req}>*</Text>
+                  </Text>
+
+                  {selectedTeacher ? (
+                    <View style={styles.selectedOption}>
+                      <View style={styles.selectedText}>
+                        <Text style={styles.resultName}>
+                          {getName(selectedTeacher.userId) || "Teacher"}
+                        </Text>
+                        <Text style={styles.resultDetails}>
+                          {selectedTeacher.employeeId
+                            ? `ID: ${selectedTeacher.employeeId}`
+                            : selectedTeacher.userId?.mobileNumber || ""}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setTeacherId("");
+                          setTeacherSearch("");
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="close-circle"
+                          size={20}
+                          color="#8994A7"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.searchInputWrap}>
+                        <MaterialCommunityIcons
+                          name="magnify"
+                          size={18}
+                          color="#8994A7"
+                        />
+                        <TextInput
+                          value={teacherSearch}
+                          onChangeText={setTeacherSearch}
+                          placeholder="Search teacher name or employee ID"
+                          placeholderTextColor="#9AA2B1"
+                          style={styles.searchInput}
+                          returnKeyType="search"
+                        />
+                      </View>
+                      {renderTeacherResults()}
+                    </>
+                  )}
+                </View>
+              </>
+            )}
+
+            {field("Purpose", purpose, setPurpose, "e.g. Academic progress")}
           </View>
+
           <View style={styles.card}>
             <View style={styles.section}>
               <View style={styles.blueIcon}>
@@ -151,51 +523,15 @@ export default function AddPTGPage() {
                 </Text>
               </View>
             </View>
-            <View style={styles.two}>
-              <View style={styles.colL}>
-                {field(
-                  "Meeting Date",
-                  meetingDate,
-                  setMeetingDate,
-                  "e.g. 24 Sep 2026",
-                )}
-              </View>
-              <View style={styles.colR}>
-                {field("Time", time, setTime, "e.g. 10:00 AM")}
-              </View>
-            </View>
-            <View style={styles.two}>
-              <View style={styles.colL}>
-                {field("Remarks", remarks, setRemarks, "Enter meeting remarks")}
-              </View>
-              <View style={styles.colR}>
-                <Text style={styles.label}>
-                  Status <Text style={styles.req}>*</Text>
-                </Text>
-                <View style={styles.options}>
-                  {statuses.map((x) => (
-                    <TouchableOpacity
-                      key={x}
-                      style={[
-                        styles.option,
-                        status === x && styles.optionActive,
-                      ]}
-                      onPress={() => setStatus(x)}
-                    >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          status === x && styles.optionTextActive,
-                        ]}
-                      >
-                        {x}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </View>
+
+            {field("Meeting Date", meetingDate, setMeetingDate, "YYYY-MM-DD")}
+            {field("Time", time, setTime, "e.g. 10:00 AM")}
+            {field("Notes", notes, setNotes, "Optional meeting notes", false)}
+            <Text style={styles.helper}>
+              New meetings are created with Scheduled status.
+            </Text>
           </View>
+
           <View style={styles.info}>
             <MaterialCommunityIcons
               name="information-outline"
@@ -203,23 +539,36 @@ export default function AddPTGPage() {
               color="#7040D5"
             />
             <Text style={styles.infoText}>
-              PTG records can be edited later using the Edit button.
+              The parent name is taken from the selected student’s record.
             </Text>
           </View>
+
           <View style={styles.actions}>
             <TouchableOpacity
               style={styles.cancel}
               onPress={() => router.back()}
+              disabled={saving}
             >
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.save} onPress={save}>
-              <MaterialCommunityIcons
-                name="content-save-outline"
-                size={19}
-                color="#FFF"
-              />
-              <Text style={styles.saveText}>Save PTG</Text>
+
+            <TouchableOpacity
+              style={[styles.save, saving && styles.saveDisabled]}
+              onPress={save}
+              disabled={saving || loadingOptions}
+            >
+              {saving ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons
+                    name="content-save-outline"
+                    size={19}
+                    color="#FFF"
+                  />
+                  <Text style={styles.saveText}>Save PTG</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -227,6 +576,7 @@ export default function AddPTGPage() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F7F8FC" },
   container: { flex: 1, backgroundColor: "#F7F8FC" },
@@ -247,23 +597,13 @@ const styles = StyleSheet.create({
   },
   headerTitleBox: { flex: 1, paddingHorizontal: 12 },
   headerTitle: { fontFamily: "PoppinsSemiBold", fontSize: 19, color: "#FFF" },
-  editHeader: {
-    height: 36,
-    minWidth: 68,
-    paddingHorizontal: 10,
-    borderRadius: 9,
-    backgroundColor: "#FFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  formScroll: { flex: 1 },
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 32,
   },
-  editHeaderText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 10,
-    color: "#7040D5",
-    marginLeft: 5,
-  },
-  content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 22 },
   pageTitle: { fontFamily: "PoppinsSemiBold", fontSize: 19, color: "#172033" },
   subtitle: {
     fontFamily: "PoppinsRegular",
@@ -299,21 +639,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 9,
   },
-  sectionTitle: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 14,
-    color: "#202A3D",
-  },
+  sectionTitle: { fontFamily: "PoppinsSemiBold", fontSize: 14, color: "#202A3D" },
   sectionSub: {
     fontFamily: "PoppinsRegular",
     fontSize: 9,
     color: "#8994A7",
     marginTop: 2,
   },
-  two: { flexDirection: "row" },
-  colL: { flex: 1, marginRight: 5 },
-  colR: { flex: 1, marginLeft: 5 },
-  field: { marginBottom: 9 },
+  field: { marginBottom: 12 },
   label: {
     fontFamily: "PoppinsSemiBold",
     fontSize: 10,
@@ -330,26 +663,70 @@ const styles = StyleSheet.create({
     fontFamily: "PoppinsRegular",
     fontSize: 11,
     color: "#263047",
-    marginBottom: 1,
   },
-  options: { flexDirection: "row", flexWrap: "wrap" },
-  option: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 9,
-    backgroundColor: "#F7F8FC",
+  searchInputWrap: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: "#E2E5ED",
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 42,
+    marginLeft: 7,
+    fontFamily: "PoppinsRegular",
+    fontSize: 11,
+    color: "#263047",
+    paddingVertical: 0,
+  },
+  results: {
     borderWidth: 1,
     borderColor: "#E5E7EE",
-    marginRight: 6,
-    marginBottom: 8,
+    borderRadius: 10,
+    marginTop: 6,
+    overflow: "hidden",
   },
-  optionActive: { backgroundColor: "#F0E8FF", borderColor: "#7040D5" },
-  optionText: {
-    fontFamily: "PoppinsSemiBold",
+  resultOption: {
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    backgroundColor: "#FFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F1F5",
+  },
+  resultName: { fontFamily: "PoppinsSemiBold", fontSize: 11, color: "#263047" },
+  resultDetails: {
+    fontFamily: "PoppinsRegular",
     fontSize: 9,
-    color: "#788397",
+    color: "#8994A7",
+    marginTop: 2,
   },
-  optionTextActive: { color: "#7040D5" },
+  selectedOption: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: "#7040D5",
+    backgroundColor: "#F8F5FF",
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  selectedText: { flex: 1 },
+  emptyText: {
+    fontFamily: "PoppinsRegular",
+    fontSize: 11,
+    color: "#8994A7",
+    paddingVertical: 8,
+  },
+  helper: {
+    fontFamily: "PoppinsRegular",
+    fontSize: 10,
+    color: "#8994A7",
+    marginTop: 2,
+  },
   info: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -387,6 +764,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  saveDisabled: { opacity: 0.65 },
   saveText: {
     fontFamily: "PoppinsSemiBold",
     fontSize: 11,

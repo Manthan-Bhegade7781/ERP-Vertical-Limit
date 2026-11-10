@@ -30,6 +30,7 @@ const getBatchStatus = (startDate, endDate) => {
 // CREATE BATCH
 // ============================================================
 
+
 const createBatch = async (req, res) => {
   try {
     const {
@@ -37,7 +38,6 @@ const createBatch = async (req, res) => {
       code,
       standard,
       academicYear,
-      branchId,
       startDate,
       endDate,
       schedule,
@@ -45,29 +45,51 @@ const createBatch = async (req, res) => {
       description,
     } = req.body;
 
-    // Validate required fields
+    const roles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : req.user?.role
+        ? [req.user.role]
+        : [];
+
+    const isSuperAdmin = roles.includes("super_admin");
+    const isAdmin = roles.includes("admin") && !isSuperAdmin;
+
+    if (!isSuperAdmin && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to create batches",
+      });
+    }
+
+    // Admin uses their assigned branch.
+    // Super Admin uses the branch selected in the form.
+    const branchId = isAdmin
+      ? req.user?.branchId
+      : req.body.branchId;
+
     if (
-      !name ||
-      !code ||
+      !name?.trim() ||
+      !code?.trim() ||
       !standard ||
-      !academicYear ||
+      !academicYear?.trim() ||
       !branchId ||
       !startDate ||
       !endDate ||
-      !schedule?.startTime ||
-      !schedule?.endTime ||
-      !schedule?.days ||
+      !schedule?.startTime?.trim() ||
+      !schedule?.endTime?.trim() ||
+      !Array.isArray(schedule?.days) ||
       schedule.days.length === 0 ||
       capacity === undefined ||
       capacity === null
     ) {
       return res.status(400).json({
         success: false,
-        message: "All required batch fields must be provided",
+        message: !branchId
+          ? "Your account must be assigned to a branch, or a branch must be selected"
+          : "All required batch fields must be provided",
       });
     }
 
-    // Check branch exists
     const branch = await Branch.findById(branchId);
 
     if (!branch) {
@@ -77,7 +99,6 @@ const createBatch = async (req, res) => {
       });
     }
 
-    // Only active branches can have new batches
     if (branch.status !== "active") {
       return res.status(400).json({
         success: false,
@@ -85,9 +106,10 @@ const createBatch = async (req, res) => {
       });
     }
 
-    // Check duplicate batch code
+    const normalizedCode = code.trim().toUpperCase();
+
     const existingBatch = await Batch.findOne({
-      code: code.toUpperCase().trim(),
+      code: normalizedCode,
     });
 
     if (existingBatch) {
@@ -97,7 +119,6 @@ const createBatch = async (req, res) => {
       });
     }
 
-    // Validate capacity
     if (!Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
       return res.status(400).json({
         success: false,
@@ -105,7 +126,6 @@ const createBatch = async (req, res) => {
       });
     }
 
-    // Validate dates
     const parsedStartDate = new Date(startDate);
     const parsedEndDate = new Date(endDate);
 
@@ -126,10 +146,9 @@ const createBatch = async (req, res) => {
       });
     }
 
-    // Create batch
     const batch = await Batch.create({
       name: name.trim(),
-      code: code.toUpperCase().trim(),
+      code: normalizedCode,
       standard,
       academicYear: academicYear.trim(),
       branchId,
@@ -169,15 +188,27 @@ const createBatch = async (req, res) => {
   }
 };
 
+
 // ============================================================
 // GET ALL BATCHES
 // ============================================================
 
 const getBatches = async (req, res) => {
   try {
-    const batches = await Batch.find({
-      isRemoved: { $ne: true },
-    })
+    const query = { isRemoved: { $ne: true } };
+
+    // Admins can only see batches from their assigned branch.
+    if (req.user?.roles?.includes("admin") && !req.user?.roles?.includes("super_admin")) {
+      if (!req.user.branchId) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account is not assigned to a branch",
+        });
+      }
+      query.branchId = req.user.branchId;
+    }
+
+    const batches = await Batch.find(query)
       .populate("branchId", "name code")
       .sort({ startDate: 1, createdAt: -1 });
 
@@ -280,6 +311,22 @@ const updateBatch = async (req, res) => {
         success: false,
         message: "Batch not found",
       });
+    }
+
+    // Admins may edit only batches in their own branch and cannot move them.
+    if (req.user?.roles?.includes("admin") && !req.user?.roles?.includes("super_admin")) {
+      if (!req.user.branchId || batch.branchId.toString() !== req.user.branchId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only edit batches belonging to your branch",
+        });
+      }
+      if (!branchId || branchId.toString() !== req.user.branchId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot move a batch to another branch",
+        });
+      }
     }
 
     // Validate required fields

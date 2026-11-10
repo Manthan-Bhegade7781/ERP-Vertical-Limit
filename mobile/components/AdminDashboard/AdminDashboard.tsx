@@ -1,9 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 
 import {
   Animated,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,15 +14,38 @@ import {
 } from 'react-native';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect, useRouter } from 'expo-router';
 
 import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
 import StatCard from './StatCard';
 
 import { Alert } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
+
+type DashboardStats = {
+  totalStudents: number;
+  totalTeachers: number;
+  activeSubjects: number;
+  activeBatches: number;
+  attendance: string;
+  upcomingExams: number;
+  assignments: number;
+  staffOnLeave: number;
+};
+
+const DEFAULT_STATS: DashboardStats = {
+  totalStudents: 0,
+  totalTeachers: 0,
+  activeSubjects: 0,
+  activeBatches: 0,
+  attendance: '0%',
+  upcomingExams: 0,
+  assignments: 0,
+  staffOnLeave: 0,
+};
 
 /* =========================================================
    NAVIGATION
@@ -105,25 +129,25 @@ function QuickActions() {
     color: string;
   }[] = [
     {
-      title: 'Generate Report',
-      feature: 'Reports',
-      icon: 'file-chart-outline',
+      title: 'PTG',
+      feature: 'PTG',
+      icon: 'account-group-outline',
       color: '#7040D5',
     },
     {
-      title: 'Quiz',
+      title: 'Examinations',
       feature: 'Examinations',
       icon: 'help-circle-outline',
       color: '#35B878',
     },
     {
       title: 'Feedback',
-      feature: 'Performance',
+      feature: 'Feedback',
       icon: 'message-text-outline',
       color: '#7040D5',
     },
     {
-      title: 'WhatsApp',
+      title: 'Messages',
       feature: 'Messages',
       icon: 'whatsapp',
       color: '#2675E8',
@@ -249,8 +273,60 @@ export default function AdminDashboard() {
   const { logout } = useAuth();
   const router = useRouter();
 
+  const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/admin/dashboard-stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) return;
+
+      const json = await response.json();
+      if (json.success && json.data) {
+        setStats({
+          totalStudents: Number(json.data.totalStudents) || 0,
+          totalTeachers: Number(json.data.totalTeachers) || 0,
+          activeSubjects: Number(json.data.activeSubjects) || 0,
+          activeBatches: Number(json.data.activeBatches) || 0,
+          attendance:
+            typeof json.data.attendance === 'string'
+              ? json.data.attendance
+              : `${json.data.attendance || 0}%`,
+          upcomingExams: Number(json.data.upcomingExams) || 0,
+          assignments: Number(json.data.assignments) || 0,
+          staffOnLeave: Number(json.data.staffOnLeave) || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchStats();
+    }, [fetchStats])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchStats();
+    setRefreshing(false);
+  }, [fetchStats]);
+
   const handleLogout = async () => {
     try {
+      if (router.canDismiss?.()) {
+        router.dismissAll();
+      }
       await logout();
       router.replace('/(auth)');
     } catch (error) {
@@ -405,6 +481,14 @@ export default function AdminDashboard() {
               styles.mobileContent,
           ]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#7040D5']}
+              tintColor="#7040D5"
+            />
+          }
         >
 
           {/* =================================================
@@ -424,7 +508,7 @@ export default function AdminDashboard() {
             >
               <StatCard
                 title="Total Students"
-                value="1,248"
+                value={stats.totalStudents.toLocaleString()}
                 change="8.5%"
                 icon="account-group"
                 type="purple"
@@ -447,7 +531,7 @@ export default function AdminDashboard() {
             >
               <StatCard
                 title="Total Teachers"
-                value="86"
+                value={stats.totalTeachers.toLocaleString()}
                 change="5.2%"
                 icon="account-tie"
                 type="blue"
@@ -470,7 +554,7 @@ export default function AdminDashboard() {
             >
               <StatCard
                 title="Active Subjects"
-                value="32"
+                value={stats.activeSubjects.toLocaleString()}
                 change="6.7%"
                 icon="book-open-variant"
                 type="green"
@@ -493,7 +577,7 @@ export default function AdminDashboard() {
             >
               <StatCard
                 title="Active Batches"
-                value="24"
+                value={stats.activeBatches.toLocaleString()}
                 change="4.8%"
                 icon="account-multiple"
                 type="orange"
@@ -515,8 +599,8 @@ export default function AdminDashboard() {
               ]}
             >
               <StatCard
-                title="Today's Attendance"
-                value="92%"
+                title="Attendance"
+                value={stats.attendance}
                 change="3.8%"
                 icon="calendar-check"
                 type="purple"
@@ -539,7 +623,7 @@ export default function AdminDashboard() {
             >
               <StatCard
                 title="Upcoming Exams"
-                value="6"
+                value={stats.upcomingExams.toLocaleString()}
                 change="2.4%"
                 icon="file-document-edit"
                 type="blue"
@@ -562,7 +646,7 @@ export default function AdminDashboard() {
             >
               <StatCard
                 title="Assignments"
-                value="18"
+                value={stats.assignments.toLocaleString()}
                 change="5.6%"
                 icon="clipboard-text"
                 type="green"
@@ -585,10 +669,15 @@ export default function AdminDashboard() {
             >
               <StatCard
                 title="Staff on Leave"
-                value="5"
+                value={stats.staffOnLeave.toLocaleString()}
                 change="2.1%"
                 icon="account-off"
                 type="orange"
+                onPress={() =>
+                  openAdminFeature(
+                    'Staff on Leave',
+                  )
+                }
               />
             </View>
 

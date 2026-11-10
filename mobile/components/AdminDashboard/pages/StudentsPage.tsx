@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
+  ActivityIndicator,
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -16,6 +18,8 @@ import { router } from 'expo-router';
 import { SafeAreaView , useSafeAreaInsets} from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
 
 /* =========================================================
    TYPES
@@ -25,56 +29,70 @@ type StudentStatus = 'Active' | 'Inactive';
 
 type Student = {
   id: string;
+  studentCode: string;
   name: string;
+  email: string;
   standard: string;
   batch: string;
+  batchId: string;
   branch: string;
   contact: string;
+  guardianName: string;
+  guardianMobile: string;
+  address: string;
   status: StudentStatus;
 };
 
-/* =========================================================
-   DATA
-========================================================= */
+type BatchSubjectItem = {
+  id: string;
+  subjectName: string;
+  subjectCode: string;
+  teacherName: string;
+  status: 'active' | 'inactive';
+};
 
-const initialStudents: Student[] = [
-  {
-    id: 'STU001',
-    name: 'Rahul Sharma',
-    standard: '12th',
-    batch: 'A',
-    branch: 'Pune',
-    contact: '9876543210',
-    status: 'Active',
-  },
-  {
-    id: 'STU002',
-    name: 'Priya Patil',
-    standard: '11th',
-    batch: 'B',
-    branch: 'Pune',
-    contact: '9876543211',
-    status: 'Active',
-  },
-  {
-    id: 'STU003',
-    name: 'Amit Kumar',
-    standard: '12th',
-    batch: 'A',
-    branch: 'Mumbai',
-    contact: '9876543212',
-    status: 'Inactive',
-  },
-  {
-    id: 'STU004',
-    name: 'Sneha Joshi',
-    standard: '11th',
-    batch: 'C',
-    branch: 'Pune',
-    contact: '9876543213',
-    status: 'Active',
-  },
-];
+type StudentSubjectEnrollment = {
+  id: string;
+  batchSubjectId: string;
+  status: 'active' | 'inactive';
+};
+
+type ManageSubjectRow = BatchSubjectItem & {
+  enrollmentId: string;
+  enrollmentStatus: 'active' | 'inactive' | 'not_enrolled';
+};
+
+const getObjectId = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return String(value._id || value.id || '');
+};
+
+const mapStudentFromApi = (item: any): Student => {
+  const user = item?.userId && typeof item.userId === 'object' ? item.userId : {};
+  const batch = item?.batchId && typeof item.batchId === 'object' ? item.batchId : {};
+  const branch =
+    batch?.branchId && typeof batch.branchId === 'object'
+      ? batch.branchId
+      : user?.branchId && typeof user.branchId === 'object'
+        ? user.branchId
+        : {};
+  return {
+    id: String(item?._id || item?.id || ''),
+    studentCode: String(item?.studentId || item?.studentCode || ''),
+    name: String(user?.fullName || item?.fullName || item?.name || ''),
+    email: String(user?.email || item?.email || ''),
+    standard: String(batch?.standard || item?.standard || '—'),
+    batch: String(batch?.name || batch?.code || item?.batchName || '—'),
+    batchId: getObjectId(item?.batchId),
+    branch: String(branch?.name || branch?.code || item?.branchName || '—'),
+    contact: String(user?.mobileNumber || item?.mobileNumber || item?.contact || ''),
+    guardianName: String(item?.guardianName || ''),
+    guardianMobile: String(item?.guardianMobile || ''),
+    address: String(item?.address || ''),
+    status: String(item?.status || user?.status || 'active').toLowerCase() === 'active' ? 'Active' : 'Inactive',
+  };
+};
 
 /* =========================================================
    PAGE
@@ -82,12 +100,21 @@ const initialStudents: Student[] = [
 
 export default function StudentsPage() {
   const { width } = useWindowDimensions();
-  const insets= useSafeAreaInsets();
+  const insets = useSafeAreaInsets();
 
   const isMobile = width < 700;
   const isTablet = width >= 700 && width < 1100;
 
-  const [studentsData, setStudentsData] = useState<Student[]>(initialStudents);
+  const [studentsData, setStudentsData] = useState<Student[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [subjectsVisible, setSubjectsVisible] = useState(false);
+  const [subjectRows, setSubjectRows] = useState<ManageSubjectRow[]>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [subjectError, setSubjectError] = useState('');
+  const [subjectActionId, setSubjectActionId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
 
@@ -103,10 +130,41 @@ export default function StudentsPage() {
 
   const [editName, setEditName] = useState('');
   const [editStandard, setEditStandard] = useState('');
-  const [editBranch, setEditBranch] = useState('');
   const [editContact, setEditContact] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editGuardianName, setEditGuardianName] = useState('');
+  const [editGuardianMobile, setEditGuardianMobile] = useState('');
+  const [editAddress, setEditAddress] = useState('');
   const [editStatus, setEditStatus] =
     useState<StudentStatus>('Active');
+
+  const loadStudents = async () => {
+    setLoadingStudents(true);
+    setApiError('');
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please log in again.');
+      const response = await fetch(`${API_BASE_URL}/students`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.message || body?.error || 'Unable to load students.');
+      }
+      const rows = Array.isArray(body?.data?.students) ? body.data.students
+        : Array.isArray(body?.data) ? body.data
+        : Array.isArray(body?.students) ? body.students
+        : Array.isArray(body) ? body : [];
+      setStudentsData(rows.map(mapStudentFromApi).filter((student: Student) => student.id));
+    } catch (error: any) {
+      setApiError(error?.message || 'Unable to load students.');
+      setStudentsData([]);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  useEffect(() => { loadStudents(); }, []);
 
   /* =======================================================
      ANDROID NAVIGATION BAR
@@ -148,6 +206,8 @@ export default function StudentsPage() {
       const matchesSearch =
         !query ||
         student.id.toLowerCase().includes(query) ||
+        student.studentCode.toLowerCase().includes(query) ||
+        student.email.toLowerCase().includes(query) ||
         student.name.toLowerCase().includes(query) ||
         student.standard.toLowerCase().includes(query) ||
         student.batch.toLowerCase().includes(query) ||
@@ -183,8 +243,11 @@ export default function StudentsPage() {
     setSelectedStudent(student);
     setEditName(student.name);
     setEditStandard(student.standard);
-    setEditBranch(student.branch);
     setEditContact(student.contact);
+    setEditEmail(student.email);
+    setEditGuardianName(student.guardianName);
+    setEditGuardianMobile(student.guardianMobile);
+    setEditAddress(student.address);
     setEditStatus(student.status);
     setEditVisible(true);
   };
@@ -199,26 +262,232 @@ export default function StudentsPage() {
     setSelectedStudent(null);
   };
 
-  const saveEdit = () => {
-    if (!selectedStudent) return;
+  const saveEdit = async () => {
+    if (!selectedStudent || savingEdit) return;
+    if (!editName.trim()) return Alert.alert('Validation', 'Student name is required.');
+    if (editContact.trim() && !/^\\d{10}$/.test(editContact.trim())) {
+      return Alert.alert('Validation', 'Enter a valid 10-digit mobile number.');
+    }
+    if (editGuardianMobile.trim() && !/^\\d{10}$/.test(editGuardianMobile.trim())) {
+      return Alert.alert('Validation', 'Enter a valid 10-digit guardian mobile number.');
+    }
+    setSavingEdit(true);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please log in again.');
+      const response = await fetch(`${API_BASE_URL}/students/${selectedStudent.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          fullName: editName.trim(),
+          email: editEmail.trim().toLowerCase(),
+          mobileNumber: editContact.trim(),
+          batchId: selectedStudent.batchId || undefined,
+          guardianName: editGuardianName.trim(),
+          guardianMobile: editGuardianMobile.trim(),
+          address: editAddress.trim(),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.message || body?.error || 'Unable to update student.');
+      }
+      if (editStatus !== selectedStudent.status) {
+        const statusResponse = await fetch(`${API_BASE_URL}/students/${selectedStudent.id}/status`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ status: editStatus.toLowerCase() }),
+        });
+        const statusBody = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok || statusBody?.success === false) {
+          throw new Error(statusBody?.message || statusBody?.error || 'Details saved, but status could not be updated.');
+        }
+      }
+      setEditVisible(false);
+      setSelectedStudent(null);
+      await loadStudents();
+      Alert.alert('Success', body?.message || 'Student updated successfully.');
+    } catch (error: any) {
+      Alert.alert('Update failed', error?.message || 'Unable to update student.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
-    const updatedStudent: Student = {
-      ...selectedStudent,
-      name: editName.trim() || selectedStudent.name,
-      standard: editStandard.trim() || selectedStudent.standard,
-      branch: editBranch.trim() || selectedStudent.branch,
-      contact: editContact.trim() || selectedStudent.contact,
-      status: editStatus,
+  const toggleStudentStatus = (student: Student) => {
+    const nextStatus: StudentStatus = student.status === 'Active' ? 'Inactive' : 'Active';
+    const action = nextStatus === 'Active' ? 'activate' : 'deactivate';
+    Alert.alert(`${nextStatus} Student`, `Are you sure you want to ${action} ${student.name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: nextStatus === 'Active' ? 'Activate' : 'Deactivate',
+        style: nextStatus === 'Inactive' ? 'destructive' : 'default',
+        onPress: async () => {
+          setUpdatingStatusId(student.id);
+          try {
+            const token = await getToken();
+            if (!token) throw new Error('Your session has expired. Please log in again.');
+            const response = await fetch(`${API_BASE_URL}/students/${student.id}/status`, {
+              method: 'PATCH',
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({ status: nextStatus.toLowerCase() }),
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || body?.success === false) throw new Error(body?.message || body?.error || 'Unable to update student status.');
+            await loadStudents();
+            Alert.alert('Success', `${student.name} is now ${nextStatus.toLowerCase()}.`);
+          } catch (error: any) {
+            Alert.alert('Status update failed', error?.message || 'Unable to update student status.');
+          } finally {
+            setUpdatingStatusId(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  const loadManageSubjects = async (student: Student) => {
+    setLoadingSubjects(true);
+    setSubjectError('');
+    setSubjectRows([]);
+    try {
+      if (!student.batchId) {
+        throw new Error('This student does not have a batch assigned. Assign a batch before managing subjects.');
+      }
+      const token = await getToken();
+      if (!token) throw new Error('Your session has expired. Please log in again.');
+      const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+      const [batchResponse, enrollmentResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/batch-subjects/batch/${student.batchId}`, { headers }),
+        fetch(`${API_BASE_URL}/student-subjects/student/${student.id}`, { headers }),
+      ]);
+      const [batchBody, enrollmentBody] = await Promise.all([
+        batchResponse.json().catch(() => ({})),
+        enrollmentResponse.json().catch(() => ({})),
+      ]);
+      if (!batchResponse.ok || batchBody?.success === false) {
+        throw new Error(batchBody?.message || 'Unable to load subjects assigned to this batch.');
+      }
+      if (!enrollmentResponse.ok || enrollmentBody?.success === false) {
+        throw new Error(enrollmentBody?.message || "Unable to load this student's subject enrollments.");
+      }
+
+      const rawBatchSubjects = Array.isArray(batchBody?.data?.batchSubjects)
+        ? batchBody.data.batchSubjects
+        : Array.isArray(batchBody?.batchSubjects) ? batchBody.batchSubjects : [];
+      const rawEnrollments = Array.isArray(enrollmentBody?.data?.studentSubjects)
+        ? enrollmentBody.data.studentSubjects
+        : Array.isArray(enrollmentBody?.studentSubjects) ? enrollmentBody.studentSubjects : [];
+
+      const enrollmentByBatchSubject = new Map<string, StudentSubjectEnrollment>();
+      rawEnrollments.forEach((enrollment: any) => {
+        const batchSubject = enrollment?.batchSubjectId;
+        const batchSubjectId = getObjectId(batchSubject);
+        if (batchSubjectId) {
+          enrollmentByBatchSubject.set(batchSubjectId, {
+            id: String(enrollment?._id || enrollment?.id || ''),
+            batchSubjectId,
+            status: String(enrollment?.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active',
+          });
+        }
+      });
+
+      const rows: ManageSubjectRow[] = rawBatchSubjects.map((item: any) => {
+        const id = String(item?._id || item?.id || '');
+        const enrollment = enrollmentByBatchSubject.get(id);
+        const subject = item?.subjectId && typeof item.subjectId === 'object' ? item.subjectId : {};
+        const teacher = item?.teacherId && typeof item.teacherId === 'object' ? item.teacherId : {};
+        return {
+          id,
+          subjectName: String(subject?.name || 'Unnamed subject'),
+          subjectCode: String(subject?.code || ''),
+          teacherName: String(teacher?.fullName || teacher?.name || 'Not assigned'),
+          status: String(item?.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active',
+          enrollmentId: enrollment?.id || '',
+          enrollmentStatus: enrollment ? enrollment.status : 'not_enrolled',
+        };
+      }).filter((item: ManageSubjectRow) => item.id);
+      setSubjectRows(rows);
+    } catch (error: any) {
+      setSubjectError(error?.message || 'Unable to load subjects.');
+    } finally {
+      setLoadingSubjects(false);
+    }
+  };
+
+  const openManageSubjects = (student: Student) => {
+    setSelectedStudent(student);
+    setSubjectsVisible(true);
+    void loadManageSubjects(student);
+  };
+
+  const closeManageSubjects = () => {
+    if (subjectActionId) return;
+    setSubjectsVisible(false);
+    setSelectedStudent(null);
+    setSubjectRows([]);
+    setSubjectError('');
+  };
+
+  const updateSubjectEnrollment = async (row: ManageSubjectRow, action: 'enroll' | 'remove' | 'reactivate') => {
+    if (!selectedStudent || subjectActionId) return;
+    if (selectedStudent.status !== 'Active') {
+      Alert.alert('Inactive student', 'Activate this student before managing subject enrollments.');
+      return;
+    }
+    if (row.status !== 'active' && action !== 'remove') {
+      Alert.alert('Subject unavailable', 'This subject assignment is inactive for the selected batch.');
+      return;
+    }
+    const performAction = async () => {
+      setSubjectActionId(row.id);
+      try {
+        const token = await getToken();
+        if (!token) throw new Error('Your session has expired. Please log in again.');
+        const isEnroll = action === 'enroll';
+        const endpoint = isEnroll
+          ? `${API_BASE_URL}/student-subjects`
+          : `${API_BASE_URL}/student-subjects/${row.enrollmentId}/status`;
+        const response = await fetch(endpoint, {
+          method: isEnroll ? 'POST' : 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(isEnroll
+            ? { studentId: selectedStudent.id, batchSubjectId: row.id }
+            : { status: action === 'remove' ? 'inactive' : 'active' }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || body?.success === false) {
+          throw new Error(body?.message || body?.error || `Unable to ${action} this subject.`);
+        }
+        await loadManageSubjects(selectedStudent);
+        Alert.alert('Success', action === 'enroll' ? 'Subject enrolled successfully.' : action === 'remove' ? 'Subject removed from the student.' : 'Subject enrollment reactivated.');
+      } catch (error: any) {
+        Alert.alert('Subject update failed', error?.message || `Unable to ${action} this subject.`);
+      } finally {
+        setSubjectActionId(null);
+      }
     };
 
-    setStudentsData((current) =>
-      current.map((student) =>
-        student.id === updatedStudent.id ? updatedStudent : student,
-      ),
-    );
-
-    setSelectedStudent(updatedStudent);
-    setEditVisible(false);
+    if (action === 'remove') {
+      Alert.alert('Remove subject', `Remove ${row.subjectName} from ${selectedStudent.name}?`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => { void performAction(); } },
+      ]);
+    } else {
+      void performAction();
+    }
   };
 
   /* =======================================================
@@ -458,11 +727,26 @@ export default function StudentsPage() {
           ================================================== */}
 
           <View style={styles.studentList}>
+            {loadingStudents ? (
+              <View style={styles.emptyCard}>
+                <ActivityIndicator size="large" color="#7040D5" />
+                <Text style={styles.emptyText}>Loading students...</Text>
+              </View>
+            ) : apiError ? (
+              <View style={styles.emptyCard}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={32} color="#D94376" />
+                <Text style={styles.emptyText}>{apiError}</Text>
+                <TouchableOpacity style={[styles.actionButton, { marginTop: 12 }]} onPress={loadStudents}>
+                  <MaterialCommunityIcons name="refresh" size={15} color="#7040D5" />
+                  <Text style={styles.actionText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
-            {filteredStudents.map((student) => (
+            {!loadingStudents && !apiError && filteredStudents.map((student) => (
 
               <View
-                key={student.id}
+                key={student.studentCode || student.id}
                 style={[
                   styles.studentCard,
                   isMobile && styles.studentCardMobile,
@@ -513,7 +797,7 @@ export default function StudentsPage() {
                           styles.studentIdMobile,
                       ]}
                     >
-                      {student.id}
+                      {student.studentCode || student.id}
                     </Text>
 
                   </View>
@@ -658,6 +942,29 @@ export default function StudentsPage() {
                     </Text>
                   </TouchableOpacity>
 
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    activeOpacity={0.8}
+                    onPress={() => openManageSubjects(student)}
+                  >
+                    <MaterialCommunityIcons name="book-open-variant" size={15} color="#7040D5" />
+                    <Text style={styles.actionText}>Subjects</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    activeOpacity={0.8}
+                    disabled={updatingStatusId === student.id}
+                    onPress={() => toggleStudentStatus(student)}
+                  >
+                    {updatingStatusId === student.id ? (
+                      <ActivityIndicator size="small" color="#7040D5" />
+                    ) : (
+                      <MaterialCommunityIcons name={student.status === 'Active' ? 'account-off-outline' : 'account-check-outline'} size={15} color="#7040D5" />
+                    )}
+                    <Text style={styles.actionText}>{student.status === 'Active' ? 'Deactivate' : 'Activate'}</Text>
+                  </TouchableOpacity>
+
                 </View>
 
               </View>
@@ -668,7 +975,7 @@ export default function StudentsPage() {
                 EMPTY
             ================================================== */}
 
-            {filteredStudents.length === 0 && (
+            {!loadingStudents && !apiError && filteredStudents.length === 0 && (
 
               <View style={styles.emptyCard}>
 
@@ -746,7 +1053,7 @@ export default function StudentsPage() {
                       {selectedStudent.name}
                     </Text>
                     <Text style={styles.modalStudentId}>
-                      {selectedStudent.id}
+                      {selectedStudent.studentCode || selectedStudent.id}
                     </Text>
                   </View>
                 </View>
@@ -787,12 +1094,28 @@ export default function StudentsPage() {
                   </View>
 
                   <View style={styles.modalDetailBox}>
-                    <Text style={styles.modalLabel}>
-                      Contact
-                    </Text>
-                    <Text style={styles.modalValue}>
-                      {selectedStudent.contact}
-                    </Text>
+                    <Text style={styles.modalLabel}>Contact</Text>
+                    <Text style={styles.modalValue}>{selectedStudent.contact || '—'}</Text>
+                  </View>
+                  <View style={styles.modalDetailBox}>
+                    <Text style={styles.modalLabel}>Batch</Text>
+                    <Text style={styles.modalValue}>{selectedStudent.batch}</Text>
+                  </View>
+                  <View style={styles.modalDetailBox}>
+                    <Text style={styles.modalLabel}>Email</Text>
+                    <Text style={styles.modalValue}>{selectedStudent.email || '—'}</Text>
+                  </View>
+                  <View style={styles.modalDetailBox}>
+                    <Text style={styles.modalLabel}>Guardian</Text>
+                    <Text style={styles.modalValue}>{selectedStudent.guardianName || '—'}</Text>
+                  </View>
+                  <View style={styles.modalDetailBox}>
+                    <Text style={styles.modalLabel}>Guardian Contact</Text>
+                    <Text style={styles.modalValue}>{selectedStudent.guardianMobile || '—'}</Text>
+                  </View>
+                  <View style={styles.modalDetailBox}>
+                    <Text style={styles.modalLabel}>Address</Text>
+                    <Text style={styles.modalValue}>{selectedStudent.address || '—'}</Text>
                   </View>
                 </View>
 
@@ -852,29 +1175,15 @@ export default function StudentsPage() {
                 placeholderTextColor="#A0AABB"
               />
 
-              <Text style={styles.inputLabel}>
-                Standard
-              </Text>
+              <Text style={styles.inputLabel}>Standard (read-only)</Text>
               <TextInput
                 value={editStandard}
-                onChangeText={setEditStandard}
-                style={styles.modalInput}
+                editable={false}
+                style={[styles.modalInput, { color: '#8792A4', backgroundColor: '#F3F4F8' }]}
                 placeholder="Standard"
                 placeholderTextColor="#A0AABB"
               />
-
-              <Text style={styles.inputLabel}>
-                Branch
-              </Text>
-              <TextInput
-                value={editBranch}
-                onChangeText={setEditBranch}
-                style={styles.modalInput}
-                placeholder="Branch"
-                placeholderTextColor="#A0AABB"
-              />
-
-              <Text style={styles.inputLabel}>
+<Text style={styles.inputLabel}>
                 Contact
               </Text>
               <TextInput
@@ -885,6 +1194,23 @@ export default function StudentsPage() {
                 placeholderTextColor="#A0AABB"
                 keyboardType="phone-pad"
               />
+
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput value={editEmail} onChangeText={setEditEmail} style={styles.modalInput}
+                placeholder="Email address" placeholderTextColor="#A0AABB" keyboardType="email-address" autoCapitalize="none" />
+
+              <Text style={styles.inputLabel}>Guardian Name</Text>
+              <TextInput value={editGuardianName} onChangeText={setEditGuardianName} style={styles.modalInput}
+                placeholder="Guardian name" placeholderTextColor="#A0AABB" />
+
+              <Text style={styles.inputLabel}>Guardian Mobile</Text>
+              <TextInput value={editGuardianMobile} onChangeText={setEditGuardianMobile} style={styles.modalInput}
+                placeholder="10-digit guardian mobile" placeholderTextColor="#A0AABB" keyboardType="phone-pad" />
+
+              <Text style={styles.inputLabel}>Address</Text>
+              <TextInput value={editAddress} onChangeText={setEditAddress}
+                style={[styles.modalInput, { minHeight: 72, textAlignVertical: 'top', paddingTop: 10 }]}
+                placeholder="Address" placeholderTextColor="#A0AABB" multiline />
 
               <Text style={styles.inputLabel}>
                 Status
@@ -927,21 +1253,108 @@ export default function StudentsPage() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.modalSaveButton}
                   activeOpacity={0.85}
                   onPress={saveEdit}
+                  disabled={savingEdit}
+                  style={[styles.modalSaveButton, savingEdit && { opacity: 0.65 }]}
                 >
-                  <MaterialCommunityIcons
-                    name="check"
-                    size={17}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.modalSaveText}>
-                    Save Changes
-                  </Text>
+                  {savingEdit ? <ActivityIndicator size="small" color="#FFFFFF" /> :
+                    <MaterialCommunityIcons name="check" size={17} color="#FFFFFF" />}
+                  <Text style={styles.modalSaveText}>{savingEdit ? 'Saving...' : 'Save Changes'}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* =================================================
+          MANAGE SUBJECTS MODAL
+      ================================================== */}
+      <Modal
+        visible={subjectsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeManageSubjects}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.modalTitle}>Manage Subjects</Text>
+                <Text style={styles.modalSubtitle}>
+                  {selectedStudent ? `${selectedStudent.name} • ${selectedStudent.batch}` : 'Student subject enrollment'}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.modalClose} activeOpacity={0.8} onPress={closeManageSubjects} disabled={!!subjectActionId}>
+                <MaterialCommunityIcons name="close" size={20} color="#66768A" />
+              </TouchableOpacity>
+            </View>
+
+            {loadingSubjects ? (
+              <View style={styles.subjectLoading}>
+                <ActivityIndicator size="large" color="#7040D5" />
+                <Text style={styles.subjectMutedText}>Loading batch subjects...</Text>
+              </View>
+            ) : subjectError ? (
+              <View style={styles.subjectEmpty}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={30} color="#D64545" />
+                <Text style={styles.subjectErrorText}>{subjectError}</Text>
+                <TouchableOpacity style={styles.subjectRetryButton} onPress={() => selectedStudent && void loadManageSubjects(selectedStudent)}>
+                  <Text style={styles.subjectRetryText}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
+            ) : subjectRows.length === 0 ? (
+              <View style={styles.subjectEmpty}>
+                <MaterialCommunityIcons name="book-open-page-variant-outline" size={30} color="#A2ADBF" />
+                <Text style={styles.subjectEmptyTitle}>No subjects assigned</Text>
+                <Text style={styles.subjectMutedText}>There are no subjects assigned to this student's batch yet.</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.subjectList}>
+                {subjectRows.map((row) => {
+                  const isBusy = subjectActionId === row.id;
+                  const enrolled = row.enrollmentStatus === 'active';
+                  const inactiveEnrollment = row.enrollmentStatus === 'inactive';
+                  const unavailable = row.status !== 'active';
+                  return (
+                    <View key={row.id} style={styles.subjectCard}>
+                      <View style={styles.subjectInfo}>
+                        <Text style={styles.subjectName}>{row.subjectName}</Text>
+                        {!!row.subjectCode && <Text style={styles.subjectCode}>{row.subjectCode}</Text>}
+                        <Text style={styles.subjectTeacher}>Teacher: {row.teacherName}</Text>
+                        <View style={[styles.subjectStatusPill, enrolled ? styles.subjectStatusActive : inactiveEnrollment ? styles.subjectStatusInactive : styles.subjectStatusNeutral]}>
+                          <Text style={[styles.subjectStatusText, enrolled ? styles.subjectStatusActiveText : inactiveEnrollment ? styles.subjectStatusInactiveText : styles.subjectStatusNeutralText]}>
+                            {enrolled ? 'Enrolled' : inactiveEnrollment ? 'Previously enrolled' : 'Not enrolled'}{unavailable ? ' • Assignment inactive' : ''}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.subjectActionArea}>
+                        {isBusy ? <ActivityIndicator size="small" color="#7040D5" /> : enrolled ? (
+                          <TouchableOpacity style={styles.subjectRemoveButton} onPress={() => updateSubjectEnrollment(row, 'remove')} activeOpacity={0.8}>
+                            <Text style={styles.subjectRemoveText}>Remove</Text>
+                          </TouchableOpacity>
+                        ) : inactiveEnrollment ? (
+                          <TouchableOpacity disabled={unavailable || !!subjectActionId} style={[styles.subjectEnrollButton, (unavailable || !!subjectActionId) && styles.subjectButtonDisabled]} onPress={() => updateSubjectEnrollment(row, 'reactivate')} activeOpacity={0.8}>
+                            <Text style={styles.subjectEnrollText}>Reactivate</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity disabled={unavailable || !!subjectActionId} style={[styles.subjectEnrollButton, (unavailable || !!subjectActionId) && styles.subjectButtonDisabled]} onPress={() => updateSubjectEnrollment(row, 'enroll')} activeOpacity={0.8}>
+                            <Text style={styles.subjectEnrollText}>Enroll</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+            <View style={styles.subjectFooter}>
+              <Text style={styles.subjectFooterText}>Subjects are loaded from the selected student's batch.</Text>
+              <TouchableOpacity style={styles.modalCancelButton} activeOpacity={0.8} onPress={closeManageSubjects} disabled={!!subjectActionId}>
+                <Text style={styles.modalCancelText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1549,6 +1962,7 @@ const styles = StyleSheet.create({
 
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
 
     justifyContent: 'flex-end',
 
@@ -1687,7 +2101,7 @@ const styles = StyleSheet.create({
 
   modalScroll: {
     paddingTop: 16,
-    paddingBottom: 4,
+    paddingBottom: 40,
   },
 
   modalProfile: {
@@ -1749,6 +2163,152 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
     fontSize: 11,
     color: '#202B3E',
+  },
+
+  subjectLoading: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  subjectList: {
+    paddingTop: 14,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  subjectCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FBFAFF',
+    borderWidth: 1,
+    borderColor: '#EEE8FC',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  subjectInfo: {
+    flex: 1,
+  },
+  subjectName: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+    color: '#202B3E',
+  },
+  subjectCode: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9,
+    color: '#7040D5',
+    marginTop: 2,
+  },
+  subjectTeacher: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
+    color: '#66768A',
+    marginTop: 4,
+  },
+  subjectStatusPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 7,
+  },
+  subjectStatusActive: { backgroundColor: '#E7F8EF' },
+  subjectStatusInactive: { backgroundColor: '#FFF2E5' },
+  subjectStatusNeutral: { backgroundColor: '#F0F1F5' },
+  subjectStatusText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 8,
+  },
+  subjectStatusActiveText: { color: '#16834A' },
+  subjectStatusInactiveText: { color: '#A95D12' },
+  subjectStatusNeutralText: { color: '#667085' },
+  subjectActionArea: {
+    minWidth: 78,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  subjectEnrollButton: {
+    minWidth: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7040D5',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  subjectEnrollText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 9,
+    color: '#FFFFFF',
+  },
+  subjectRemoveButton: {
+    minWidth: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF0F0',
+    borderWidth: 1,
+    borderColor: '#F7D5D5',
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+  },
+  subjectRemoveText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 9,
+    color: '#C63737',
+  },
+  subjectButtonDisabled: { opacity: 0.45 },
+  subjectEmpty: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  subjectEmptyTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+    color: '#202B3E',
+    textAlign: 'center',
+  },
+  subjectMutedText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    color: '#7B8498',
+    textAlign: 'center',
+  },
+  subjectErrorText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    color: '#C63737',
+    textAlign: 'center',
+  },
+  subjectRetryButton: {
+    marginTop: 5,
+    backgroundColor: '#7040D5',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  subjectRetryText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+  subjectFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#EEF0F5',
+    paddingTop: 12,
+    marginTop: 8,
+    gap: 10,
+    alignItems: 'flex-end',
+  },
+  subjectFooterText: {
+    alignSelf: 'flex-start',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8,
+    color: '#7B8498',
   },
 
   modalStatusRow: {

@@ -1,1036 +1,2369 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+
 import {
+
   Alert,
+
   KeyboardAvoidingView,
+
   Platform,
+
   ScrollView,
+
   StyleSheet,
+
   Text,
+
   TextInput,
+
   TouchableOpacity,
+
   useWindowDimensions,
+
   View,
+
 } from "react-native";
+
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+
 import { router } from "expo-router";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { API_BASE_URL } from "@/config/api";
+import { getToken } from "@/services/auth";
+
+
+
+/* ================================================================
+
+   SELECT FIELD
+
+================================================================ */
+
+
 
 type SelectFieldProps = {
+
   label: string;
+
   value: string;
+
   placeholder: string;
+
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
+
   options: string[];
+
+  required?: boolean;
+
   onSelect: (value: string) => void;
+
 };
 
+
+
 function SelectField({
+
+  label,
+
+  value,
+
+  placeholder,
+
+  icon,
+
+  options,
+
+  required = false,
+
+  onSelect,
+
+}: SelectFieldProps) {
+
+  const [open, setOpen] = useState(false);
+
+
+
+  return (
+
+    <View style={styles.fieldContainer}>
+
+      <Text style={styles.fieldLabel}>
+
+        {label}
+
+        {required && <Text style={styles.required}> *</Text>}
+
+      </Text>
+
+
+
+      <TouchableOpacity
+
+        style={[
+
+          styles.selectInput,
+
+          open && styles.selectInputActive,
+
+        ]}
+
+        activeOpacity={0.8}
+
+        onPress={() => setOpen((current) => !current)}
+
+      >
+
+        <MaterialCommunityIcons
+
+          name={icon}
+
+          size={19}
+
+          color="#7040D5"
+
+        />
+
+
+
+        <Text
+
+          style={[
+
+            styles.selectText,
+
+            !value && styles.placeholderText,
+
+          ]}
+
+          numberOfLines={1}
+
+        >
+
+          {value || placeholder}
+
+        </Text>
+
+
+
+        <MaterialCommunityIcons
+
+          name={open ? "chevron-up" : "chevron-down"}
+
+          size={20}
+
+          color="#8A93A5"
+
+        />
+
+      </TouchableOpacity>
+
+
+
+      {open && (
+
+        <View style={styles.dropdown}>
+
+          {options.map((option) => (
+
+            <TouchableOpacity
+
+              key={option}
+
+              style={[
+
+                styles.dropdownItem,
+
+                option === value && styles.dropdownItemActive,
+
+              ]}
+
+              activeOpacity={0.8}
+
+              onPress={() => {
+
+                onSelect(option);
+
+                setOpen(false);
+
+              }}
+
+            >
+
+              <Text
+
+                style={[
+
+                  styles.dropdownText,
+
+                  option === value && styles.dropdownTextActive,
+
+                ]}
+
+              >
+
+                {option}
+
+              </Text>
+
+
+
+              {option === value && (
+
+                <MaterialCommunityIcons
+
+                  name="check"
+
+                  size={18}
+
+                  color="#7040D5"
+
+                />
+
+              )}
+
+            </TouchableOpacity>
+
+          ))}
+
+        </View>
+
+      )}
+
+    </View>
+
+  );
+
+}
+
+
+
+/* ================================================================
+
+   INPUT FIELD
+
+================================================================ */
+
+
+
+type InputFieldProps = {
+
+  label: string;
+
+  value: string;
+
+  placeholder: string;
+
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+
+  required?: boolean;
+
+  keyboardType?: "default" | "email-address" | "phone-pad";
+
+  secureTextEntry?: boolean;
+
+  maxLength?: number;
+
+  onChangeText: (value: string) => void;
+
+};
+
+
+
+function InputField({
   label,
   value,
   placeholder,
   icon,
-  options,
-  onSelect,
-}: SelectFieldProps) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <View style={styles.fieldContainer}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-
-      <TouchableOpacity
-        style={styles.selectInput}
-        activeOpacity={0.8}
-        onPress={() => setOpen((current) => !current)}
-      >
-        <MaterialCommunityIcons
-          name={icon}
-          size={19}
-          color="#7040D5"
-        />
-
-        <Text
-          style={[
-            styles.selectText,
-            !value && styles.placeholderText,
-          ]}
-          numberOfLines={1}
-        >
-          {value || placeholder}
-        </Text>
-
-        <MaterialCommunityIcons
-          name={open ? "chevron-up" : "chevron-down"}
-          size={20}
-          color="#8A93A5"
-        />
-      </TouchableOpacity>
-
-      {open && (
-        <View style={styles.dropdown}>
-          {options.map((option) => (
-            <TouchableOpacity
-              key={option}
-              style={[
-                styles.dropdownItem,
-                option === value && styles.dropdownItemActive,
-              ]}
-              activeOpacity={0.8}
-              onPress={() => {
-                onSelect(option);
-                setOpen(false);
-              }}
-            >
-              <Text
-                style={[
-                  styles.dropdownText,
-                  option === value && styles.dropdownTextActive,
-                ]}
-              >
-                {option}
-              </Text>
-
-              {option === value && (
-                <MaterialCommunityIcons
-                  name="check"
-                  size={18}
-                  color="#7040D5"
-                />
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function MultiSelectField({
-  label,
-  values,
-  placeholder,
-  icon,
-  options,
-  onToggle,
-}: {
-  label: string;
-  values: string[];
-  placeholder: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  options: string[];
-  onToggle: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
+  required = false,
+  keyboardType = "default",
+  secureTextEntry = false,
+  maxLength,
+  onChangeText,
+}: InputFieldProps) {
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <View style={styles.fieldContainer}>
       <Text style={styles.fieldLabel}>
-        {label} <Text style={styles.required}>*</Text>
+        {label}
+        {required && <Text style={styles.required}> *</Text>}
       </Text>
 
-      <TouchableOpacity
-        style={styles.selectInput}
-        activeOpacity={0.8}
-        onPress={() => setOpen((current) => !current)}
-      >
+      <View style={styles.textInputWrapper}>
         <MaterialCommunityIcons name={icon} size={19} color="#7040D5" />
-
-        <View style={styles.multiSelectValue}>
-          {values.length === 0 ? (
-            <Text style={styles.placeholderText}>{placeholder}</Text>
-          ) : (
-            <Text style={styles.selectText} numberOfLines={1}>
-              {values.join(", ")}
-            </Text>
-          )}
-        </View>
-
-        <MaterialCommunityIcons
-          name={open ? "chevron-up" : "chevron-down"}
-          size={20}
-          color="#8A93A5"
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#9AA2B1"
+          keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry && !showPassword}
+          maxLength={maxLength}
+          autoCapitalize={keyboardType === "email-address" ? "none" : "sentences"}
+          autoCorrect={keyboardType !== "email-address"}
+          style={styles.textInput}
         />
-      </TouchableOpacity>
-
-      {open && (
-        <View style={styles.dropdown}>
-          {options.map((option) => {
-            const selected = values.includes(option);
-
-            return (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.dropdownItem,
-                  selected && styles.dropdownItemActive,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => onToggle(option)}
-              >
-                <Text
-                  style={[
-                    styles.dropdownText,
-                    selected && styles.dropdownTextActive,
-                  ]}
-                >
-                  {option}
-                </Text>
-
-                <MaterialCommunityIcons
-                  name={selected ? "checkbox-marked" : "checkbox-blank-outline"}
-                  size={19}
-                  color={selected ? "#7040D5" : "#8A93A5"}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
+        {secureTextEntry && (
+          <TouchableOpacity
+            onPress={() => setShowPassword((current) => !current)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+            style={{ padding: 6, marginLeft: 4 }}
+          >
+            <MaterialCommunityIcons
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
+              size={20}
+              color="#8A93A5"
+            />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
 
+/* ================================================================
+
+   ADD STUDENT PAGE
+
+================================================================ */
+
+
+
 export default function AddStudentPage() {
+
   const insets = useSafeAreaInsets();
+
   const { width } = useWindowDimensions();
+
   const isTablet = width >= 600;
 
+
+
+  /* ============================================================
+
+     PERSONAL INFORMATION
+
+  ============================================================ */
+
+
+
   const [fullName, setFullName] = useState("");
+
   const [email, setEmail] = useState("");
+
   const [mobile, setMobile] = useState("");
-  const [standard, setStandard] = useState("");
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+
+
+
+  /* ============================================================
+
+     ACCOUNT INFORMATION
+
+  ============================================================ */
+
+
+
+  const [password, setPassword] = useState("");
+
+
+
+  /* ============================================================
+
+     ACADEMIC INFORMATION
+
+  ============================================================ */
+
+
+
   const [batch, setBatch] = useState("");
-  const [branch, setBranch] = useState("");
-  const [parentName, setParentName] = useState("");
-  const [parentMobile, setParentMobile] = useState("");
+  const [batches, setBatches] = useState<any[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+
+
+  /* ============================================================
+
+     PARENT / GUARDIAN INFORMATION
+
+  ============================================================ */
+
+
+
+  const [guardianName, setGuardianName] = useState("");
+
+  const [guardianMobile, setGuardianMobile] = useState("");
+
   const [address, setAddress] = useState("");
 
+
+
+  /* ============================================================
+
+     BRANCH-SCOPED BATCH DATA
+
+     The backend should return only batches available to this Admin.
+  ============================================================ */
+
+  const getBatchId = (item: any): string => String(item?._id || item?.id || item?.batchId || "");
+  const getBatchLabel = (item: any): string => {
+    if (typeof item === "string") return item;
+    return item?.batchName || item?.name || item?.title || item?.label ||
+      [item?.standard ? `${item.standard} Standard` : "", item?.courseName || item?.course || "", item?.timing || item?.shift || ""]
+        .filter(Boolean).join(" - ") || "Unnamed batch";
+  };
+  const batchOptions = batches.map(getBatchLabel);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadBatches = async () => {
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("Your session has expired. Please log in again.");
+        const response = await fetch(`${API_BASE_URL}/batches`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body?.message || body?.error || "Unable to load batches.");
+        const rows = Array.isArray(body) ? body
+          : Array.isArray(body?.batches) ? body.batches
+          : Array.isArray(body?.data) ? body.data
+          : Array.isArray(body?.data?.batches) ? body.data.batches
+          : Array.isArray(body?.items) ? body.items : [];
+        if (mounted) setBatches(rows.filter((item: any) => getBatchId(item)));
+      } catch (error: any) {
+        if (mounted) Alert.alert("Unable to Load Batches", error?.message || "Please try again.");
+      } finally { if (mounted) setLoadingBatches(false); }
+    };
+    loadBatches();
+    return () => { mounted = false; };
+  }, []);
+
+  /* ============================================================
+
+     RESET FORM
+
+  ============================================================ */
+
+
+
   const resetForm = () => {
+
     setFullName("");
+
     setEmail("");
+
     setMobile("");
-    setStandard("");
-    setSelectedSubjects([]);
+
+    setPassword("");
+
     setBatch("");
-    setBranch("");
-    setParentName("");
-    setParentMobile("");
+
+    setGuardianName("");
+
+    setGuardianMobile("");
+
     setAddress("");
+
   };
 
-  const handleSave = () => {
-    if (
-      !fullName.trim() ||
-      !mobile.trim() ||
-      !standard ||
-      selectedSubjects.length === 0 ||
-      !batch ||
-      !branch
-    ) {
+
+
+  /* ============================================================
+
+     VALIDATION
+
+  ============================================================ */
+
+
+
+  const handleSave = async () => {
+
+    if (!fullName.trim()) {
+
       Alert.alert(
-        "Required Fields",
-        "Please fill all required student details."
+
+        "Required Field",
+
+        "Please enter the student's full name."
+
       );
+
+      return;
+
+    }
+
+
+
+    if (!email.trim()) {
+
+      Alert.alert(
+
+        "Required Field",
+
+        "Please enter the student's email address."
+
+      );
+
+      return;
+
+    }
+
+
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
+
+
+
+    if (!emailRegex.test(email.trim())) {
+
+      Alert.alert(
+
+        "Invalid Email",
+
+        "Please enter a valid email address."
+
+      );
+
+      return;
+
+    }
+
+
+
+    if (!mobile.trim()) {
+
+      Alert.alert(
+
+        "Required Field",
+
+        "Please enter the student's mobile number."
+
+      );
+
+      return;
+
+    }
+
+
+
+    if (!/^[6-9]\d{9}$/.test(mobile.trim())) {
+
+      Alert.alert(
+
+        "Invalid Mobile",
+
+        "Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9."
+
+      );
+
+      return;
+
+    }
+
+
+
+    if (!password.trim()) {
+
+      Alert.alert(
+
+        "Required Field",
+
+        "Please enter an initial password."
+
+      );
+
+      return;
+
+    }
+
+
+
+    if (password.length < 6) {
+
+      Alert.alert(
+
+        "Invalid Password",
+
+        "Password must contain at least 6 characters."
+
+      );
+
+      return;
+
+    }
+
+
+
+    if (!batch) {
+
+      Alert.alert(
+
+        "Required Field",
+
+        "Please select a batch."
+
+      );
+
+      return;
+
+    }
+
+
+
+    if (
+
+      guardianMobile.trim() &&
+
+      !/^[6-9]\d{9}$/.test(guardianMobile.trim())
+
+    ) {
+
+      Alert.alert(
+
+        "Invalid Guardian Mobile",
+
+        "Please enter a valid 10-digit Indian guardian mobile number starting with 6, 7, 8, or 9."
+
+      );
+
+      return;
+
+    }
+
+
+
+    const selectedBatch = batches.find((item: any) => getBatchLabel(item) === batch);
+    const batchId = selectedBatch ? getBatchId(selectedBatch) : "";
+    if (!batchId) {
+      Alert.alert("Invalid Batch", "Please select a valid batch from the list.");
       return;
     }
 
-    Alert.alert(
-      "Student Added",
-      `${fullName.trim()} has been added successfully.`,
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            resetForm();
-            router.back();
-          },
-        },
-      ]
-    );
+    try {
+      setSaving(true);
+      const token = await getToken();
+      if (!token) throw new Error("Your session has expired. Please log in again.");
+      const response = await fetch(`${API_BASE_URL}/students`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          fullName: fullName.trim(), email: email.trim().toLowerCase(), mobileNumber: mobile.trim(),
+          password, batchId, guardianName: guardianName.trim(), guardianMobile: guardianMobile.trim(), address: address.trim(),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.message || body?.error || "Unable to add student.");
+      Alert.alert("Student Added", body?.message || `${fullName.trim()} has been added successfully.`, [
+        { text: "OK", onPress: () => { resetForm(); router.back(); } },
+      ]);
+    } catch (error: any) {
+      Alert.alert("Unable to Add Student", error?.message || "Please try again.");
+    } finally { setSaving(false); }
   };
 
+
+
+  /* ============================================================
+
+     UI
+
+  ============================================================ */
+
+
+
   return (
+
     <View style={styles.safeArea}>
-      {/* HEADER */}
+
+      {/* ========================================================
+
+          HEADER
+
+      ======================================================== */}
+
+
+
       <View
+
         style={[
+
           styles.header,
+
           {
+
             paddingTop: insets.top + 8,
+
             minHeight: insets.top + 66,
+
           },
+
         ]}
+
       >
+
         <TouchableOpacity
+
           style={styles.backButton}
+
           onPress={() => router.back()}
+
           activeOpacity={0.8}
+
         >
+
           <MaterialCommunityIcons
+
             name="arrow-left"
+
             size={22}
+
             color="#FFFFFF"
+
           />
+
         </TouchableOpacity>
 
+
+
         <View style={styles.headerTitleContainer}>
+
           <Text style={styles.headerTitle}>Add Student</Text>
+
+
+
+          <Text style={styles.headerSubtitle}>
+
+            Create a new student account
+
+          </Text>
+
         </View>
+
       </View>
 
+
+
       <KeyboardAvoidingView
+
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+
+        keyboardVerticalOffset={0}
+
       >
+
         <ScrollView
+
           showsVerticalScrollIndicator={false}
+
           keyboardShouldPersistTaps="handled"
+
           contentContainerStyle={[
+
             styles.content,
+
+            { paddingBottom: 110 },
+
             isTablet && { paddingHorizontal: 24 },
+
           ]}
+
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+
         >
-          {/* PAGE TITLE */}
+
+          {/* ====================================================
+
+              PAGE TITLE
+
+          ==================================================== */}
+
+
+
           <View style={styles.pageTitleContainer}>
-            <Text style={styles.pageTitle}>Student Information</Text>
-            <Text style={styles.pageSubtitle}>
-              Enter student details, academic information and parent information.
+
+            <Text style={styles.pageTitle}>
+
+              Student Information
+
             </Text>
+
+
+
+            <Text style={styles.pageSubtitle}>
+
+              Enter student details, account information and
+
+              parent contact.
+
+            </Text>
+
           </View>
 
-          {/* PERSONAL INFORMATION */}
+
+
+          {/* ====================================================
+
+              PERSONAL INFORMATION
+
+          ==================================================== */}
+
+
+
           <View style={styles.card}>
+
             <View style={styles.sectionHeader}>
+
               <View style={styles.sectionIconPurple}>
+
                 <MaterialCommunityIcons
+
                   name="account-outline"
+
                   size={20}
+
                   color="#7040D5"
+
                 />
+
               </View>
 
-              <View>
-                <Text style={styles.sectionTitle}>
-                  Personal Information
-                </Text>
-                <Text style={styles.sectionSubtitle}>
-                  Basic student details
-                </Text>
-              </View>
-            </View>
 
-            <View style={styles.fieldContainer}>
-              <Text style={styles.fieldLabel}>
-                Full Name <Text style={styles.required}>*</Text>
-              </Text>
-
-              <View style={styles.textInputWrapper}>
-                <MaterialCommunityIcons
-                  name="account-outline"
-                  size={19}
-                  color="#7040D5"
-                />
-                <TextInput
-                  value={fullName}
-                  onChangeText={setFullName}
-                  placeholder="Enter full name"
-                  placeholderTextColor="#9AA2B1"
-                  style={styles.textInput}
-                />
-              </View>
-            </View>
-
-            <View style={styles.twoColumn}>
-              <View style={[styles.column, styles.columnFirst]}>
-                <Text style={styles.fieldLabel}>Email Address</Text>
-
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="email-outline"
-                    size={19}
-                    color="#7040D5"
-                  />
-                  <TextInput
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder="Enter email"
-                    placeholderTextColor="#9AA2B1"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    style={styles.textInput}
-                  />
-                </View>
-              </View>
-
-              <View style={[styles.column, styles.columnSecond]}>
-                <Text style={styles.fieldLabel}>
-                  Mobile Number <Text style={styles.required}>*</Text>
-                </Text>
-
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="phone-outline"
-                    size={19}
-                    color="#7040D5"
-                  />
-                  <TextInput
-                    value={mobile}
-                    onChangeText={setMobile}
-                    placeholder="Enter mobile"
-                    placeholderTextColor="#9AA2B1"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    style={styles.textInput}
-                  />
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* ACADEMIC INFORMATION */}
-          <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconBlue}>
-                <MaterialCommunityIcons
-                  name="school-outline"
-                  size={20}
-                  color="#2675E8"
-                />
-              </View>
 
               <View style={styles.sectionHeaderText}>
+
                 <Text style={styles.sectionTitle}>
-                  Academic Information
+
+                  Personal Information
+
                 </Text>
+
+
+
                 <Text style={styles.sectionSubtitle}>
-                  Standard, subject and batch details
-                </Text>
-              </View>
-            </View>
 
-            <View style={styles.twoColumn}>
-              <View style={[styles.column, styles.columnFirst]}>
-                <SelectField
-                  label="Standard"
-                  value={standard}
-                  placeholder="Select standard"
-                  icon="school-outline"
-                  options={[
-                    "8th Standard",
-                    "9th Standard",
-                    "10th Standard",
-                    "11th Standard",
-                    "12th Standard",
-                  ]}
-                  onSelect={setStandard}
-                />
-              </View>
+                  Basic student details
 
-              <View style={[styles.column, styles.columnSecond]}>
-                <MultiSelectField
-                  label="Subject"
-                  values={selectedSubjects}
-                  placeholder="Select subject"
-                  icon="book-open-outline"
-                  options={[
-                    "Physics",
-                    "Mathematics",
-                    "Chemistry",
-                    "Biology",
-                  ]}
-                  onToggle={(value) =>
-                    setSelectedSubjects((current) =>
-                      current.includes(value)
-                        ? current.filter((item) => item !== value)
-                        : [...current, value]
-                    )
-                  }
-                />
-              </View>
-            </View>
-
-            <View style={styles.twoColumn}>
-              <View style={[styles.column, styles.columnFirst]}>
-                <SelectField
-                  label="Batch"
-                  value={batch}
-                  placeholder="Select batch"
-                  icon="google-circles-communities"
-                  options={[
-                    "8th Foundation - Evening",
-                    "9th Foundation - Evening",
-                    "10th Foundation - Afternoon",
-                    "11th MHT-CET - Evening",
-                    "12th JEE - Morning",
-                    "12th NEET - Morning",
-                  ]}
-                  onSelect={setBatch}
-                />
-              </View>
-
-              <View style={[styles.column, styles.columnSecond]}>
-                <SelectField
-                  label="Branch"
-                  value={branch}
-                  placeholder="Select branch"
-                  icon="office-building-outline"
-                  options={[
-                    "Pune Branch",
-                    "Mumbai Branch",
-                    "Nashik Branch",
-                    "Nagpur Branch",
-                    "Main Branch",
-                  ]}
-                  onSelect={setBranch}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* PARENT INFORMATION */}
-          <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconGreen}>
-                <MaterialCommunityIcons
-                  name="account-supervisor-outline"
-                  size={20}
-                  color="#35B878"
-                />
-              </View>
-
-              <View>
-                <Text style={styles.sectionTitle}>
-                  Parent Information
-                </Text>
-                <Text style={styles.sectionSubtitle}>
-                  Parent contact details
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.twoColumn}>
-              <View style={[styles.column, styles.columnFirst]}>
-                <Text style={styles.fieldLabel}>Parent Name</Text>
-
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="account-supervisor-outline"
-                    size={19}
-                    color="#35B878"
-                  />
-                  <TextInput
-                    value={parentName}
-                    onChangeText={setParentName}
-                    placeholder="Enter name"
-                    placeholderTextColor="#9AA2B1"
-                    style={styles.textInput}
-                  />
-                </View>
-              </View>
-
-              <View style={[styles.column, styles.columnSecond]}>
-                <Text style={styles.fieldLabel}>
-                  Parent Mobile Number
                 </Text>
 
-                <View style={styles.textInputWrapper}>
-                  <MaterialCommunityIcons
-                    name="phone-outline"
-                    size={19}
-                    color="#35B878"
-                  />
-                  <TextInput
-                    value={parentMobile}
-                    onChangeText={setParentMobile}
-                    placeholder="Enter mobile"
-                    placeholderTextColor="#9AA2B1"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    style={styles.textInput}
-                  />
-                </View>
               </View>
+
             </View>
 
-            <View style={styles.fieldContainer}>
-              <Text style={styles.fieldLabel}>Address</Text>
 
-              <View
-                style={[
-                  styles.textInputWrapper,
-                  styles.textAreaWrapper,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="map-marker-outline"
-                  size={19}
-                  color="#35B878"
-                  style={styles.textAreaIcon}
-                />
-                <TextInput
-                  value={address}
-                  onChangeText={setAddress}
-                  placeholder="Enter address"
-                  placeholderTextColor="#9AA2B1"
-                  multiline
-                  textAlignVertical="top"
-                  style={[styles.textInput, styles.textArea]}
-                />
-              </View>
-            </View>
-          </View>
 
-          {/* INFORMATION NOTICE */}
-          <View style={styles.infoNotice}>
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={20}
-              color="#7040D5"
+            {/* Full Name */}
+
+
+
+            <InputField
+
+              label="Full Name"
+
+              value={fullName}
+
+              placeholder="Enter full name"
+
+              icon="account-outline"
+
+              required
+
+              onChangeText={setFullName}
+
             />
 
-            <Text style={styles.infoText}>
-              Student records are used across Classes 8 to 12, Foundation,
-              JEE, NEET and MHT-CET academic modules.
-            </Text>
+
+
+            {/* Email + Mobile */}
+
+
+
+            <View style={styles.twoColumn}>
+
+              <View style={styles.column}>
+
+                <InputField
+
+                  label="Email Address"
+
+                  value={email}
+
+                  placeholder="Enter email"
+
+                  icon="email-outline"
+
+                  required
+
+                  keyboardType="email-address"
+
+                  onChangeText={(value) => setEmail(value.replace(/\s/g, ""))}
+
+                />
+
+              </View>
+
+
+
+              <View style={styles.column}>
+
+                <InputField
+
+                  label="Mobile Number"
+
+                  value={mobile}
+
+                  placeholder="Enter mobile"
+
+                  icon="phone-outline"
+
+                  required
+
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  onChangeText={(value) => setMobile(value.replace(/\D/g, "").slice(0, 10))}
+
+                />
+
+              </View>
+
+            </View>
+
           </View>
 
-          {/* ACTIONS */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              activeOpacity={0.8}
-              onPress={() => router.back()}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.saveButton}
-              activeOpacity={0.85}
-              onPress={handleSave}
-            >
+
+          {/* ====================================================
+
+              ACCOUNT INFORMATION
+
+          ==================================================== */}
+
+
+
+          <View style={styles.card}>
+
+            <View style={styles.sectionHeader}>
+
+              <View style={styles.sectionIconPurple}>
+
+                <MaterialCommunityIcons
+
+                  name="lock-outline"
+
+                  size={20}
+
+                  color="#7040D5"
+
+                />
+
+              </View>
+
+
+
+              <View style={styles.sectionHeaderText}>
+
+                <Text style={styles.sectionTitle}>
+
+                  Account Information
+
+                </Text>
+
+
+
+                <Text style={styles.sectionSubtitle}>
+
+                  Login credentials for the student
+
+                </Text>
+
+              </View>
+
+            </View>
+
+
+
+            <InputField
+
+              label="Initial Password"
+
+              value={password}
+
+              placeholder="Enter initial password"
+
+              icon="lock-outline"
+
+              required
+
+              secureTextEntry
+
+              onChangeText={setPassword}
+
+            />
+
+
+
+            <View style={styles.passwordNotice}>
+
               <MaterialCommunityIcons
-                name="account-plus-outline"
+
+                name="information-outline"
+
                 size={18}
-                color="#FFFFFF"
+
+                color="#7040D5"
+
               />
-              <Text style={styles.saveButtonText}>Add Student</Text>
-            </TouchableOpacity>
+
+
+
+              <Text style={styles.passwordNoticeText}>
+
+                This password will be used for the student's
+
+                initial login.
+
+              </Text>
+
+            </View>
+
           </View>
+
+
+
+          {/* ====================================================
+
+              ACADEMIC INFORMATION
+
+          ==================================================== */}
+
+
+
+          <View style={styles.card}>
+
+            <View style={styles.sectionHeader}>
+
+              <View style={styles.sectionIconBlue}>
+
+                <MaterialCommunityIcons
+
+                  name="school-outline"
+
+                  size={20}
+
+                  color="#2675E8"
+
+                />
+
+              </View>
+
+
+
+              <View style={styles.sectionHeaderText}>
+
+                <Text style={styles.sectionTitle}>
+
+                  Academic Information
+
+                </Text>
+
+
+
+                <Text style={styles.sectionSubtitle}>
+
+                  Select the student's batch
+
+                </Text>
+
+              </View>
+
+            </View>
+
+
+
+            <SelectField
+
+              label="Batch"
+
+              value={batch}
+
+              placeholder="Select batch"
+
+              icon="google-circles-communities"
+
+              options={loadingBatches ? ["Loading batches..."] : batchOptions}
+
+              required
+
+              onSelect={(value) => { if (!loadingBatches) setBatch(value); }}
+
+            />
+
+
+
+            <View style={styles.infoNoticeSmall}>
+
+              <MaterialCommunityIcons
+
+                name="information-outline"
+
+                size={18}
+
+                color="#7040D5"
+
+              />
+
+
+
+              <Text style={styles.infoNoticeSmallText}>
+
+                Standard and branch are automatically determined
+
+                from the selected batch. Subjects will be assigned
+
+                separately.
+
+              </Text>
+
+            </View>
+
+          </View>
+
+
+
+          {/* ====================================================
+
+              PARENT / GUARDIAN INFORMATION
+
+          ==================================================== */}
+
+
+
+          <View style={styles.card}>
+
+            <View style={styles.sectionHeader}>
+
+              <View style={styles.sectionIconGreen}>
+
+                <MaterialCommunityIcons
+
+                  name="account-supervisor-outline"
+
+                  size={20}
+
+                  color="#35B878"
+
+                />
+
+              </View>
+
+
+
+              <View style={styles.sectionHeaderText}>
+
+                <Text style={styles.sectionTitle}>
+
+                  Parent / Guardian Information
+
+                </Text>
+
+
+
+                <Text style={styles.sectionSubtitle}>
+
+                  Parent or guardian contact details
+
+                </Text>
+
+              </View>
+
+            </View>
+
+
+
+            <View style={styles.twoColumn}>
+
+              <View style={styles.column}>
+
+                <InputField
+
+                  label="Guardian Name"
+
+                  value={guardianName}
+
+                  placeholder="Enter name"
+
+                  icon="account-supervisor-outline"
+
+                  onChangeText={setGuardianName}
+
+                />
+
+              </View>
+
+
+
+              <View style={styles.column}>
+
+                <InputField
+
+                  label="Guardian Mobile"
+
+                  value={guardianMobile}
+
+                  placeholder="Enter mobile"
+
+                  icon="phone-outline"
+
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  onChangeText={(value) => setGuardianMobile(value.replace(/\D/g, "").slice(0, 10))}
+
+                />
+
+              </View>
+
+            </View>
+
+
+
+            {/* Address */}
+
+
+
+            <View style={styles.fieldContainer}>
+
+              <Text style={styles.fieldLabel}>
+
+                Address
+
+              </Text>
+
+
+
+              <View
+
+                style={[
+
+                  styles.textInputWrapper,
+
+                  styles.textAreaWrapper,
+
+                ]}
+
+              >
+
+                <MaterialCommunityIcons
+
+                  name="map-marker-outline"
+
+                  size={19}
+
+                  color="#35B878"
+
+                  style={styles.textAreaIcon}
+
+                />
+
+
+
+                <TextInput
+
+                  value={address}
+
+                  onChangeText={setAddress}
+
+                  placeholder="Enter address"
+
+                  placeholderTextColor="#9AA2B1"
+
+                  multiline
+
+                  textAlignVertical="top"
+
+                  style={[
+
+                    styles.textInput,
+
+                    styles.textArea,
+
+                  ]}
+
+                />
+
+              </View>
+
+            </View>
+
+          </View>
+
+
+
+          {/* ====================================================
+
+              INFORMATION NOTICE
+
+          ==================================================== */}
+
+
+
+          <View style={styles.infoNotice}>
+
+            <MaterialCommunityIcons
+
+              name="information-outline"
+
+              size={20}
+
+              color="#7040D5"
+
+            />
+
+
+
+            <Text style={styles.infoText}>
+
+              A unique Student ID will be generated automatically
+
+              after the student is created. Standard and branch
+
+              information comes from the selected batch.
+
+            </Text>
+
+          </View>
+
+
+
+          {/* ====================================================
+
+              ACTIONS
+
+          ==================================================== */}
+
+
+
+          <View style={styles.actionButtons}>
+
+            <TouchableOpacity
+
+              style={styles.cancelButton}
+
+              activeOpacity={0.8}
+
+              onPress={() => router.back()}
+
+            >
+
+              <Text style={styles.cancelButtonText}>
+
+                Cancel
+
+              </Text>
+
+            </TouchableOpacity>
+
+
+
+            <TouchableOpacity
+
+              style={styles.saveButton}
+
+              activeOpacity={0.85}
+
+              onPress={handleSave}
+              disabled={saving || loadingBatches}
+
+            >
+
+              <MaterialCommunityIcons
+
+                name="account-plus-outline"
+
+                size={18}
+
+                color="#FFFFFF"
+
+              />
+
+
+
+              <Text style={styles.saveButtonText}>
+
+                {saving ? "Adding Student..." : "Add Student"}
+
+              </Text>
+
+            </TouchableOpacity>
+
+          </View>
+
+
 
           <View style={{ height: 30 }} />
+
         </ScrollView>
+
       </KeyboardAvoidingView>
+
     </View>
+
   );
+
 }
 
+
+
+/* ================================================================
+
+   STYLES
+
+================================================================ */
+
+
+
 const styles = StyleSheet.create({
+
   safeArea: {
+
     flex: 1,
+
     backgroundColor: "#F7F8FC",
+
   },
+
+
+
+  /* ============================================================
+
+     HEADER
+
+  ============================================================ */
+
+
 
   header: {
+
     backgroundColor: "#7040D5",
+
     paddingHorizontal: 16,
+
     paddingBottom: 12,
+
     flexDirection: "row",
+
     alignItems: "center",
+
   },
+
+
 
   backButton: {
+
     width: 46,
+
     height: 46,
+
     borderRadius: 13,
+
     alignItems: "center",
+
     justifyContent: "center",
+
     backgroundColor: "rgba(255,255,255,0.15)",
+
   },
+
+
 
   headerTitleContainer: {
+
     flex: 1,
+
     minWidth: 0,
+
     marginLeft: 14,
+
   },
+
+
 
   headerTitle: {
+
     fontFamily: "PoppinsSemiBold",
+
     fontSize: 20,
+
     lineHeight: 25,
+
     color: "#FFFFFF",
+
     flexShrink: 1,
+
   },
+
+
 
   headerSubtitle: {
+
     fontFamily: "PoppinsRegular",
+
     fontSize: 11,
+
     color: "#E9E1FF",
+
     marginTop: 2,
+
   },
 
-  headerEditButton: {
-    height: 38,
-    minWidth: 92,
-    borderRadius: 11,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
 
-  headerEditText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 11,
-    color: "#7040D5",
-    marginLeft: 6,
-  },
+
+  /* ============================================================
+
+     CONTAINER
+
+  ============================================================ */
+
+
 
   container: {
+
     flex: 1,
+
   },
+
+
 
   content: {
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 36,
+
+    paddingHorizontal: 14,
+
+    paddingTop: 14,
+
+    paddingBottom: 34,
+
   },
+
+
+
+  /* ============================================================
+
+     PAGE TITLE
+
+  ============================================================ */
+
+
 
   pageTitleContainer: {
+
     width: "100%",
+
     maxWidth: 1000,
+
     alignSelf: "center",
+
     marginBottom: 14,
+
   },
+
+
 
   pageTitle: {
+
     fontFamily: "PoppinsBold",
+
     fontSize: 20,
+
     color: "#172033",
+
   },
+
+
 
   pageSubtitle: {
+
     fontFamily: "PoppinsRegular",
+
     fontSize: 11,
+
     color: "#748096",
+
     marginTop: 3,
+
     lineHeight: 16,
+
   },
+
+
+
+  /* ============================================================
+
+     CARD
+
+  ============================================================ */
+
+
 
   card: {
+
     width: "100%",
+
     maxWidth: 1000,
+
     alignSelf: "center",
+
     backgroundColor: "#FFFFFF",
+
     borderWidth: 1,
+
     borderColor: "#E8EAF0",
+
     borderRadius: 18,
-    padding: 18,
-    marginBottom: 16,
+
+    padding: 16,
+
+    marginBottom: 13,
+
+
+
     shadowColor: "#000000",
+
     shadowOffset: {
+
       width: 0,
+
       height: 2,
+
     },
+
     shadowOpacity: 0.06,
+
     shadowRadius: 8,
+
     elevation: 3,
+
   },
+
+
+
+  /* ============================================================
+
+     SECTION HEADER
+
+  ============================================================ */
+
+
 
   sectionHeader: {
+
     flexDirection: "row",
+
     alignItems: "center",
-    paddingBottom: 14,
+
+    paddingBottom: 12,
+
     marginBottom: 2,
+
     borderBottomWidth: 1,
+
     borderBottomColor: "#ECEEF3",
+
   },
+
+
 
   sectionHeaderText: {
+
     flex: 1,
+
     minWidth: 0,
+
   },
+
+
 
   sectionIconPurple: {
+
     width: 48,
+
     height: 48,
+
     borderRadius: 14,
+
     backgroundColor: "#F1EAFF",
+
     alignItems: "center",
+
     justifyContent: "center",
+
     marginRight: 12,
+
   },
+
+
 
   sectionIconBlue: {
+
     width: 48,
+
     height: 48,
+
     borderRadius: 14,
+
     backgroundColor: "#EAF2FF",
+
     alignItems: "center",
+
     justifyContent: "center",
+
     marginRight: 12,
+
   },
+
+
 
   sectionIconGreen: {
+
     width: 48,
+
     height: 48,
+
     borderRadius: 14,
+
     backgroundColor: "#E7F8EF",
+
     alignItems: "center",
+
     justifyContent: "center",
+
     marginRight: 12,
+
   },
+
+
 
   sectionTitle: {
+
     fontFamily: "PoppinsSemiBold",
+
     fontSize: 16,
+
     color: "#172033",
+
   },
+
+
 
   sectionSubtitle: {
+
     fontFamily: "PoppinsRegular",
+
     fontSize: 11,
+
     color: "#8A93A5",
+
     marginTop: 2,
+
   },
+
+
+
+  /* ============================================================
+
+     FORM FIELDS
+
+  ============================================================ */
+
+
 
   fieldContainer: {
-    marginTop: 15,
+
+    marginTop: 13,
+
+    flex: 1,
+
+    minWidth: 0,
+
   },
+
+
 
   fieldLabel: {
+
     fontFamily: "PoppinsMedium",
+
     fontSize: 11,
+
     color: "#59657A",
+
     marginBottom: 7,
+
     includeFontPadding: false,
-  
+
   },
+
+
 
   required: {
+
     color: "#E95386",
+
   },
+
+
 
   textInputWrapper: {
+
     width: "100%",
+
     minWidth: 0,
+
     minHeight: 52,
+
     borderRadius: 12,
+
     borderWidth: 1,
+
     borderColor: "#DDE1E9",
+
     backgroundColor: "#FFFFFF",
+
     paddingHorizontal: 11,
+
     flexDirection: "row",
+
     alignItems: "center",
+
     overflow: "hidden",
-  
+
   },
+
+
 
   textInput: {
+
     flex: 1,
+
     minWidth: 0,
+
     maxWidth: "100%",
+
     minHeight: 48,
+
     marginLeft: 7,
+
     paddingVertical: 0,
+
     paddingRight: 0,
+
     fontFamily: "PoppinsRegular",
+
     fontSize: 10,
+
     color: "#172033",
+
     includeFontPadding: false,
-  
+
   },
+
+
 
   twoColumn: {
+
     width: "100%",
+
     flexDirection: "row",
+
     gap: 8,
-  
+
   },
+
+
 
   column: {
+
     flex: 1,
+
     minWidth: 0,
+
     maxWidth: "50%",
-  
+
   },
+
+
+
+  /* ============================================================
+
+     SELECT
+
+  ============================================================ */
+
+
 
   selectInput: {
+
     width: "100%",
+
     minWidth: 0,
+
     minHeight: 52,
+
     borderRadius: 12,
+
     borderWidth: 1,
+
     borderColor: "#DDE1E9",
+
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 13,
+
+    paddingHorizontal: 11,
+
     flexDirection: "row",
+
     alignItems: "center",
+
     overflow: "hidden",
-  
+
   },
 
-  multiSelectValue: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: "100%",
-    marginLeft: 7,
-    overflow: "hidden",
-  
+
+
+  selectInputActive: {
+
+    borderColor: "#7040D5",
+
   },
+
+
 
   selectText: {
+
     flex: 1,
+
     minWidth: 0,
+
     maxWidth: "100%",
+
     marginLeft: 7,
+
     fontFamily: "PoppinsRegular",
+
     fontSize: 10,
+
     color: "#344054",
+
     includeFontPadding: false,
-  
+
   },
+
+
 
   placeholderText: {
+
     fontFamily: "PoppinsRegular",
-    fontSize: 11,
+
+    fontSize: 10,
+
     color: "#9AA2B1",
+
     includeFontPadding: false,
-  
+
   },
+
+
 
   dropdown: {
+
     marginTop: 5,
+
     backgroundColor: "#FFFFFF",
+
     borderRadius: 12,
+
     borderWidth: 1,
+
     borderColor: "#DDE1E9",
+
     overflow: "hidden",
+
+
+
     elevation: 5,
+
+
+
     shadowColor: "#000000",
+
     shadowOffset: {
+
       width: 0,
+
       height: 2,
+
     },
+
     shadowOpacity: 0.08,
+
     shadowRadius: 6,
+
   },
+
+
 
   dropdownItem: {
+
     minHeight: 46,
+
     paddingHorizontal: 13,
+
     flexDirection: "row",
+
     alignItems: "center",
+
     justifyContent: "space-between",
+
     borderBottomWidth: 1,
+
     borderBottomColor: "#F0F2F6",
+
   },
+
+
 
   dropdownItemActive: {
+
     backgroundColor: "#F1EAFF",
+
   },
+
+
 
   dropdownText: {
+
     flex: 1,
+
     fontFamily: "PoppinsRegular",
+
     fontSize: 10.5,
+
     color: "#344054",
+
   },
+
+
 
   dropdownTextActive: {
+
     fontFamily: "PoppinsSemiBold",
+
     color: "#7040D5",
+
   },
+
+
+
+  /* ============================================================
+
+     PASSWORD NOTICE
+
+  ============================================================ */
+
+
+
+  passwordNotice: {
+
+    marginTop: 10,
+
+    padding: 11,
+
+    borderRadius: 10,
+
+    backgroundColor: "#F8F4FF",
+
+    borderWidth: 1,
+
+    borderColor: "#E9DFFF",
+
+    flexDirection: "row",
+
+    alignItems: "flex-start",
+
+    gap: 8,
+
+  },
+
+
+
+  passwordNoticeText: {
+
+    flex: 1,
+
+    fontFamily: "PoppinsRegular",
+
+    fontSize: 10,
+
+    lineHeight: 15,
+
+    color: "#7040D5",
+
+  },
+
+
+
+  /* ============================================================
+
+     SMALL INFORMATION NOTICE
+
+  ============================================================ */
+
+
+
+  infoNoticeSmall: {
+
+    marginTop: 10,
+
+    padding: 11,
+
+    borderRadius: 10,
+
+    backgroundColor: "#F8F4FF",
+
+    borderWidth: 1,
+
+    borderColor: "#E9DFFF",
+
+    flexDirection: "row",
+
+    alignItems: "flex-start",
+
+    gap: 8,
+
+  },
+
+
+
+  infoNoticeSmallText: {
+
+    flex: 1,
+
+    fontFamily: "PoppinsRegular",
+
+    fontSize: 10,
+
+    lineHeight: 15,
+
+    color: "#7040D5",
+
+  },
+
+
+
+  /* ============================================================
+
+     TEXT AREA
+
+  ============================================================ */
+
+
 
   textAreaWrapper: {
+
     minHeight: 92,
+
     alignItems: "flex-start",
+
     paddingTop: 14,
+
   },
+
+
 
   textAreaIcon: {
+
     marginTop: 2,
+
   },
+
+
 
   textArea: {
+
     minHeight: 70,
+
     textAlignVertical: "top",
+
     paddingTop: 0,
+
   },
+
+
+
+  /* ============================================================
+
+     INFORMATION NOTICE
+
+  ============================================================ */
+
+
 
   infoNotice: {
+
     width: "100%",
+
     maxWidth: 1000,
+
     alignSelf: "center",
+
     backgroundColor: "#F1EAFF",
+
     borderWidth: 1,
+
     borderColor: "#E8DEFF",
+
     borderRadius: 12,
-    padding: 14,
+
+    padding: 12,
+
     flexDirection: "row",
+
     alignItems: "flex-start",
+
     marginBottom: 14,
+
     gap: 9,
+
   },
+
+
 
   infoText: {
+
     flex: 1,
+
     fontFamily: "PoppinsRegular",
+
     fontSize: 10.5,
+
     lineHeight: 16,
+
     color: "#7040D5",
+
   },
+
+
+
+  /* ============================================================
+
+     ACTION BUTTONS
+
+  ============================================================ */
+
+
 
   actionButtons: {
+
     width: "100%",
+
     maxWidth: 1000,
+
     alignSelf: "center",
+
     flexDirection: "row",
+
     gap: 10,
+
   },
+
+
 
   cancelButton: {
+
     flex: 1,
+
     minHeight: 50,
+
     borderRadius: 12,
+
     borderWidth: 1,
+
     borderColor: "#DDE1E9",
+
     backgroundColor: "#FFFFFF",
+
     alignItems: "center",
+
     justifyContent: "center",
+
   },
+
+
 
   cancelButtonText: {
+
     fontFamily: "PoppinsSemiBold",
+
     fontSize: 12,
+
     color: "#687386",
+
   },
+
+
 
   saveButton: {
+
     flex: 1.4,
+
     minHeight: 50,
+
     borderRadius: 12,
+
     backgroundColor: "#7040D5",
+
     flexDirection: "row",
+
     alignItems: "center",
+
     justifyContent: "center",
+
     gap: 7,
+
+
+
     shadowColor: "#7040D5",
+
     shadowOffset: {
+
       width: 0,
+
       height: 3,
+
     },
+
     shadowOpacity: 0.16,
+
     shadowRadius: 6,
+
     elevation: 3,
+
   },
 
+
+
   saveButtonText: {
+
     fontFamily: "PoppinsSemiBold",
+
     fontSize: 12,
+
     color: "#FFFFFF",
+
   },
+
 });

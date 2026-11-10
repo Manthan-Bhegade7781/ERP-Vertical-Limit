@@ -79,6 +79,10 @@ const managementItems: MenuItem[] = [
     label: 'Staff on Leave',
     icon: 'account-off-outline',
   },
+  {
+    label: 'Feedback',
+    icon: 'message-alert-outline',
+  }
 ];
 
 /* =========================================================

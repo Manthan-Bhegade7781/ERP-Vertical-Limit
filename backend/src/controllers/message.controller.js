@@ -2,6 +2,7 @@
 const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const User = require("../models/User");
+const createNotification = require("../utils/createNotification");
 
 // --------------------------------------------------
 // HELPERS
@@ -380,6 +381,34 @@ const createMessage = async (req, res) => {
       Message.findById(message._id)
     );
 
+    // Notify recipients
+    try {
+      await Promise.allSettled(
+        recipients.map((recipient) => {
+          const isSuperAdminRecipient =
+            Array.isArray(recipient.roles) &&
+            recipient.roles.includes("super_admin");
+
+          return createNotification({
+            recipient: recipient._id,
+            title: `New Message: ${subject.trim()}`,
+            message: `${sender.fullName || "User"}: ${
+              body.trim().length > 80
+                ? body.trim().slice(0, 80) + "..."
+                : body.trim()
+            }`,
+            type: "general",
+            icon: "email-outline",
+            link: isSuperAdminRecipient
+              ? "/(super_admin)/explore?feature=Messages"
+              : "/(admin)/explore?feature=Messages",
+          });
+        })
+      );
+    } catch (notifError) {
+      console.error("Message notification error:", notifError.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: "Message sent successfully.",
@@ -576,6 +605,30 @@ const replyToMessage = async (req, res) => {
     const populatedReply = await populateMessage(
       Message.findById(reply._id)
     );
+
+    // Notify original sender of the reply
+    try {
+      const isSuperAdminRecipient =
+        Array.isArray(originalSender.roles) &&
+        originalSender.roles.includes("super_admin");
+
+      await createNotification({
+        recipient: originalSender._id,
+        title: `Reply: ${original.subject}`,
+        message: `${sender.fullName || "User"}: ${
+          body.trim().length > 80
+            ? body.trim().slice(0, 80) + "..."
+            : body.trim()
+        }`,
+        type: "general",
+        icon: "email-reply-outline",
+        link: isSuperAdminRecipient
+          ? "/(super_admin)/explore?feature=Messages"
+          : "/(admin)/explore?feature=Messages",
+      });
+    } catch (notifError) {
+      console.error("Reply notification error:", notifError.message);
+    }
 
     return res.status(201).json({
       success: true,

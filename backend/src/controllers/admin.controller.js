@@ -2,6 +2,13 @@ const User = require("../models/User");
 const Student = require("../models/Student");
 const Teacher = require("../models/Teacher");
 const Branch = require("../models/Branch");
+const Batch = require("../models/Batch");
+const Subject = require("../models/Subject");
+const BatchSubject = require("../models/BatchSubject");
+const Attendance = require("../models/attendance.model");
+const Examination = require("../models/examination.model");
+const Assignment = require("../models/assignment.model");
+const Leave = require("../models/Leave");
 const createNotification = require("../utils/createNotification");
 
 // Get all pending teacher/student registrations
@@ -303,9 +310,165 @@ const promoteTeacherToAdmin = async (req, res) => {
   }
 };
 
+// =====================================================
+// GET ADMIN DASHBOARD STATISTICS
+// =====================================================
+
+const getDashboardStats = async (req, res) => {
+  try {
+    const isSuperAdmin =
+      Array.isArray(req.user?.roles) &&
+      req.user.roles.includes("super_admin");
+    const branchId = !isSuperAdmin ? req.user?.branchId : null;
+
+    if (!isSuperAdmin && !branchId) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalStudents: 0,
+          totalTeachers: 0,
+          activeSubjects: 0,
+          activeBatches: 0,
+          attendance: "0%",
+          upcomingExams: 0,
+          assignments: 0,
+          staffOnLeave: 0,
+        },
+      });
+    }
+
+    const batchQuery = { isRemoved: { $ne: true } };
+    if (branchId) {
+      batchQuery.branchId = branchId;
+    }
+
+    const batches = await Batch.find(batchQuery).select("_id startDate endDate");
+    const batchIds = batches.map((b) => b._id);
+
+    // Run statistical queries concurrently
+    const [
+      studentsCount,
+      teacherUserIds,
+      allSubjectsCount,
+      branchAssignedSubjects,
+      attendanceRecords,
+      upcomingExamsCount,
+      assignmentsCount,
+      staffOnLeaveCount,
+    ] = await Promise.all([
+      // 1. Total Students
+      branchId
+        ? Student.countDocuments({ batchId: { $in: batchIds } })
+        : Student.countDocuments(),
+
+      // 2. Teachers for branch
+      branchId
+        ? User.find({
+            branchId,
+            roles: "teacher",
+            status: "active",
+          }).distinct("_id")
+        : Promise.resolve(null),
+
+      // 3. Subjects fallback
+      Subject.countDocuments({ status: "active" }),
+
+      // 4. Batch subjects for branch
+      branchId && batchIds.length > 0
+        ? BatchSubject.find({
+            batchId: { $in: batchIds },
+            status: "active",
+          }).distinct("subjectId")
+        : Promise.resolve([]),
+
+      // 5. Attendance records
+      Attendance.find(
+        branchId ? { batchId: { $in: batchIds } } : {}
+      ).select("status"),
+
+      // 6. Upcoming Examinations
+      Examination.countDocuments({
+        status: "scheduled",
+        ...(branchId ? { batchId: { $in: batchIds } } : {}),
+      }),
+
+      // 7. Assignments
+      Assignment.countDocuments(
+        branchId ? { branchId } : {}
+      ),
+
+      // 8. Staff on Leave (approved)
+      Leave.countDocuments({
+        status: "approved",
+        ...(branchId ? { branchId } : {}),
+      }),
+    ]);
+
+    // Calculate Teachers count
+    let totalTeachers = 0;
+    if (branchId) {
+      if (teacherUserIds && teacherUserIds.length > 0) {
+        const teacherProfileCount = await Teacher.countDocuments({
+          userId: { $in: teacherUserIds },
+          status: "active",
+        });
+        totalTeachers = teacherProfileCount > 0 ? teacherProfileCount : teacherUserIds.length;
+      }
+    } else {
+      totalTeachers = await Teacher.countDocuments({ status: "active" });
+    }
+
+    // Calculate Active Batches (startDate <= now <= endDate)
+    const now = new Date();
+    let activeBatches = batches.filter(
+      (b) => new Date(b.startDate) <= now && new Date(b.endDate) >= now
+    ).length;
+    if (activeBatches === 0 && batches.length > 0) {
+      activeBatches = batches.length;
+    }
+
+    // Calculate Active Subjects
+    const activeSubjects =
+      branchAssignedSubjects && branchAssignedSubjects.length > 0
+        ? branchAssignedSubjects.length
+        : allSubjectsCount;
+
+    // Calculate Attendance Percentage
+    let attendance = "0%";
+    if (attendanceRecords && attendanceRecords.length > 0) {
+      const presentOrLate = attendanceRecords.filter(
+        (r) => r.status === "Present" || r.status === "Late"
+      ).length;
+      const rate = Math.round((presentOrLate / attendanceRecords.length) * 100);
+      attendance = `${rate}%`;
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalStudents: studentsCount || 0,
+        totalTeachers: totalTeachers || 0,
+        activeSubjects: activeSubjects || 0,
+        activeBatches: activeBatches || 0,
+        attendance,
+        upcomingExams: upcomingExamsCount || 0,
+        assignments: assignmentsCount || 0,
+        staffOnLeave: staffOnLeaveCount || 0,
+      },
+    });
+  } catch (error) {
+    console.error("Get dashboard stats error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch dashboard statistics",
+    });
+  }
+};
+
 module.exports = {
   getPendingRegistrations,
   approveRegistration,
   rejectRegistration,
   promoteTeacherToAdmin,
+  getDashboardStats,
 };

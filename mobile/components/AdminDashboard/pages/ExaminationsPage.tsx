@@ -1,224 +1,112 @@
-import React, { useMemo, useState } from "react";
-
+import React, { useCallback, useMemo, useState } from "react";
 import {
-
+  ActivityIndicator,
   Alert,
-
   Modal,
-
   ScrollView,
-
   StyleSheet,
-
   Text,
-
   TextInput,
-
   TouchableOpacity,
-
   useWindowDimensions,
-
   View,
-
 } from "react-native";
-
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { API_BASE_URL } from "@/config/api";
+import { getToken } from "@/services/auth";
 
-type ExamStatus = "Scheduled" | "Ongoing" | "Completed" | "Cancelled";
-
+type ExamStatus = "scheduled" | "completed" | "cancelled" | "results_published";
+type FilterStatus = "All" | ExamStatus;
 type Examination = {
-
-  id: string;
-
+  id: string; // MongoDB _id, used for API operations
+  code: string;
   name: string;
-
   subject: string;
-
+  subjectId: string;
   batch: string;
-
+  batchId: string;
   branch: string;
-
-  date: string;
-
+  date: string; // display date
+  apiDate: string; // YYYY-MM-DD for updates
   time: string;
-
   duration: string;
-
+  durationMinutes: number;
   totalMarks: string;
-
+  passingMarks: number;
+  instructions: string;
   status: ExamStatus;
-
 };
 
-const initialExaminations: Examination[] = [
-
-  {
-
-    id: "EXM001",
-
-    name: "Unit Test 1",
-
-    subject: "Physics",
-
-    batch: "JEE 12th",
-
-    branch: "Pune Branch",
-
-    date: "22 Sep 2026",
-
-    time: "10:00 AM",
-
-    duration: "2 Hours",
-
-    totalMarks: "100",
-
-    status: "Scheduled",
-
-  },
-
-  {
-
-    id: "EXM002",
-
-    name: "Mid Term Examination",
-
-    subject: "Mathematics",
-
-    batch: "JEE 12th",
-
-    branch: "Pune Branch",
-
-    date: "25 Sep 2026",
-
-    time: "10:00 AM",
-
-    duration: "3 Hours",
-
-    totalMarks: "100",
-
-    status: "Scheduled",
-
-  },
-
-  {
-
-    id: "EXM003",
-
-    name: "Chemistry Practice Test",
-
-    subject: "Chemistry",
-
-    batch: "NEET 12th",
-
-    branch: "Mumbai Branch",
-
-    date: "28 Sep 2026",
-
-    time: "11:00 AM",
-
-    duration: "2 Hours",
-
-    totalMarks: "100",
-
-    status: "Scheduled",
-
-  },
-
-  {
-
-    id: "EXM004",
-
-    name: "Weekly Test",
-
-    subject: "Biology",
-
-    batch: "NEET 12th",
-
-    branch: "Pune Branch",
-
-    date: "18 Sep 2026",
-
-    time: "9:00 AM",
-
-    duration: "2 Hours",
-
-    totalMarks: "100",
-
-    status: "Ongoing",
-
-  },
-
-  {
-
-    id: "EXM005",
-
-    name: "Chapter Test",
-
-    subject: "Physics",
-
-    batch: "11th MHT-CET",
-
-    branch: "Nashik Branch",
-
-    date: "12 Sep 2026",
-
-    time: "10:00 AM",
-
-    duration: "90 Minutes",
-
-    totalMarks: "80",
-
-    status: "Completed",
-
-  },
-
-  {
-
-    id: "EXM006",
-
-    name: "Revision Test",
-
-    subject: "Mathematics",
-
-    batch: "10th Foundation",
-
-    branch: "Main Branch",
-
-    date: "10 Sep 2026",
-
-    time: "2:00 PM",
-
-    duration: "90 Minutes",
-
-    totalMarks: "80",
-
-    status: "Completed",
-
-  },
-
-];
-
-const statusColors: Record<
-
-  ExamStatus,
-
-  { bg: string; text: string }
-
-> = {
-
-  Scheduled: { bg: "#EAF2FF", text: "#2675E8" },
-
-  Ongoing: { bg: "#FFF1E2", text: "#F28A17" },
-
-  Completed: { bg: "#E7F8EF", text: "#27A968" },
-
-  Cancelled: { bg: "#FFE9EC", text: "#E84D61" },
-
+const statusColors: Record<ExamStatus, { bg: string; text: string }> = {
+  scheduled: { bg: "#EAF2FF", text: "#2675E8" },
+  completed: { bg: "#E7F8EF", text: "#27A968" },
+  cancelled: { bg: "#FFE9EC", text: "#E84D61" },
+  results_published: { bg: "#F0E8FF", text: "#7040D5" },
+};
+
+const statusLabel: Record<ExamStatus, string> = {
+  scheduled: "Scheduled",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  results_published: "Results Published",
+};
+
+const asObject = (value: any) => value && typeof value === "object" ? value : {};
+const getArray = (payload: any): any[] => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.examinations)) return payload.examinations;
+  return [];
+};
+const formatDate = (value: any) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value ?? "—");
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+};
+const toApiDate = (value: any) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+};
+const formatDuration = (minutes: number) => {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "—";
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours && mins) return `${hours}h ${mins}m`;
+  if (hours) return `${hours} ${hours === 1 ? "Hour" : "Hours"}`;
+  return `${mins} Minutes`;
+};
+const normalizeStatus = (value: any): ExamStatus => {
+  const status = String(value ?? "scheduled").toLowerCase();
+  return (["scheduled", "completed", "cancelled", "results_published"].includes(status) ? status : "scheduled") as ExamStatus;
+};
+const mapExamination = (raw: any): Examination => {
+  const batch = asObject(raw?.batchId);
+  const subject = asObject(raw?.subjectId);
+  const dateValue = raw?.examinationDate;
+  const durationMinutes = Number(raw?.durationMinutes ?? raw?.duration ?? 0);
+  return {
+    id: String(raw?._id ?? raw?.id ?? raw?.examinationCode ?? ""),
+    code: String(raw?.examinationCode ?? raw?._id ?? "—"),
+    name: String(raw?.examinationName ?? "Untitled Examination"),
+    subject: String(subject?.name ?? subject?.subjectName ?? "Subject unavailable"),
+    subjectId: String(subject?._id ?? raw?.subjectId?._id ?? raw?.subjectId ?? ""),
+    batch: String(batch?.name ?? batch?.code ?? "Batch unavailable"),
+    batchId: String(batch?._id ?? raw?.batchId?._id ?? raw?.batchId ?? ""),
+    branch: String(asObject(batch?.branchId)?.name ?? batch?.branchName ?? "Assigned branch"),
+    date: formatDate(dateValue),
+    apiDate: toApiDate(dateValue),
+    time: String(raw?.startTime ?? "—"),
+    duration: formatDuration(durationMinutes),
+    durationMinutes,
+    totalMarks: String(raw?.totalMarks ?? "—"),
+    passingMarks: Number(raw?.passingMarks ?? 0),
+    instructions: String(raw?.instructions ?? ""),
+    status: normalizeStatus(raw?.status),
+  };
 };
 
 export default function ExaminationPage() {
@@ -229,190 +117,185 @@ export default function ExaminationPage() {
   const isMobile = width < 700;
   const isTablet = width >= 700 && width < 1100;
 
-  const [examinations, setExaminations] =
-
-    useState<Examination[]>(initialExaminations);
-
+  const [examinations, setExaminations] = useState<Examination[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshingError, setRefreshingError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
-
-  const [filter, setFilter] = useState<
-
-    "All" | ExamStatus
-
-  >("All");
-
-  const [selectedExam, setSelectedExam] =
-
-    useState<Examination | null>(null);
-
+  const [filter, setFilter] = useState<FilterStatus>("All");
+  const [selectedExam, setSelectedExam] = useState<Examination | null>(null);
   const [viewVisible, setViewVisible] = useState(false);
-
   const [editVisible, setEditVisible] = useState(false);
-
   const [editName, setEditName] = useState("");
-
-  const [editSubject, setEditSubject] = useState("");
-
-  const [editBatch, setEditBatch] = useState("");
-
-  const [editBranch, setEditBranch] = useState("");
-
+  const [editCode, setEditCode] = useState("");
   const [editDate, setEditDate] = useState("");
-
   const [editTime, setEditTime] = useState("");
-
   const [editDuration, setEditDuration] = useState("");
-
   const [editMarks, setEditMarks] = useState("");
+  const [editPassingMarks, setEditPassingMarks] = useState("");
+  const [editInstructions, setEditInstructions] = useState("");
 
-  const [editStatus, setEditStatus] =
+  const apiRequest = useCallback(async (path: string, options: RequestInit = {}) => {
+    const token = await getToken();
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.success === false) {
+      throw new Error(payload?.message || `Request failed (${response.status})`);
+    }
+    return payload;
+  }, []);
 
-    useState<ExamStatus>("Scheduled");
+  const loadExaminations = useCallback(async () => {
+    setLoading(true);
+    setRefreshingError("");
+    try {
+      const payload = await apiRequest("/examinations");
+      setExaminations(getArray(payload).map(mapExamination));
+    } catch (error: any) {
+      setRefreshingError(error?.message || "Could not load examinations.");
+    } finally {
+      setLoading(false);
+    }
+  }, [apiRequest]);
+
+  // Refresh the examination list whenever this screen becomes active again.
+  // This handles returning from the Add Examination screen in Expo Router.
+  useFocusEffect(
+    useCallback(() => {
+      void loadExaminations();
+    }, [loadExaminations])
+  );
 
   const filteredExaminations = useMemo(() => {
-
     const query = search.trim().toLowerCase();
-
     return examinations.filter((exam) => {
-
-      const matchesSearch =
-
-        !query ||
-
-        exam.id.toLowerCase().includes(query) ||
-
+      const matchesSearch = !query ||
+        exam.code.toLowerCase().includes(query) ||
         exam.name.toLowerCase().includes(query) ||
-
         exam.subject.toLowerCase().includes(query) ||
-
         exam.batch.toLowerCase().includes(query) ||
-
         exam.branch.toLowerCase().includes(query);
-
-      const matchesFilter =
-
-        filter === "All" || exam.status === filter;
-
-      return matchesSearch && matchesFilter;
-
+      return matchesSearch && (filter === "All" || exam.status === filter);
     });
-
   }, [examinations, search, filter]);
 
-  const openAddExamination = () => {
-
-    router.push("/(admin)/add-examination" as never);
-
-  };
+  const openAddExamination = () => router.push("/(admin)/add-examination" as never);
 
   const handleView = (exam: Examination) => {
-
     setSelectedExam(exam);
-
     setViewVisible(true);
-
   };
 
   const handleEdit = (exam: Examination) => {
-
+    if (exam.status !== "scheduled") {
+      Alert.alert("Cannot Edit", "Only scheduled examinations can be edited.");
+      return;
+    }
     setSelectedExam(exam);
-
     setEditName(exam.name);
-
-    setEditSubject(exam.subject);
-
-    setEditBatch(exam.batch);
-
-    setEditBranch(exam.branch);
-
-    setEditDate(exam.date);
-
+    setEditCode(exam.code);
+    setEditDate(exam.apiDate);
     setEditTime(exam.time);
-
-    setEditDuration(exam.duration);
-
+    setEditDuration(String(exam.durationMinutes || ""));
     setEditMarks(exam.totalMarks);
-
-    setEditStatus(exam.status);
-
+    setEditPassingMarks(String(exam.passingMarks));
+    setEditInstructions(exam.instructions);
     setEditVisible(true);
-
   };
 
-  const saveEdit = () => {
-
+  const saveEdit = async () => {
     if (!selectedExam) return;
-
-    if (
-
-      !editName.trim() ||
-
-      !editSubject.trim() ||
-
-      !editBatch.trim() ||
-
-      !editBranch.trim() ||
-
-      !editDate.trim() ||
-
-      !editTime.trim() ||
-
-      !editDuration.trim() ||
-
-      !editMarks.trim()
-
-    ) {
-
-      Alert.alert(
-
-        "Required Fields",
-
-        "Please fill all examination details.",
-
-      );
-
+    const durationMinutes = Number(editDuration);
+    const totalMarks = Number(editMarks);
+    const passingMarks = Number(editPassingMarks);
+    if (!editName.trim() || !editCode.trim() || !editDate.trim() || !editTime.trim() ||
+        !Number.isFinite(durationMinutes) || durationMinutes < 1 ||
+        !Number.isFinite(totalMarks) || totalMarks < 1 ||
+        !Number.isFinite(passingMarks) || passingMarks < 0 || passingMarks > totalMarks) {
+      Alert.alert("Check Details", "Enter a name, code, valid date/time, duration, and valid marks. Passing marks cannot exceed total marks.");
       return;
+    }
+    setSaving(true);
+    try {
+      await apiRequest(`/examinations/${selectedExam.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          examinationName: editName.trim(),
+          examinationCode: editCode.trim().toUpperCase(),
+          examinationDate: editDate.trim(),
+          startTime: editTime.trim(),
+          durationMinutes,
+          totalMarks,
+          passingMarks,
+          instructions: editInstructions.trim(),
+        }),
+      });
+      setEditVisible(false);
+      await loadExaminations();
+      Alert.alert("Success", "Examination updated successfully.");
+    } catch (error: any) {
+      Alert.alert("Update Failed", error?.message || "Could not update examination.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
+  const cancelExam = (exam: Examination) => {
+    if (exam.status !== "scheduled") {
+      Alert.alert("Cannot Cancel", "Only scheduled examinations can be cancelled.");
+      return;
+    }
+    Alert.alert("Cancel Examination", `Are you sure you want to cancel ${exam.name}?`, [
+      { text: "Keep Exam", style: "cancel" },
+      { text: "Cancel Exam", style: "destructive", onPress: async () => {
+        try {
+          await apiRequest(`/examinations/${exam.id}/cancel`, { method: "PATCH" });
+          await loadExaminations();
+          Alert.alert("Success", "Examination cancelled.");
+        } catch (error: any) {
+          Alert.alert("Cancellation Failed", error?.message || "Could not cancel examination.");
+        }
+      } },
+    ]);
+  };
+
+  const rescheduleExam = (exam: Examination) => {
+    if (exam.status !== "cancelled") {
+      Alert.alert("Cannot Reschedule", "Only cancelled examinations can be scheduled again.");
+      return;
     }
 
-    const updated: Examination = {
-
-      ...selectedExam,
-
-      name: editName.trim(),
-
-      subject: editSubject.trim(),
-
-      batch: editBatch.trim(),
-
-      branch: editBranch.trim(),
-
-      date: editDate.trim(),
-
-      time: editTime.trim(),
-
-      duration: editDuration.trim(),
-
-      totalMarks: editMarks.trim(),
-
-      status: editStatus,
-
-    };
-
-    setExaminations((current) =>
-
-      current.map((item) =>
-
-        item.id === updated.id ? updated : item,
-
-      ),
-
+    Alert.alert(
+      "Schedule Examination Again",
+      `Do you want to schedule "${exam.name}" again using its current date and time?`,
+      [
+        { text: "Not Now", style: "cancel" },
+        {
+          text: "Schedule Again",
+          onPress: async () => {
+            try {
+              await apiRequest(`/examinations/${exam.id}/reschedule`, {
+                method: "PATCH",
+              });
+              await loadExaminations();
+              Alert.alert("Success", "Examination has been scheduled again.");
+            } catch (error: any) {
+              Alert.alert(
+                "Rescheduling Failed",
+                error?.message || "Could not schedule the examination again."
+              );
+            }
+          },
+        },
+      ]
     );
-
-    setSelectedExam(updated);
-
-    setEditVisible(false);
-
   };
 
   const renderExamCard = (exam: Examination) => {
@@ -445,7 +328,7 @@ export default function ExaminationPage() {
 
               <Text style={styles.examName}>{exam.name}</Text>
 
-              <Text style={styles.examId}>{exam.id}</Text>
+              <Text style={styles.examId}>{exam.code}</Text>
 
             </View>
 
@@ -475,8 +358,7 @@ export default function ExaminationPage() {
 
             >
 
-              {exam.status}
-
+              {statusLabel[exam.status]}
             </Text>
 
           </View>
@@ -584,9 +466,27 @@ export default function ExaminationPage() {
             />
 
             <Text style={styles.viewButtonText}>View</Text>
-
           </TouchableOpacity>
-
+          {exam.status === "scheduled" && (
+            <TouchableOpacity
+              style={styles.cancelExamButton}
+              activeOpacity={0.8}
+              onPress={() => cancelExam(exam)}
+            >
+              <MaterialCommunityIcons name="close-circle-outline" size={17} color="#E84D61" />
+              <Text style={styles.cancelExamButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+          {exam.status === "cancelled" && (
+            <TouchableOpacity
+              style={styles.rescheduleExamButton}
+              activeOpacity={0.8}
+              onPress={() => rescheduleExam(exam)}
+            >
+              <MaterialCommunityIcons name="calendar-refresh-outline" size={17} color="#267A4B" />
+              <Text style={styles.rescheduleExamButtonText}>Schedule Again</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
       </View>
@@ -724,15 +624,10 @@ export default function ExaminationPage() {
                 [
 
                   "All",
-
-                  "Scheduled",
-
-                  "Ongoing",
-
-                  "Completed",
-
-                  "Cancelled",
-
+                  "scheduled",
+                  "completed",
+                  "cancelled",
+                  "results_published",
                 ] as const
 
               ).map((item) => (
@@ -771,8 +666,7 @@ export default function ExaminationPage() {
 
                   >
 
-                    {item}
-
+                    {item === "All" ? "All" : statusLabel[item]}
                   </Text>
 
                 </TouchableOpacity>
@@ -799,7 +693,17 @@ export default function ExaminationPage() {
 
           </View>
 
-          {filteredExaminations.map(renderExamCard)}
+          {loading ? (
+            <View style={styles.stateContainer}><ActivityIndicator size="large" color="#7040D5" /><Text style={styles.stateText}>Loading examinations...</Text></View>
+          ) : refreshingError ? (
+            <View style={styles.stateContainer}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={30} color="#E84D61" />
+              <Text style={styles.stateText}>{refreshingError}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={() => void loadExaminations()}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity>
+            </View>
+          ) : filteredExaminations.length ? filteredExaminations.map(renderExamCard) : (
+            <View style={styles.stateContainer}><MaterialCommunityIcons name="file-search-outline" size={30} color="#8994A7" /><Text style={styles.stateText}>No examinations found.</Text></View>
+          )}
 
         </ScrollView>
 
@@ -833,7 +737,7 @@ export default function ExaminationPage() {
 
                   <Text style={styles.modalSubtitle}>
 
-                    {selectedExam?.id}
+                    {selectedExam?.code}
 
                   </Text>
 
@@ -997,7 +901,7 @@ export default function ExaminationPage() {
 
                   <Text style={styles.modalSubtitle}>
 
-                    {selectedExam?.id}
+                    {selectedExam?.code}
 
                   </Text>
 
@@ -1034,23 +938,14 @@ export default function ExaminationPage() {
               >
 
                 {[
-
                   ["Examination Name", editName, setEditName],
-
-                  ["Subject", editSubject, setEditSubject],
-
-                  ["Batch", editBatch, setEditBatch],
-
-                  ["Branch", editBranch, setEditBranch],
-
-                  ["Date", editDate, setEditDate],
-
-                  ["Time", editTime, setEditTime],
-
-                  ["Duration", editDuration, setEditDuration],
-
+                  ["Examination Code", editCode, setEditCode],
+                  ["Date (YYYY-MM-DD)", editDate, setEditDate],
+                  ["Start Time", editTime, setEditTime],
+                  ["Duration (minutes)", editDuration, setEditDuration],
                   ["Total Marks", editMarks, setEditMarks],
-
+                  ["Passing Marks", editPassingMarks, setEditPassingMarks],
+                  ["Instructions", editInstructions, setEditInstructions],
                 ].map(([label, value, setter]) => (
 
                   <View key={label as string} style={styles.editField}>
@@ -1079,70 +974,6 @@ export default function ExaminationPage() {
 
                 ))}
 
-                <Text style={styles.editLabel}>Status</Text>
-
-                <View style={styles.statusOptions}>
-
-                  {(
-
-                    [
-
-                      "Scheduled",
-
-                      "Ongoing",
-
-                      "Completed",
-
-                      "Cancelled",
-
-                    ] as ExamStatus[]
-
-                  ).map((item) => (
-
-                    <TouchableOpacity
-
-                      key={item}
-
-                      activeOpacity={0.8}
-
-                      onPress={() => setEditStatus(item)}
-
-                      style={[
-
-                        styles.statusOption,
-
-                        editStatus === item &&
-
-                          styles.statusOptionActive,
-
-                      ]}
-
-                    >
-
-                      <Text
-
-                        style={[
-
-                          styles.statusOptionText,
-
-                          editStatus === item &&
-
-                            styles.statusOptionTextActive,
-
-                        ]}
-
-                      >
-
-                        {item}
-
-                      </Text>
-
-                    </TouchableOpacity>
-
-                  ))}
-
-                </View>
-
                 <View style={styles.editActions}>
 
                   <TouchableOpacity
@@ -1162,7 +993,7 @@ export default function ExaminationPage() {
                     style={styles.saveButton}
 
                     onPress={saveEdit}
-
+                    disabled={saving}
                   >
 
                     <MaterialCommunityIcons
@@ -1176,9 +1007,7 @@ export default function ExaminationPage() {
                     />
 
                     <Text style={styles.saveText}>
-
-                      Save Changes
-
+                      {saving ? "Saving..." : "Save Changes"}
                     </Text>
 
                   </TouchableOpacity>
@@ -1203,6 +1032,37 @@ export default function ExaminationPage() {
 
 const styles = StyleSheet.create({
 
+  cancelExamButton: {
+    minWidth: 78,
+    height: 34,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: "#FFE9EC",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelExamButtonText: { fontFamily: "PoppinsSemiBold", fontSize: 10, color: "#E84D61", marginLeft: 5 },
+  rescheduleExamButton: {
+    minWidth: 112,
+    height: 34,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: "#E7F8EF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rescheduleExamButtonText: {
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 10,
+    color: "#267A4B",
+    marginLeft: 5,
+  },
+  stateContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 34, paddingHorizontal: 18, gap: 10 },
+  stateText: { fontFamily: "PoppinsRegular", fontSize: 12, color: "#7C879A", textAlign: "center" },
+  retryButton: { backgroundColor: "#7040D5", borderRadius: 9, paddingHorizontal: 16, paddingVertical: 9, marginTop: 4 },
+  retryButtonText: { fontFamily: "PoppinsSemiBold", fontSize: 11, color: "#FFFFFF" },
   safeArea: {
 
     flex: 1,

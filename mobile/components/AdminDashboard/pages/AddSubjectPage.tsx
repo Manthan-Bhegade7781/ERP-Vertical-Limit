@@ -1,1445 +1,822 @@
 import React, { useState } from "react";
-
 import {
-
   Alert,
-
   KeyboardAvoidingView,
-
   Platform,
-
   ScrollView,
-
   StyleSheet,
-
   Text,
-
   TextInput,
-
   TouchableOpacity,
-
   View,
-
-  useWindowDimensions,
-
+  ActivityIndicator,
 } from "react-native";
-
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
-import { router } from "expo-router";
-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
-
-
+import { router } from "expo-router";
+import { API_BASE_URL } from "@/config/api";
+import { getToken } from "@/services/auth";
 
 type SelectFieldProps = {
-
   label: string;
-
   value: string;
-
   placeholder: string;
-
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-
   options: string[];
-
   onSelect: (value: string) => void;
-
   required?: boolean;
-
 };
 
-
-
-function SelectField({
-
+const SelectField = ({
   label,
-
   value,
-
   placeholder,
-
-  icon,
-
   options,
-
   onSelect,
-
   required = false,
-
-}: SelectFieldProps) {
-
+}: SelectFieldProps) => {
   const [open, setOpen] = useState(false);
 
-
-
   return (
-
     <View style={styles.fieldContainer}>
-
       <Text style={styles.fieldLabel}>
-
         {label} {required && <Text style={styles.required}>*</Text>}
-
       </Text>
 
-
-
       <TouchableOpacity
-
-        style={styles.selectInput}
-
         activeOpacity={0.8}
-
+        style={[
+          styles.selectInput,
+          open && styles.selectInputOpen,
+        ]}
         onPress={() => setOpen((current) => !current)}
-
       >
-
-        <MaterialCommunityIcons name={icon} size={19} color="#7040D5" />
-
         <Text
-
-          style={[styles.selectText, !value && styles.placeholderText]}
-
+          style={[
+            styles.selectText,
+            !value && styles.placeholderText,
+          ]}
           numberOfLines={1}
-
+          ellipsizeMode="tail"
         >
-
           {value || placeholder}
-
         </Text>
 
         <MaterialCommunityIcons
-
           name={open ? "chevron-up" : "chevron-down"}
-
           size={20}
-
-          color="#8A93A5"
-
+          color="#7A8292"
         />
-
       </TouchableOpacity>
 
-
-
       {open && (
-
         <View style={styles.dropdown}>
-
           {options.map((option) => (
-
             <TouchableOpacity
-
               key={option}
-
               style={[
-
-                styles.dropdownItem,
-
-                option === value && styles.dropdownItemActive,
-
+                styles.dropdownOption,
+                value === option && styles.dropdownOptionSelected,
               ]}
-
               activeOpacity={0.8}
-
               onPress={() => {
-
                 onSelect(option);
-
                 setOpen(false);
-
               }}
-
             >
-
               <Text
-
                 style={[
-
-                  styles.dropdownText,
-
-                  option === value && styles.dropdownTextActive,
-
+                  styles.dropdownOptionText,
+                  value === option &&
+                    styles.dropdownOptionTextSelected,
                 ]}
-
               >
-
                 {option}
-
               </Text>
 
-              {option === value && (
-
+              {value === option && (
                 <MaterialCommunityIcons
-
                   name="check"
-
                   size={18}
-
                   color="#7040D5"
-
                 />
-
               )}
-
             </TouchableOpacity>
-
           ))}
-
         </View>
-
       )}
-
     </View>
-
   );
-
-}
-
-
+};
 
 export default function AddSubjectPage() {
-
-  const { width } = useWindowDimensions();
-
   const insets = useSafeAreaInsets();
 
-  const isMobile = width < 700;
-
-  const isTablet = width >= 700 && width < 1100;
-
-
-
+  const [saving, setSaving] = useState(false);
   const [subjectName, setSubjectName] = useState("");
-
   const [subjectCode, setSubjectCode] = useState("");
-
   const [standard, setStandard] = useState("");
-
   const [subjectType, setSubjectType] = useState("");
-
-  const [teacher, setTeacher] = useState("");
-
-  const [branch, setBranch] = useState("");
-
+  const [duration, setDuration] = useState("");
+  const [status, setStatus] = useState("Active");
   const [description, setDescription] = useState("");
 
+  const standardOptions = [
+    "8th",
+    "9th",
+    "10th",
+    "11th",
+    "12th",
+  ];
 
+  const subjectTypeOptions = [
+    "Core",
+    "Foundation",
+    "Entrance",
+  ];
 
-  const handleAddSubject = () => {
+  const statusOptions = [
+    "Active",
+    "Inactive",
+  ];
 
+  const handleAddSubject = async () => {
     const name = subjectName.trim();
+    const code = subjectCode.trim().toUpperCase();
 
-    const code = subjectCode.trim();
-
-
-
-    if (!name || !code || !standard || !subjectType || !teacher || !branch) {
-
+    if (!name || !code || !standard || !subjectType || !duration.trim() || !status) {
       Alert.alert(
-
         "Required Fields",
-
-        "Please fill Subject Name, Subject Code, Standard, Type, Teacher and Branch.",
-
+        "Please fill all required subject details marked with *."
       );
-
       return;
-
     }
 
+    if (saving) return;
 
+    try {
+      setSaving(true);
+      const token = await getToken();
 
-    Alert.alert("Subject Added", `${name} has been added successfully.`, [
+      if (!token) {
+        Alert.alert("Authentication Required", "Please log in again.");
+        return;
+      }
 
-      {
+      const baseUrl = API_BASE_URL.replace(/\/$/, "");
+      const response = await fetch(`${baseUrl}/subjects`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name,
+          code,
+          standard,
+          type: subjectType,
+          description: description.trim(),
+          duration: duration.trim(),
+          status: status.toLowerCase(),
+        }),
+      });
 
-        text: "OK",
+      const payload = await response.json().catch(() => ({}));
 
-        onPress: () => router.back(),
+      if (!response.ok || payload?.success === false) {
+        throw new Error(payload?.message || "Unable to create subject.");
+      }
 
-      },
-
-    ]);
-
+      Alert.alert(
+        "Subject Added",
+        payload?.message || `${name} has been added successfully.`,
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Unable to add subject",
+        error?.message || "Please check your connection and try again."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-
+  const handleCancel = () => {
+    router.back();
+  };
 
   return (
-
     <KeyboardAvoidingView
-
-      style={styles.root}
-
+      style={styles.screen}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-
     >
-
-      <View style={styles.root}>
-
-        <StatusBar style="light" backgroundColor="#6D35D8" translucent={false} />
-
-        <View
-          style={[
-            styles.header,
-            { paddingTop: insets.top + 8, minHeight: insets.top + 66 },
-            isMobile && styles.headerMobile,
-            isTablet && styles.headerTablet,
-          ]}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + 8,
+            minHeight: insets.top + 66,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backButton}
+          activeOpacity={0.8}
+          onPress={handleCancel}
         >
+          <MaterialCommunityIcons
+            name="arrow-left"
+            size={22}
+            color="#FFFFFF"
+          />
+        </TouchableOpacity>
 
-          <TouchableOpacity
-
-            style={[styles.backButton, isMobile && styles.backButtonMobile]}
-
-            activeOpacity={0.8}
-
-            onPress={() => router.back()}
-
-          >
-
-            <MaterialCommunityIcons
-
-              name="arrow-left"
-
-              size={22}
-
-              color="#FFFFFF"
-
-            />
-
-          </TouchableOpacity>
-
-
-
-          <Text style={[styles.headerTitle, isMobile && styles.headerTitleMobile]} numberOfLines={1}>Add Subject</Text>
-
-
-
-
-
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Add Subject</Text>
         </View>
-
-
-
-        <ScrollView
-
-          style={styles.scrollView}
-
-          contentContainerStyle={[
-
-            styles.content,
-
-            { paddingBottom: 30 + insets.bottom },
-
-          ]}
-
-          keyboardShouldPersistTaps="handled"
-
-          showsVerticalScrollIndicator={false}
-
-        >
-
-          <View style={styles.pageHeading}>
-
-            <Text style={styles.pageTitle}>Add New Subject</Text>
-
-            <Text style={styles.pageSubtitle}>
-
-              Create a subject and assign it to the required academic module.
-
-            </Text>
-
-          </View>
-
-
-
-          <View style={styles.card}>
-
-            <View style={styles.sectionHeader}>
-
-              <View style={styles.sectionIcon}>
-
-                <MaterialCommunityIcons
-
-                  name="book-open-page-variant-outline"
-
-                  size={20}
-
-                  color="#7040D5"
-
-                />
-
-              </View>
-
-              <View style={styles.sectionHeaderText}>
-
-                <Text style={styles.sectionTitle}>Subject Information</Text>
-
-                <Text style={styles.sectionSubtitle}>
-
-                  Basic subject details
-
-                </Text>
-
-              </View>
-
-            </View>
-
-
-
-            <View style={styles.twoColumn}>
-
-              <View style={styles.column}>
-
-                <Text style={styles.fieldLabel}>
-
-                  Subject Name <Text style={styles.required}>*</Text>
-
-                </Text>
-
-                <View style={styles.textInputWrapper}>
-
-                  <MaterialCommunityIcons
-
-                    name="book-outline"
-
-                    size={19}
-
-                    color="#7040D5"
-
-                  />
-
-                  <TextInput
-
-                    value={subjectName}
-
-                    onChangeText={setSubjectName}
-
-                    placeholder="e.g. Physics"
-
-                    placeholderTextColor="#9AA2B1"
-
-                    style={styles.textInput}
-
-                  />
-
-                </View>
-
-              </View>
-
-
-
-              <View style={styles.column}>
-
-                <Text style={styles.fieldLabel}>
-
-                  Subject Code <Text style={styles.required}>*</Text>
-
-                </Text>
-
-                <View style={styles.textInputWrapper}>
-
-                  <MaterialCommunityIcons
-
-                    name="identifier"
-
-                    size={19}
-
-                    color="#7040D5"
-
-                  />
-
-                  <TextInput
-
-                    value={subjectCode}
-
-                    onChangeText={setSubjectCode}
-
-                    placeholder="e.g. SUB801"
-
-                    placeholderTextColor="#9AA2B1"
-
-                    autoCapitalize="characters"
-
-                    style={styles.textInput}
-
-                  />
-
-                </View>
-
-              </View>
-
-            </View>
-
-          </View>
-
-
-
-          <View style={styles.card}>
-
-            <View style={styles.sectionHeader}>
-
-              <View style={styles.sectionIconBlue}>
-
-                <MaterialCommunityIcons
-
-                  name="school-outline"
-
-                  size={20}
-
-                  color="#2675E8"
-
-                />
-
-              </View>
-
-              <View style={styles.sectionHeaderText}>
-
-                <Text style={styles.sectionTitle}>Academic Information</Text>
-
-                <Text style={styles.sectionSubtitle}>
-
-                  Standard and subject classification
-
-                </Text>
-
-              </View>
-
-            </View>
-
-
-
-            <View style={styles.twoColumn}>
-
-              <View style={styles.column}>
-
-                <SelectField
-
-                  label="Standard"
-
-                  required
-
-                  value={standard}
-
-                  placeholder="Select standard"
-
-                  icon="school-outline"
-
-                  options={[
-
-                    "8th",
-
-                    "9th",
-
-                    "10th",
-
-                    "11th",
-
-                    "12th",
-
-                    "MHT-CET",
-
-                    "NEET",
-
-                    "JEE",
-
-                    "Foundation",
-
-                  ]}
-
-                  onSelect={setStandard}
-
-                />
-
-              </View>
-
-
-
-              <View style={styles.column}>
-
-                <SelectField
-
-                  label="Type"
-
-                  required
-
-                  value={subjectType}
-
-                  placeholder="Select type"
-
-                  icon="shape-outline"
-
-                  options={[
-
-                    "Entrance",
-
-                    "Core",
-
-                    "Science",
-
-                  ]}
-
-                  onSelect={setSubjectType}
-
-                />
-
-              </View>
-
-            </View>
-
-
-
-            <View style={styles.twoColumn}>
-
-              <View style={styles.column}>
-
-                <SelectField
-
-                  label="Teacher"
-
-                  required
-
-                  value={teacher}
-
-                  placeholder="Select teacher"
-
-                  icon="account-tie-outline"
-
-                  options={[
-
-                    "Dr. Amit Kulkarni",
-
-                    "Sneha Patil",
-
-                    "Rahul Deshmukh",
-
-                    "Priya Joshi",
-
-                    "Unassigned",
-
-                  ]}
-
-                  onSelect={setTeacher}
-
-                />
-
-              </View>
-
-
-
-              <View style={styles.column}>
-
-                <SelectField
-
-                  label="Branch"
-
-                  required
-
-                  value={branch}
-
-                  placeholder="Select branch"
-
-                  icon="office-building-outline"
-
-                  options={[
-
-                    "Pune",
-
-                    "Mumbai",
-
-                    "Nashik",
-
-                    "Nagpur",
-
-                    "Main Branch",
-
-                  ]}
-
-                  onSelect={setBranch}
-
-                />
-
-              </View>
-
-            </View>
-
-          </View>
-
-
-
-          <View style={styles.card}>
-
-            <View style={styles.sectionHeader}>
-
-              <View style={styles.sectionIconGreen}>
-
-                <MaterialCommunityIcons
-
-                  name="text-box-outline"
-
-                  size={20}
-
-                  color="#35B878"
-
-                />
-
-              </View>
-
-              <View style={styles.sectionHeaderText}>
-
-                <Text style={styles.sectionTitle}>Additional Information</Text>
-
-                <Text style={styles.sectionSubtitle}>
-
-                  Optional subject description
-
-                </Text>
-
-              </View>
-
-            </View>
-
-
-
-            <Text style={styles.fieldLabel}>Description</Text>
-
-            <View style={[styles.textInputWrapper, styles.textAreaWrapper]}>
-
-              <MaterialCommunityIcons
-
-                name="text-box-outline"
-
-                size={19}
-
-                color="#35B878"
-
-                style={styles.textAreaIcon}
-
-              />
-
-              <TextInput
-
-                value={description}
-
-                onChangeText={setDescription}
-
-                placeholder="Enter subject description"
-
-                placeholderTextColor="#9AA2B1"
-
-                multiline
-
-                textAlignVertical="top"
-
-                style={[styles.textInput, styles.textArea]}
-
-              />
-
-            </View>
-
-          </View>
-
-
-
-          <View style={styles.infoNotice}>
-
-            <MaterialCommunityIcons
-
-              name="information-outline"
-
-              size={20}
-
-              color="#7040D5"
-
-            />
-
-            <Text style={styles.infoText}>
-
-              Subjects can be assigned to Classes 8 to 12, Foundation, JEE,
-
-              NEET and MHT-CET academic modules.
-
-            </Text>
-
-          </View>
-
-
-
-          <View style={styles.actionButtons}>
-
-            <TouchableOpacity
-
-              style={styles.cancelButton}
-
-              activeOpacity={0.8}
-
-              onPress={() => router.back()}
-
-            >
-
-              <Text style={styles.cancelText}>Cancel</Text>
-
-            </TouchableOpacity>
-
-
-
-            <TouchableOpacity
-
-              style={styles.addButton}
-
-              activeOpacity={0.85}
-
-              onPress={handleAddSubject}
-
-            >
-
-              <MaterialCommunityIcons
-
-                name="plus"
-
-                size={18}
-
-                color="#FFFFFF"
-
-              />
-
-              <Text style={styles.addButtonText}>Add Subject</Text>
-
-            </TouchableOpacity>
-
-          </View>
-
-        </ScrollView>
-
       </View>
 
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.pageHeading}>
+          <Text style={styles.pageTitle}>Subject Information</Text>
+
+          <Text style={styles.pageSubtitle}>
+            Add academic subject details for the educational center.
+          </Text>
+        </View>
+
+        {/* BASIC INFORMATION */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <View
+              style={[
+                styles.sectionIcon,
+                { backgroundColor: "#F0EAFE" },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="book-open-variant"
+                size={20}
+                color="#7040D5"
+              />
+            </View>
+
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>
+                Basic Information
+              </Text>
+
+              <Text style={styles.sectionSubtitle}>
+                Enter the main subject details
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>
+              Subject Name <Text style={styles.required}>*</Text>
+            </Text>
+
+            <TextInput
+              value={subjectName}
+              onChangeText={setSubjectName}
+              placeholder="e.g. Physics"
+              placeholderTextColor="#A0A7B4"
+              style={styles.textInput}
+            />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>
+              Subject Code <Text style={styles.required}>*</Text>
+            </Text>
+
+            <TextInput
+              value={subjectCode}
+              onChangeText={setSubjectCode}
+              placeholder="e.g. PHY-12"
+              placeholderTextColor="#A0A7B4"
+              autoCapitalize="characters"
+              style={styles.textInput}
+            />
+          </View>
+
+          <View style={styles.twoColumnRow}>
+            <View style={styles.column}>
+              <SelectField
+                label="Standard"
+                value={standard}
+                placeholder="Select standard"
+                options={standardOptions}
+                onSelect={setStandard}
+                required
+              />
+            </View>
+
+            <View style={styles.column}>
+              <SelectField
+                label="Subject Type"
+                value={subjectType}
+                placeholder="Select type"
+                options={subjectTypeOptions}
+                onSelect={setSubjectType}
+                required
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* ADDITIONAL INFORMATION */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <View
+              style={[
+                styles.sectionIcon,
+                { backgroundColor: "#EAF2FF" },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={20}
+                color="#4285F4"
+              />
+            </View>
+
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>
+                Additional Information
+              </Text>
+
+              <Text style={styles.sectionSubtitle}>
+                Set subject duration and current status
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>
+              Duration <Text style={styles.required}>*</Text>
+            </Text>
+
+            <TextInput
+              value={duration}
+              onChangeText={setDuration}
+              placeholder="e.g. 1 Year"
+              placeholderTextColor="#A0A7B4"
+              style={styles.textInput}
+            />
+          </View>
+
+          <SelectField
+            label="Status"
+            value={status}
+            placeholder="Select status"
+            options={statusOptions}
+            onSelect={setStatus}
+            required
+          />
+        </View>
+
+        {/* DESCRIPTION */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <View
+              style={[
+                styles.sectionIcon,
+                { backgroundColor: "#EAF8F0" },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="text-box-outline"
+                size={20}
+                color="#22A06B"
+              />
+            </View>
+
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>
+                Description
+              </Text>
+
+              <Text style={styles.sectionSubtitle}>
+                Add optional information about this subject
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>
+              Subject Description
+            </Text>
+
+            <TextInput
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Enter subject description..."
+              placeholderTextColor="#A0A7B4"
+              multiline
+              textAlignVertical="top"
+              style={styles.descriptionInput}
+            />
+          </View>
+        </View>
+
+        {/* INFORMATION NOTICE */}
+        <View style={styles.infoNotice}>
+          <View style={styles.infoIcon}>
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={18}
+              color="#7040D5"
+            />
+          </View>
+
+          <View style={styles.infoContent}>
+            <Text style={styles.infoTitle}>
+              Subject Assignment
+            </Text>
+
+            <Text style={styles.infoText}>
+              Teachers and batches are assigned separately through
+              Batch Subject management.
+            </Text>
+          </View>
+        </View>
+
+        {/* ACTION BUTTONS */}
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            activeOpacity={0.8}
+            onPress={handleCancel}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.addButton, saving && { opacity: 0.7 }]}
+            activeOpacity={0.85}
+            onPress={handleAddSubject}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <MaterialCommunityIcons
+                name="plus"
+                size={19}
+                color="#FFFFFF"
+              />
+            )}
+
+            <Text style={styles.addButtonText}>
+              {saving ? "Adding..." : "Add Subject"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
-
   );
-
 }
 
-
-
 const styles = StyleSheet.create({
-
-  root: {
-
+  screen: {
     flex: 1,
-
     backgroundColor: "#F7F8FC",
-
   },
 
   header: {
-    width: "100%",
-    backgroundColor: "#6D35D8",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    backgroundColor: "#7040D5",
+    paddingHorizontal: 15,
     flexDirection: "row",
     alignItems: "center",
-  },
-
-  headerMobile: {
-    height: 80,
-    paddingHorizontal: 14,
-  },
-
-  headerTablet: {
-    height: 64,
-    paddingHorizontal: 20,
   },
 
   backButton: {
-
-    width: 36,
-
-    height: 36,
-
-    borderRadius: 10,
-
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     backgroundColor: "rgba(255,255,255,0.16)",
-
     alignItems: "center",
-
     justifyContent: "center",
-    marginRight: 12,
   },
 
-  backButtonMobile: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    marginRight: 12,
+  headerTitleContainer: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 11,
+    marginRight: 8,
   },
 
   headerTitle: {
-
-    flex: 1,
-
     fontFamily: "PoppinsSemiBold",
-
     fontSize: 20,
-
-    lineHeight: 26,
-
     color: "#FFFFFF",
-    textAlign: "left",
   },
-
-  headerTitleMobile: {
-    fontSize: 20,
-  },
-
-  headerSpacer: {
-
-    width: 36,
-
-  },
-
-  editButton: {
-
-    height: 36,
-
-    paddingHorizontal: 11,
-
-    borderRadius: 10,
-
-    backgroundColor: "#FFFFFF",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    marginLeft: 8,
-
-    borderWidth: 1,
-
-    borderColor: "#E9E1F8",
-
-  },
-
-
-
-  editButtonText: {
-
-    fontFamily: "PoppinsSemiBold",
-
-    fontSize: 10.5,
-
-    color: "#7040D5",
-
-    marginLeft: 5,
-
-  },
-
-
 
   scrollView: {
-
     flex: 1,
-
   },
 
-  content: {
-
-    paddingHorizontal: 16,
-
-    paddingTop: 14,
-
+  contentContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 17,
+    paddingBottom: 30,
   },
 
   pageHeading: {
-
     marginBottom: 14,
-
   },
 
   pageTitle: {
-
     fontFamily: "PoppinsSemiBold",
-
     fontSize: 20,
-
-    lineHeight: 25,
-
-    color: "#172033",
-
+    color: "#202533",
   },
 
   pageSubtitle: {
-
     fontFamily: "PoppinsRegular",
-
     fontSize: 10,
-
-    lineHeight: 15,
-
-    color: "#7B8498",
-
-    marginTop: 2,
-
+    lineHeight: 16,
+    color: "#7A8292",
+    marginTop: 3,
   },
 
   card: {
-
-    width: "100%",
-
-    maxWidth: 1000,
-
-    alignSelf: "center",
-
     backgroundColor: "#FFFFFF",
-
     borderWidth: 1,
-
-    borderColor: "#E8EAF0",
-
-    borderRadius: 18,
-
-    padding: 16,
-
+    borderColor: "#EEF0F5",
+    borderRadius: 15,
+    padding: 15,
     marginBottom: 13,
 
-    shadowColor: "#000000",
-
-    shadowOffset: { width: 0, height: 2 },
-
-    shadowOpacity: 0.06,
-
+    shadowColor: "#1E1B4B",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.04,
     shadowRadius: 8,
-
-    elevation: 3,
-
+    elevation: 2,
   },
 
   sectionHeader: {
-
     flexDirection: "row",
-
     alignItems: "center",
-
     marginBottom: 15,
-
-  },
-
-  sectionHeaderText: {
-
-    marginLeft: 10,
-
   },
 
   sectionIcon: {
-
     width: 40,
-
     height: 40,
-
     borderRadius: 11,
-
-    backgroundColor: "#F1EAFF",
-
     alignItems: "center",
-
     justifyContent: "center",
-
   },
 
-  sectionIconBlue: {
-
-    width: 40,
-
-    height: 40,
-
-    borderRadius: 11,
-
-    backgroundColor: "#EAF2FF",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-  },
-
-  sectionIconGreen: {
-
-    width: 40,
-
-    height: 40,
-
-    borderRadius: 11,
-
-    backgroundColor: "#E8F8F0",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
+  sectionHeaderText: {
+    flex: 1,
+    marginLeft: 10,
   },
 
   sectionTitle: {
-
     fontFamily: "PoppinsSemiBold",
-
-    fontSize: 14,
-
-    color: "#172033",
-
+    fontSize: 16,
+    color: "#252A38",
   },
 
   sectionSubtitle: {
-
     fontFamily: "PoppinsRegular",
-
-    fontSize: 9,
-
-    color: "#7B8498",
-
-    marginTop: 1,
-
-  },
-
-  twoColumn: {
-
-    flexDirection: "row",
-
-    gap: 14,
-
-    marginBottom: 12,
-
-    zIndex: 50,
-
-  },
-
-  column: {
-
-    flex: 1,
-
-    minWidth: 0,
-
+    fontSize: 11,
+    color: "#8A93A5",
+    marginTop: 2,
   },
 
   fieldContainer: {
-
-    flex: 1,
-
-    zIndex: 100,
-
+    marginBottom: 13,
   },
 
   fieldLabel: {
-
     fontFamily: "PoppinsMedium",
-
-    fontSize: 9,
-
-    color: "#66768A",
-
-    marginBottom: 5,
-
+    fontSize: 11,
+    color: "#4C5362",
+    marginBottom: 6,
   },
 
   required: {
-
-    color: "#E95386",
-
-  },
-
-  textInputWrapper: {
-
-    minHeight: 46,
-
-    borderWidth: 1,
-
-    borderColor: "#E4E7EE",
-
-    borderRadius: 10,
-
-    paddingHorizontal: 11,
-
-    backgroundColor: "#FCFDFE",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
+    color: "#E5484D",
   },
 
   textInput: {
-
-    flex: 1,
-
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: "#E3E6ED",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 11,
     fontFamily: "PoppinsRegular",
-
-    fontSize: 11,
-
-    color: "#202B3E",
-
-    marginLeft: 8,
-
-    paddingVertical: 0,
-
+    fontSize: 10,
+    includeFontPadding: false,
+    color: "#252A38",
   },
 
-  textAreaWrapper: {
-
-    alignItems: "flex-start",
-
-    minHeight: 105,
-
-    paddingTop: 12,
-
+  descriptionInput: {
+    minHeight: 92,
+    borderWidth: 1,
+    borderColor: "#E3E6ED",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingTop: 11,
+    fontFamily: "PoppinsRegular",
+    fontSize: 10,
+    includeFontPadding: false,
+    color: "#252A38",
   },
 
-  textAreaIcon: {
-
-    marginTop: 2,
-
+  twoColumnRow: {
+    width: "100%",
+    flexDirection: "row",
+    gap: 8,
   },
 
-  textArea: {
-
-    minHeight: 82,
-
-    paddingTop: 0,
-
+  column: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: "50%",
   },
 
   selectInput: {
-
-    minHeight: 46,
-
+    width: "100%",
+    minWidth: 0,
+    minHeight: 52,
     borderWidth: 1,
-
-    borderColor: "#E4E7EE",
-
+    overflow: "hidden",
+    borderColor: "#E3E6ED",
     borderRadius: 10,
-
-    paddingHorizontal: 11,
-
-    backgroundColor: "#FCFDFE",
-
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
     flexDirection: "row",
-
     alignItems: "center",
+    justifyContent: "space-between",
+  },
 
+  selectInputOpen: {
+    borderColor: "#7040D5",
   },
 
   selectText: {
-
     flex: 1,
-
+    minWidth: 0,
+    maxWidth: "100%",
     fontFamily: "PoppinsRegular",
-
-    fontSize: 11,
-
-    color: "#202B3E",
-
-    marginLeft: 8,
-
+    fontSize: 10,
+    color: "#252A38",
+    marginRight: 8,
   },
 
   placeholderText: {
-
-    color: "#9AA2B1",
-
+    color: "#A0A7B4",
   },
 
   dropdown: {
-
-    position: "relative",
-
-    marginTop: 6,
-
-    width: "100%",
-
-    backgroundColor: "#FFFFFF",
-
+    marginTop: 5,
     borderWidth: 1,
-
-    borderColor: "#E4E7EE",
-
+    borderColor: "#E3E6ED",
     borderRadius: 10,
-
+    backgroundColor: "#FFFFFF",
     overflow: "hidden",
 
-    zIndex: 100,
-
-    elevation: 8,
-
     shadowColor: "#000000",
-
-    shadowOffset: { width: 0, height: 3 },
-
-    shadowOpacity: 0.12,
-
-    shadowRadius: 7,
-
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
 
-  dropdownItem: {
-
-    minHeight: 42,
-
+  dropdownOption: {
+    minHeight: 40,
     paddingHorizontal: 12,
-
     flexDirection: "row",
-
     alignItems: "center",
-
     justifyContent: "space-between",
-
     borderBottomWidth: 1,
-
-    borderBottomColor: "#F0F1F5",
-
+    borderBottomColor: "#F1F2F5",
   },
 
-  dropdownItemActive: {
-
+  dropdownOptionSelected: {
     backgroundColor: "#F5F0FF",
-
   },
 
-  dropdownText: {
-
+  dropdownOptionText: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: "100%",
     fontFamily: "PoppinsRegular",
-
     fontSize: 10,
-
-    color: "#4B566B",
-
+    color: "#4B5362",
   },
 
-  dropdownTextActive: {
-
-    fontFamily: "PoppinsSemiBold",
-
+  dropdownOptionTextSelected: {
+    fontFamily: "PoppinsMedium",
     color: "#7040D5",
-
   },
 
   infoNotice: {
-
-    width: "100%",
-
-    maxWidth: 1000,
-
-    alignSelf: "center",
-
-    backgroundColor: "#F1EAFF",
-
-    borderRadius: 12,
-
-    padding: 12,
-
     flexDirection: "row",
+    backgroundColor: "#F3EEFF",
+    borderWidth: 1,
+    borderColor: "#E5D9FF",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 15,
+  },
 
-    alignItems: "flex-start",
+  infoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-    marginBottom: 14,
+  infoContent: {
+    flex: 1,
+    marginLeft: 9,
+  },
 
+  infoTitle: {
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 10,
+    color: "#5B31B2",
+    marginBottom: 2,
   },
 
   infoText: {
-
-    flex: 1,
-
     fontFamily: "PoppinsRegular",
-
-    fontSize: 9,
-
+    fontSize: 11,
     lineHeight: 14,
-
-    color: "#5F4A8D",
-
-    marginLeft: 8,
-
+    color: "#6D6480",
   },
 
-  actionButtons: {
-
-    width: "100%",
-
-    maxWidth: 1000,
-
-    alignSelf: "center",
-
+  actions: {
     flexDirection: "row",
-
-    justifyContent: "flex-end",
-
-    gap: 9,
-
+    gap: 10,
+    marginTop: 2,
   },
 
   cancelButton: {
-
-    height: 42,
-
-    minWidth: 88,
-
+    flex: 1,
+    height: 45,
     borderRadius: 10,
-
     borderWidth: 1,
-
-    borderColor: "#D9DDE6",
-
+    borderColor: "#DCDFE7",
     backgroundColor: "#FFFFFF",
-
     alignItems: "center",
-
     justifyContent: "center",
-
-    paddingHorizontal: 16,
-
   },
 
-  cancelText: {
-
+  cancelButtonText: {
     fontFamily: "PoppinsSemiBold",
-
     fontSize: 10,
-
-    color: "#66768A",
-
+    color: "#626A79",
   },
 
   addButton: {
-
-    height: 42,
-
+    flex: 1.25,
+    height: 45,
     borderRadius: 10,
-
     backgroundColor: "#7040D5",
-
     flexDirection: "row",
-
     alignItems: "center",
-
     justifyContent: "center",
+    gap: 6,
 
-    paddingHorizontal: 16,
-
+    shadowColor: "#7040D5",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 7,
+    elevation: 3,
   },
 
   addButtonText: {
-
     fontFamily: "PoppinsSemiBold",
-
     fontSize: 10,
-
     color: "#FFFFFF",
-
-    marginLeft: 5,
-
   },
-
 });

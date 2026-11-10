@@ -14,19 +14,13 @@ const { authorizeRoles } = require("../middleware/role.middleware");
 
 const router = express.Router();
 
-// Create batch — Super Admin only
-router.post(
-  "/",
-  protect,
-  authorizeRoles("super_admin"),
-  createBatch
-);
+// Create batch — Super Admin only (outside Admin Batches scope)
+router.post("/", protect, authorizeRoles("super_admin","admin"), createBatch);
 
-// Public batches for the registration form
-// IMPORTANT: Keep this before router.get("/:id")
+// Public batches for registration. Keep before /:id.
 router.get("/registration", getRegistrationBatches);
 
-// Get all active/non-removed batches — authenticated users
+// Authenticated users; controller scopes Admin results to their branch.
 router.get(
   "/",
   protect,
@@ -34,28 +28,13 @@ router.get(
   getBatches
 );
 
-// Get single batch — Super Admin only
-router.get(
-  "/:id",
-  protect,
-  authorizeRoles("super_admin"),
-  getBatchById
-);
+// Single batch remains Super Admin-only for now.
+router.get("/:id", protect, authorizeRoles("super_admin"), getBatchById);
 
-// Update batch — Super Admin only
-router.put(
-  "/:id",
-  protect,
-  authorizeRoles("super_admin"),
-  updateBatch
-);
+// Super Admin and Admin can update; controller enforces Admin branch scope.
+router.put("/:id", protect, authorizeRoles("super_admin", "admin"), updateBatch);
 
-// Soft remove batch — Super Admin only
-router.patch(
-  "/:id/remove",
-  protect,
-  authorizeRoles("super_admin"),
-  removeBatch
-);
+// Remove batch — Super Admin only (outside Admin Batches scope)
+router.patch("/:id/remove", protect, authorizeRoles("super_admin"), removeBatch);
 
 module.exports = router;

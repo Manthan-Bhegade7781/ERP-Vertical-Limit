@@ -25,6 +25,7 @@ const transactionRoutes = require('./routes/transaction.routes');
 const academicCalendarRoutes = require("./routes/academicCalendar.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const ptgRoutes = require("./routes/ptg.routes");
+const feedbackRoutes = require("./routes/feedback.routes");
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use("/api/users", userRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use("/api/academic-calendar", academicCalendarRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/feedback", feedbackRoutes);
 app.use("/api/ptg", ptgRoutes);
 app.get("/api/health", (req, res) => {
   res.status(200).json({

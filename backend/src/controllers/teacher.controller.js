@@ -247,11 +247,15 @@ const createTeacher = async (req, res) => {
 const getTeachers = async (req, res) => {
   try {
     const teachers = await Teacher.find()
-      .populate(
-        "userId",
-        "fullName email mobileNumber branchId roles status"
-      )
-      .sort({ createdAt: -1 });
+    .populate({
+      path: "userId",
+      select: "fullName email mobileNumber branchId roles status",
+      populate: {
+        path: "branchId",
+        select: "name code",
+      },
+    })
+    .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -284,11 +288,14 @@ const getTeacherById = async (req, res) => {
       });
     }
 
-    const teacher = await Teacher.findById(id).populate(
-      "userId",
-      "fullName email mobileNumber branchId roles status"
-    );
-
+    const teacher = await Teacher.findById(id).populate({
+      path: "userId",
+      select: "fullName email mobileNumber branchId roles status",
+      populate: {
+        path: "branchId",
+        select: "name code",
+      },
+    });
     if (!teacher) {
       return res.status(404).json({
         success: false,
