@@ -46,6 +46,8 @@ type NotificationItem = {
   time: string;
   isRead: boolean;
   link?: string;
+  type?: string;
+  isMessage?: boolean;
 };
 
 const getNotificationIcon = (type?: string): string => {
@@ -137,6 +139,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         time: formatNotificationTime(item.createdAt),
         isRead: Boolean(item.isRead),
         link: item.link || '',
+        type: item.type || 'general',
+        isMessage: Boolean(item.isMessage),
       })));
       setUnreadCount(Number(result?.data?.unreadCount ?? items.filter((item: any) => !item.isRead).length));
     } catch (error) {
@@ -198,13 +202,74 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   const handleNotificationPress = async (notification: NotificationItem) => {
     await markNotificationAsRead(notification.id);
-    if (notification.link) {
+    closeAll();
+
+    const titleLower = (notification.title || '').toLowerCase();
+    const link = notification.link || '';
+    const icon = notification.icon || '';
+
+    // If it's a message/reply notification, navigate to Messages page
+    if (
+      notification.isMessage ||
+      link.includes('feature=Messages') ||
+      link.includes('Messages') ||
+      titleLower.includes('message') ||
+      titleLower.includes('reply') ||
+      icon.includes('email') ||
+      icon.includes('message')
+    ) {
+      router.push({
+        pathname: '/(super_admin)/explore',
+        params: { feature: 'Messages' },
+      });
+      return;
+    }
+
+    if (link) {
       try {
-        router.push(notification.link as any);
-        closeAll();
+        if (link.includes('feature=')) {
+          const featureName = link.split('feature=')[1]?.split('&')[0];
+          if (featureName) {
+            router.push({
+              pathname: '/(super_admin)/explore',
+              params: { feature: decodeURIComponent(featureName) },
+            });
+            return;
+          }
+        }
+        router.push(link as any);
+        return;
       } catch (error) {
         console.error('Notification navigation error:', error);
       }
+    }
+
+    if (
+      notification.type === 'registration' ||
+      titleLower.includes('registration')
+    ) {
+      router.push({
+        pathname: '/(super_admin)/explore',
+        params: { feature: 'Pending Registrations' },
+      });
+    } else if (notification.type === 'fee' || titleLower.includes('fee')) {
+      router.push({
+        pathname: '/(super_admin)/explore',
+        params: { feature: 'Accounts' },
+      });
+    } else if (
+      notification.type === 'attendance' ||
+      titleLower.includes('attendance')
+    ) {
+      router.push({
+        pathname: '/(super_admin)/explore',
+        params: { feature: 'Attendance' },
+      });
+    } else if (titleLower.includes('announcement')) {
+      router.push({
+        pathname: '/(super_admin)/explore',
+        params: { feature: 'Announcements' },
+      });
     }
   };
 

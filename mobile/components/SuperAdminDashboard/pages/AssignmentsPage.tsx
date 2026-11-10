@@ -796,6 +796,7 @@ export default function AssignmentsPage() {
     assignmentInstructions?: string;
     assignmentPdfUri?: string;
     assignmentPdfName?: string;
+    refreshAssignments?: string;
   }>();
 
   const processedAssignmentCode = useRef<string | null>(null);

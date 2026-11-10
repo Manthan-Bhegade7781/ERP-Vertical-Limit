@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -6,12 +6,15 @@ import {
   Animated,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import { useFocusEffect } from 'expo-router';
 
 import DashboardHeader from './DashboardHeader';
 import Sidebar from './Sidebar';
@@ -20,6 +23,60 @@ import StatCard from './StatCard';
 import DashboardFooter from './DashboardFooter';
 
 import { openDashboardFeature } from '@/utils/dashboardNavigation';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
+
+type StandardStat = {
+  standard: string;
+  label: string;
+  count: number;
+};
+
+type BatchOverviewItem = {
+  id?: string;
+  name: string;
+  standard?: string;
+  track: string;
+  students: number;
+};
+
+type SuperAdminStats = {
+  totalStudents: number;
+  totalTeachers: number;
+  activeBatches: number;
+  activeSubjects: number;
+  students8to10: number;
+  students11to12: number;
+  jeeStudents: number;
+  neetStudents: number;
+  cetStudents: number;
+  attendance: string;
+  studentsByStandard: StandardStat[];
+  batchOverview: BatchOverviewItem[];
+};
+
+const DEFAULT_STUDENTS_BY_STANDARD: StandardStat[] = [
+  { standard: '8th', label: '8th Standard', count: 0 },
+  { standard: '9th', label: '9th Standard', count: 0 },
+  { standard: '10th', label: '10th Standard', count: 0 },
+  { standard: '11th', label: '11th Standard', count: 0 },
+  { standard: '12th', label: '12th Standard', count: 0 },
+];
+
+const DEFAULT_STATS: SuperAdminStats = {
+  totalStudents: 0,
+  totalTeachers: 0,
+  activeBatches: 0,
+  activeSubjects: 0,
+  students8to10: 0,
+  students11to12: 0,
+  jeeStudents: 0,
+  neetStudents: 0,
+  cetStudents: 0,
+  attendance: '0%',
+  studentsByStandard: DEFAULT_STUDENTS_BY_STANDARD,
+  batchOverview: [],
+};
 
 type SectionCardProps = {
   title: string;
@@ -47,38 +104,48 @@ function SectionCard({ title, subtitle, icon, children }: SectionCardProps) {
   );
 }
 
-function AcademicEnrollment() {
-  const data = [
-    ['8th Standard', '356'],
-    ['9th Standard', '372'],
-    ['10th Standard', '296'],
-    ['11th Standard', '714'],
-    ['12th Standard', '830'],
-  ];
+function AcademicEnrollment({ data }: { data: StandardStat[] }) {
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
   return (
     <SectionCard title="Students by Standard" subtitle="Current academic year enrollment" icon="school-outline">
       <View style={styles.metricList}>
-        {data.map(([label, value]) => (
-          <View key={label} style={styles.metricRow}>
-            <Text style={styles.metricLabel}>{label}</Text>
-            <View style={styles.metricBarTrack}>
-              <View style={[styles.metricBar, { width: `${Math.max(25, Number(value) / 9)}%` }]} />
+        {data.map(({ label, count }) => {
+          const widthPercent =
+            maxCount > 0 && count > 0
+              ? Math.min(100, Math.max(12, Math.round((count / maxCount) * 100)))
+              : 8;
+
+          return (
+            <View key={label} style={styles.metricRow}>
+              <Text style={styles.metricLabel}>{label}</Text>
+              <View style={styles.metricBarTrack}>
+                <View style={[styles.metricBar, { width: `${widthPercent}%` }]} />
+              </View>
+              <Text style={styles.metricValue}>{count.toLocaleString()}</Text>
             </View>
-            <Text style={styles.metricValue}>{value}</Text>
-          </View>
-        ))}
+          );
+        })}
       </View>
     </SectionCard>
   );
 }
 
-function ExamPreparation() {
+type ExamPrepProps = {
+  jee: number;
+  neet: number;
+  cet: number;
+  foundation: number;
+};
+
+function ExamPreparation({ jee, neet, cet, foundation }: ExamPrepProps) {
   const data = [
-    ['JEE', '684', 'atom'],
-    ['NEET', '592', 'medical-bag'],
-    ['MHT-CET', '812', 'school-outline'],
-    ['Foundation', '480', 'lightbulb-on-outline'],
+    ['JEE', jee.toLocaleString(), 'atom'],
+    ['NEET', neet.toLocaleString(), 'medical-bag'],
+    ['MHT-CET', cet.toLocaleString(), 'school-outline'],
+    ['Foundation', foundation.toLocaleString(), 'lightbulb-on-outline'],
   ] as const;
+
   return (
     <SectionCard title="Exam Preparation" subtitle="Students enrolled by preparation track" icon="trophy-outline">
       <View style={styles.examGrid}>
@@ -150,28 +217,31 @@ function TopSubjects() {
   );
 }
 
-function ClassBatchOverview() {
-  const batches = [
-    ['8th Science A', '42', 'Foundation'],
-    ['10th Science A', '56', 'Foundation'],
-    ['11th JEE A', '64', 'JEE'],
-    ['12th NEET A', '58', 'NEET'],
-  ];
+function ClassBatchOverview({ batches }: { batches: BatchOverviewItem[] }) {
   return (
     <SectionCard title="Class & Batch Overview" subtitle="Active classes across standards 8–12" icon="account-multiple-outline">
       <View style={styles.batchList}>
-        {batches.map(([name, students, track]) => (
-          <View key={name} style={styles.batchItem}>
-            <View>
-              <Text style={styles.batchName}>{name}</Text>
-              <Text style={styles.batchTrack}>{track} preparation</Text>
-            </View>
-            <View style={styles.batchCountBox}>
-              <Text style={styles.batchCount}>{students}</Text>
-              <Text style={styles.batchCaption}>students</Text>
-            </View>
+        {batches.length === 0 ? (
+          <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+            <MaterialCommunityIcons name="account-multiple-outline" size={24} color="#C4CBD6" />
+            <Text style={{ fontFamily: 'PoppinsRegular', fontSize: 11, color: '#9AA4B4', marginTop: 4 }}>
+              No active batches available
+            </Text>
           </View>
-        ))}
+        ) : (
+          batches.slice(0, 6).map((batch, index) => (
+            <View key={batch.id || `${batch.name}-${index}`} style={styles.batchItem}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={styles.batchName} numberOfLines={1}>{batch.name}</Text>
+                <Text style={styles.batchTrack}>{batch.track} preparation</Text>
+              </View>
+              <View style={styles.batchCountBox}>
+                <Text style={styles.batchCount}>{batch.students.toLocaleString()}</Text>
+                <Text style={styles.batchCaption}>students</Text>
+              </View>
+            </View>
+          ))
+        )}
       </View>
     </SectionCard>
   );
@@ -211,6 +281,78 @@ export default function SuperAdminDashboard() {
   const isDesktop = width >= 900;
 
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [stats, setStats] = useState<SuperAdminStats>(DEFAULT_STATS);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/admin/dashboard-stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) return;
+
+      const json = await response.json();
+      if (json.success && json.data) {
+        const stdList: StandardStat[] =
+          Array.isArray(json.data.studentsByStandard) &&
+          json.data.studentsByStandard.length > 0
+            ? json.data.studentsByStandard.map((s: any) => ({
+                standard: String(s.standard || ''),
+                label: String(s.label || `${s.standard} Standard`),
+                count: Number(s.count) || 0,
+              }))
+            : DEFAULT_STUDENTS_BY_STANDARD;
+
+        const bList: BatchOverviewItem[] = Array.isArray(json.data.batchOverview)
+          ? json.data.batchOverview.map((b: any) => ({
+              id: b.id ? String(b.id) : undefined,
+              name: String(b.name || 'Unnamed Batch'),
+              standard: String(b.standard || ''),
+              track: String(b.track || 'Core'),
+              students: Number(b.students) || 0,
+            }))
+          : [];
+
+        setStats({
+          totalStudents: Number(json.data.totalStudents) || 0,
+          totalTeachers: Number(json.data.totalTeachers) || 0,
+          activeBatches: Number(json.data.activeBatches) || 0,
+          activeSubjects: Number(json.data.activeSubjects) || 0,
+          students8to10: Number(json.data.students8to10) || 0,
+          students11to12: Number(json.data.students11to12) || 0,
+          jeeStudents: Number(json.data.jeeStudents) || 0,
+          neetStudents: Number(json.data.neetStudents) || 0,
+          cetStudents: Number(json.data.cetStudents) || 0,
+          attendance:
+            typeof json.data.attendance === 'string'
+              ? json.data.attendance
+              : `${json.data.attendance || 0}%`,
+          studentsByStandard: stdList,
+          batchOverview: bList,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch superadmin stats:', error);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchStats();
+    }, [fetchStats])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchStats();
+    setRefreshing(false);
+  }, [fetchStats]);
 
   /*
    * Drawer width is 70% of the phone,
@@ -365,6 +507,14 @@ export default function SuperAdminDashboard() {
             !isDesktop && styles.mobileContent,
           ]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#7040D5']}
+              tintColor="#7040D5"
+            />
+          }
         >
 
           {/* =================================================
@@ -383,7 +533,7 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="Total Students"
-                value="2,568"
+                value={stats.totalStudents.toLocaleString()}
                 change="12.5%"
                 icon="account-group"
                 type="purple"
@@ -403,7 +553,7 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="Total Faculty"
-                value="156"
+                value={stats.totalTeachers.toLocaleString()}
                 change="8.3%"
                 icon="account-tie"
                 type="blue"
@@ -423,7 +573,7 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="Active Batches"
-                value="32"
+                value={stats.activeBatches.toLocaleString()}
                 change="7.4%"
                 icon="account-multiple-outline"
                 type="green"
@@ -443,7 +593,7 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="Active Subjects"
-                value="18"
+                value={stats.activeSubjects.toLocaleString()}
                 change="6.8%"
                 icon="book-open-variant"
                 type="orange"
@@ -463,10 +613,13 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="8th–10th Students"
-                value="1,024"
+                value={stats.students8to10.toLocaleString()}
                 change="9.2%"
                 icon="school-outline"
                 type="pink"
+                onPress={() =>
+                  openDashboardFeature('Students')
+                }
               />
             </View>
 
@@ -480,10 +633,13 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="11th–12th Students"
-                value="1,544"
+                value={stats.students11to12.toLocaleString()}
                 change="11.6%"
                 icon="school-outline"
                 type="purple"
+                onPress={() =>
+                  openDashboardFeature('Students')
+                }
               />
             </View>
 
@@ -497,7 +653,7 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="JEE Preparation"
-                value="684"
+                value={stats.jeeStudents.toLocaleString()}
                 change="8.7%"
                 icon="atom"
                 type="blue"
@@ -517,7 +673,7 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="NEET Preparation"
-                value="592"
+                value={stats.neetStudents.toLocaleString()}
                 change="7.9%"
                 icon="medical-bag"
                 type="green"
@@ -537,7 +693,7 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="MHT-CET Preparation"
-                value="812"
+                value={stats.cetStudents.toLocaleString()}
                 change="10.4%"
                 icon="school-outline"
                 type="orange"
@@ -557,7 +713,7 @@ export default function SuperAdminDashboard() {
             >
               <StatCard
                 title="Avg. Attendance"
-                value="94%"
+                value={stats.attendance}
                 change="2.8%"
                 icon="calendar-check"
                 type="purple"
@@ -585,25 +741,7 @@ export default function SuperAdminDashboard() {
                 !isDesktop && styles.mobileWrapper,
               ]}
             >
-              <AcademicEnrollment />
-            </View>
-
-            <View
-              style={[
-                styles.feeWrapper,
-                !isDesktop && styles.mobileWrapper,
-              ]}
-            >
-              <ExamPreparation />
-            </View>
-
-            <View
-              style={[
-                styles.announcementWrapper,
-                !isDesktop && styles.mobileWrapper,
-              ]}
-            >
-              <AcademicAnnouncements />
+              <AcademicEnrollment data={stats.studentsByStandard} />
             </View>
           </View>
 
@@ -617,14 +755,6 @@ export default function SuperAdminDashboard() {
               !isDesktop && styles.bottomColumn,
             ]}
           >
-            <View
-              style={[
-                styles.coursesWrapper,
-                !isDesktop && styles.mobileWrapper,
-              ]}
-            >
-              <TopSubjects />
-            </View>
 
             <View
               style={[
@@ -632,7 +762,7 @@ export default function SuperAdminDashboard() {
                 !isDesktop && styles.mobileWrapper,
               ]}
             >
-              <ClassBatchOverview />
+              <ClassBatchOverview batches={stats.batchOverview} />
             </View>
 
             <View

@@ -256,7 +256,7 @@ export default function AddUserPage() {
                       selected && styles.optionTextActive,
                     ]}
                   >
-                    {item}
+                    {item.name}
                   </Text>
                 </TouchableOpacity>
               );
