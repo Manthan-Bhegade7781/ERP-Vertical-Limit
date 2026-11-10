@@ -113,11 +113,7 @@ const administrationItems: MenuItem[] = [
   {
     label: 'Academic Calendar',
     icon: 'calendar-month-outline',
-  },
-  {
-    label: 'Profile',
-    icon: 'cog-outline',
-  },
+  }
 ];
 
 /* =========================================================
