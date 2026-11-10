@@ -325,26 +325,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
     }
 
-
-
-    if (option === 'settings') {
-
-      router.push({
-
-        pathname: '/(super_admin)/explore',
-
-        params: {
-
-          feature: 'Settings',
-
-        },
-
-      });
-
-    }
-
-
-
     if (option === 'logout') {
 
   Alert.alert(
@@ -1220,58 +1200,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             />
 
           </TouchableOpacity>
-
-
-
-          {/* SETTINGS */}
-
-          <TouchableOpacity
-
-            style={styles.profileOption}
-
-            onPress={() => onOption('settings')}
-
-            activeOpacity={0.7}
-
-          >
-
-            <View style={styles.profileOptionIcon}>
-
-              <MaterialCommunityIcons
-
-                name="cog-outline"
-
-                size={21}
-
-                color="#6D35D8"
-
-              />
-
-            </View>
-
-
-
-            <Text style={styles.profileOptionText}>
-
-              Settings
-
-            </Text>
-
-
-
-            <MaterialCommunityIcons
-
-              name="chevron-right"
-
-              size={20}
-
-              color="#94A3B8"
-
-            />
-
-          </TouchableOpacity>
-
-
 
           {/* LOGOUT */}
 

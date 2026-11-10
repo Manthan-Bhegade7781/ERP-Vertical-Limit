@@ -115,7 +115,7 @@ const administrationItems: MenuItem[] = [
     icon: 'calendar-month-outline',
   },
   {
-    label: 'Settings',
+    label: 'Profile',
     icon: 'cog-outline',
   },
 ];
