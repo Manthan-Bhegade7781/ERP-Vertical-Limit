@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -15,6 +15,7 @@ import {
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ApiUser, BranchOption, fetchBranches, fetchUsers, updateUser, updateUserRole, updateUserStatus, deleteUser } from '@/services/users';
 
 type UserRole =
   | 'Admin'
@@ -23,116 +24,18 @@ type UserRole =
 type UserStatus = 'Active' | 'Inactive';
 
 type UserRecord = {
-  id: number;
+  id: string;
   name: string;
   employeeId: string;
   email: string;
   mobile: string;
   branch: string;
+  branchId: string | null;
   role: UserRole;
   status: UserStatus;
   lastLogin: string;
   joinedDate: string;
 };
-
-const initialUsers: UserRecord[] = [
-  {
-    id: 1,
-    name: 'Vikram Shah',
-    employeeId: 'VLCC-EMP-001',
-    email: 'vikram.shah@vlcc.com',
-    mobile: '+91 98765 60001',
-    branch: 'All Branches',
-    role: 'Admin',
-    status: 'Active',
-    lastLogin: '05 Sep 2026, 09:42 AM',
-    joinedDate: '12 Jan 2023',
-  },
-  {
-    id: 2,
-    name: 'Amit Kulkarni',
-    employeeId: 'VLCC-EMP-002',
-    email: 'amit.kulkarni@vlcc.com',
-    mobile: '+91 98765 60002',
-    branch: 'Pune Branch',
-    role: 'Admin',
-    status: 'Active',
-    lastLogin: '05 Sep 2026, 08:55 AM',
-    joinedDate: '18 Mar 2023',
-  },
-  {
-    id: 3,
-    name: 'Priya Mehta',
-    employeeId: 'VLCC-EMP-003',
-    email: 'priya.mehta@vlcc.com',
-    mobile: '+91 98765 60003',
-    branch: 'Mumbai Branch',
-    role: 'Admin',
-    status: 'Active',
-    lastLogin: '05 Sep 2026, 09:15 AM',
-    joinedDate: '22 Apr 2023',
-  },
-  {
-    id: 4,
-    name: 'Rahul Patil',
-    employeeId: 'VLCC-EMP-004',
-    email: 'rahul.patil@vlcc.com',
-    mobile: '+91 98765 60004',
-    branch: 'Nashik Branch',
-    role: 'Teacher',
-    status: 'Active',
-    lastLogin: '04 Sep 2026, 06:32 PM',
-    joinedDate: '09 Jun 2023',
-  },
-  {
-    id: 5,
-    name: 'Sneha Joshi',
-    employeeId: 'VLCC-EMP-005',
-    email: 'sneha.joshi@vlcc.com',
-    mobile: '+91 98765 60005',
-    branch: 'Nagpur Branch',
-    role: 'Teacher',
-    status: 'Active',
-    lastLogin: '05 Sep 2026, 08:20 AM',
-    joinedDate: '14 Jul 2023',
-  },
-  {
-    id: 6,
-    name: 'Rohit Desai',
-    employeeId: 'VLCC-EMP-006',
-    email: 'rohit.desai@vlcc.com',
-    mobile: '+91 98765 60006',
-    branch: 'Pune Branch',
-    role: 'Teacher',
-    status: 'Active',
-    lastLogin: '04 Sep 2026, 05:45 PM',
-    joinedDate: '03 Aug 2023',
-  },
-  {
-    id: 7,
-    name: 'Neha Joshi',
-    employeeId: 'VLCC-EMP-007',
-    email: 'neha.joshi@vlcc.com',
-    mobile: '+91 98765 60007',
-    branch: 'Nashik Branch',
-    role: 'Teacher',
-    status: 'Active',
-    lastLogin: '05 Sep 2026, 07:55 AM',
-    joinedDate: '21 Sep 2023',
-  },
-  {
-    id: 8,
-    name: 'Karan Malhotra',
-    employeeId: 'VLCC-EMP-008',
-    email: 'karan.malhotra@vlcc.com',
-    mobile: '+91 98765 60008',
-    branch: 'Pune Branch',
-    role: 'Admin',
-    status: 'Active',
-    lastLogin: '04 Sep 2026, 04:12 PM',
-    joinedDate: '11 Oct 2023',
-  },
-];
 
 const roleColors: Record<
   UserRole,
@@ -182,8 +85,10 @@ export default function UsersRolesPage() {
   const statCardWidth =
     (contentWidth - statGap * 2) / 3;
 
-  const [users, setUsers] =
-    useState<UserRecord[]>(initialUsers);
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [branches, setBranches] = useState<BranchOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshingError, setRefreshingError] = useState('');
 
   const [search, setSearch] = useState('');
 
@@ -214,6 +119,52 @@ export default function UsersRolesPage() {
 
   const [selectedRole, setSelectedRole] =
       useState<UserRole>('Teacher');
+
+  const mapApiUser = (item: ApiUser): UserRecord | null => {
+    const rawRole = Array.isArray(item.roles) ? item.roles[0] : undefined;
+    // This existing screen manages staff accounts (admins and teachers).
+    if (rawRole !== 'admin' && rawRole !== 'teacher') return null;
+    const branchValue = item.branchId;
+    const branchId = typeof branchValue === 'string'
+      ? branchValue
+      : branchValue && typeof branchValue === 'object'
+        ? String(branchValue._id || branchValue.id || '') || null
+        : null;
+    const branchName = branchValue && typeof branchValue === 'object' && branchValue.name
+      ? branchValue.name
+      : branches.find((b) => b._id === branchId)?.name || 'Unassigned';
+    const joined = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—';
+    return {
+      id: String(item._id || item.id || ''),
+      name: item.fullName || 'Unnamed User',
+      employeeId: item.employeeId || '—',
+      email: item.email || '',
+      mobile: item.mobileNumber || '',
+      branch: branchName,
+      branchId,
+      role: rawRole === 'admin' ? 'Admin' : 'Teacher',
+      status: item.status === 'active' ? 'Active' : 'Inactive',
+      lastLogin: 'Not available',
+      joinedDate: joined,
+    };
+  };
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setRefreshingError('');
+    try {
+      const [apiUsers, apiBranches] = await Promise.all([fetchUsers(), fetchBranches().catch(() => [])]);
+      setBranches(apiBranches);
+      const mapped = apiUsers.map((user) => mapApiUser(user)).filter((user): user is UserRecord => Boolean(user));
+      setUsers(mapped);
+    } catch (error) {
+      setRefreshingError(error instanceof Error ? error.message : 'Unable to load users.');
+    } finally {
+      setLoading(false);
+    }
+  }, [branches]);
+
+  useEffect(() => { void loadUsers(); }, []);
 
   const totalUsers = users.length;
 
@@ -307,169 +258,88 @@ export default function UsersRolesPage() {
     setRoleModalVisible(true);
   };
 
-  const saveUser = () => {
-    if (!selectedUser) {
+  const saveUser = async () => {
+    if (!selectedUser) return;
+    if (!name.trim() || !email.trim() || !mobile.trim() || !branch.trim()) {
+      Alert.alert('Required Fields', 'Please fill all user information.');
       return;
     }
-
-    if (
-      !name.trim() ||
-      !email.trim() ||
-      !mobile.trim() ||
-      !branch.trim()
-    ) {
-      Alert.alert(
-        'Required Fields',
-        'Please fill all user information.'
-      );
+    const matchingBranch = branches.find((item) => item.name.toLowerCase() === branch.trim().toLowerCase() || item._id === branch.trim());
+    if (!matchingBranch && branch.trim() !== selectedUser.branch) {
+      Alert.alert('Invalid Branch', 'Please enter the exact name of an active branch.');
       return;
     }
-
-    setUsers((current) =>
-      current.map((user) =>
-        user.id === selectedUser.id
-          ? {
-              ...user,
-              name: name.trim(),
-              email: email.trim(),
-              mobile: mobile.trim(),
-              branch: branch.trim(),
-            }
-          : user
-      )
-    );
-
-    setEditModalVisible(false);
-
-    Alert.alert(
-      'User Updated',
-      `${name.trim()} has been updated successfully.`
-    );
-  };
-
-  const saveRole = () => {
-    if (!selectedUser) {
-      return;
+    try {
+      const updated = await updateUser(selectedUser.id, {
+        fullName: name.trim(), email: email.trim(), mobileNumber: mobile.trim(),
+        branchId: matchingBranch?._id || selectedUser.branchId,
+      });
+      const mapped = mapApiUser(updated);
+      if (mapped) {
+        setUsers((current) => current.map((user) => user.id === mapped.id ? mapped : user));
+        setSelectedUser(mapped);
+      }
+      setEditModalVisible(false);
+      Alert.alert('User Updated', `${name.trim()} has been updated successfully.`);
+    } catch (error) {
+      Alert.alert('Update Failed', error instanceof Error ? error.message : 'Unable to update user.');
     }
-
-    setUsers((current) =>
-      current.map((user) =>
-        user.id === selectedUser.id
-          ? {
-              ...user,
-              role: selectedRole,
-            }
-          : user
-      )
-    );
-
-    setSelectedUser({
-      ...selectedUser,
-      role: selectedRole,
-    });
-
-    setRoleModalVisible(false);
-
-    Alert.alert(
-      'Role Updated',
-      `${selectedUser.name} is now assigned the ${selectedRole} role.`
-    );
   };
 
-  const toggleUserStatus = (
-    user: UserRecord
-  ) => {
-    setActionModalVisible(false);
-
-    const nextStatus =
-      user.status === 'Active'
-        ? 'Inactive'
-        : 'Active';
-
-    Alert.alert(
-      `${nextStatus} User`,
-      `Are you sure you want to mark ${user.name} as ${nextStatus.toLowerCase()}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Confirm',
-          onPress: () => {
-            setUsers((current) =>
-              current.map(
-                (item) =>
-                  item.id === user.id
-                    ? {
-                        ...item,
-                        status: nextStatus,
-                      }
-                    : item
-              )
-            );
-          },
-        },
-      ]
-    );
+  const saveRole = async () => {
+    if (!selectedUser) return;
+    try {
+      if (selectedRole === selectedUser.role) { setRoleModalVisible(false); return; }
+      const updated = await updateUserRole(selectedUser.id, selectedRole === 'Admin' ? 'admin' : 'teacher', selectedUser.role);
+      const mapped = mapApiUser(updated);
+      if (mapped) {
+        setUsers((current) => current.map((user) => user.id === mapped.id ? mapped : user));
+        setSelectedUser(mapped);
+      }
+      setRoleModalVisible(false);
+      Alert.alert('Role Updated', `${selectedUser.name} is now assigned the ${selectedRole} role.`);
+    } catch (error) {
+      Alert.alert('Role Update Failed', error instanceof Error ? error.message : 'Unable to update role.');
+    }
   };
 
-  const deleteUser = (
-    user: UserRecord
-  ) => {
+  const toggleUserStatus = (user: UserRecord) => {
     setActionModalVisible(false);
-
-    Alert.alert(
-      'Delete User',
-      `Are you sure you want to delete ${user.name}? This action cannot be undone.`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setUsers((current) =>
-              current.filter(
-                (item) =>
-                  item.id !== user.id
-              )
-            );
-
-            Alert.alert(
-              'User Deleted',
-              `${user.name} has been deleted.`
-            );
-          },
-        },
-      ]
-    );
+    const nextStatus = user.status === 'Active' ? 'Inactive' : 'Active';
+    Alert.alert(`${nextStatus} User`, `Are you sure you want to mark ${user.name} as ${nextStatus.toLowerCase()}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', onPress: async () => {
+        try {
+          await updateUserStatus(user.id, nextStatus === 'Active' ? 'active' : 'inactive');
+          setUsers((current) => current.map((item) => item.id === user.id ? { ...item, status: nextStatus } : item));
+        } catch (error) {
+          Alert.alert('Status Update Failed', error instanceof Error ? error.message : 'Unable to update status.');
+        }
+      } },
+    ]);
   };
 
-  const resetPassword = (
-    user: UserRecord
-  ) => {
+  const handleDeleteUser = (user: UserRecord) => {
     setActionModalVisible(false);
+    Alert.alert('Delete User', `Are you sure you want to delete ${user.name}? This action cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await deleteUser(user.id);
+          setUsers((current) => current.filter((item) => item.id !== user.id));
+          Alert.alert('User Deleted', `${user.name} has been deleted.`);
+        } catch (error) {
+          Alert.alert('Delete Failed', error instanceof Error ? error.message : 'Unable to delete user.');
+        }
+      } },
+    ]);
+  };
 
+  const resetPassword = (user: UserRecord) => {
+    setActionModalVisible(false);
     Alert.alert(
-      'Reset Password',
-      `A password reset instruction will be sent to ${user.email}.`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Send Reset',
-          onPress: () =>
-            Alert.alert(
-              'Reset Sent',
-              'Password reset instruction has been sent.'
-            ),
-        },
-      ]
+      'Password Reset Not Configured',
+      `No email/password-reset delivery service is configured yet for ${user.email}. No reset email has been sent.`
     );
   };
 
@@ -951,8 +821,18 @@ export default function UsersRolesPage() {
           </Text>
         </View>
 
-        {filteredUsers.length ===
-        0 ? (
+        {loading ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyText}>Loading users from the server...</Text>
+          </View>
+        ) : refreshingError ? (
+          <View style={styles.emptyBox}>
+            <Text style={[styles.emptyText, { color: '#D14343' }]}>{refreshingError}</Text>
+            <TouchableOpacity onPress={() => { void loadUsers(); }} style={{ marginTop: 12 }}>
+              <Text style={{ color: '#7040D5', fontWeight: '700' }}>Tap to retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filteredUsers.length === 0 ? (
           <View
             style={styles.emptyBox}
           >
@@ -1139,7 +1019,7 @@ export default function UsersRolesPage() {
               text="Delete User"
               onPress={() => {
                 if (selectedUser) {
-                  deleteUser(
+                  handleDeleteUser(
                     selectedUser
                   );
                 }

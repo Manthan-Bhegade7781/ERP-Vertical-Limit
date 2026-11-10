@@ -1,7 +1,14 @@
-require("dotenv").config();
+const dotenv = require("dotenv");
 
-const app = require("./app");
+const result = dotenv.config();
+
+console.log("Env file path:", process.cwd());
+console.log("Dotenv error:", result.error?.message ?? "none");
+console.log("MONGODB_URI exists:", Boolean(process.env.MONGODB_URI));
+console.log("MONGO_URI exists:", Boolean(process.env.MONGO_URI));
+
 const connectDB = require("./config/database");
+const app = require("./app");
 
 const PORT = process.env.PORT || 5000;
 

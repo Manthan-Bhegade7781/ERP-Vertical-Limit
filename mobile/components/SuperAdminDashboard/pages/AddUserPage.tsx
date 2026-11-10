@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -11,20 +11,9 @@ import {
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BranchOption, createUser, fetchBranches } from '@/services/users';
 
-const roles = [
-  'Branch Manager',
-  'Teacher',
-  'Accountant',
-  'Staff',
-];
-
-const branches = [
-  'Main Branch',
-  'Pune Branch',
-  'Nashik Branch',
-  'Mumbai Branch',
-];
+const roles = ['Admin', 'Teacher'];
 
 export default function AddUserPage() {
   const [name, setName] = useState('');
@@ -34,34 +23,48 @@ export default function AddUserPage() {
   const [role, setRole] = useState('');
   const [branch, setBranch] = useState('');
   const [password, setPassword] = useState('');
+  const [branchOptions, setBranchOptions] = useState<BranchOption[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    if (
-      !name.trim() ||
-      !employeeId.trim() ||
-      !email.trim() ||
-      !phone.trim() ||
-      !role ||
-      !branch ||
-      !password.trim()
-    ) {
-      Alert.alert(
-        'Required Fields',
-        'Please fill all required fields marked with *.'
-      );
+  useEffect(() => {
+    fetchBranches().then(setBranchOptions).catch((error) => {
+      Alert.alert('Branches Unavailable', error instanceof Error ? error.message : 'Unable to load branches.');
+    });
+  }, []);
+
+  const handleSave = async () => {
+    if (!name.trim() || !employeeId.trim() || !email.trim() || !phone.trim() || !role || !branch || !password.trim()) {
+      Alert.alert('Required Fields', 'Please fill all required fields marked with *.');
       return;
     }
-
-    Alert.alert(
-      'User Added',
-      'The user has been added successfully.',
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]
-    );
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert('Invalid Email', 'Enter a valid email address.');
+      return;
+    }
+    if (password.length < 8) {
+      Alert.alert('Password Too Short', 'Use at least 8 characters for the temporary password.');
+      return;
+    }
+    const selectedBranch = branchOptions.find((item) => item.name === branch);
+    if (!selectedBranch) {
+      Alert.alert('Select Branch', 'Please select an active branch from the available list.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await createUser({
+        fullName: name.trim(), email: email.trim(), password,
+        mobileNumber: phone.trim(), role: role === 'Admin' ? 'admin' : 'teacher',
+        branchId: selectedBranch._id, employeeId: employeeId.trim(),
+      });
+      Alert.alert('User Added', 'The user has been created successfully in the database.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      Alert.alert('Unable to Add User', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -222,18 +225,18 @@ export default function AddUserPage() {
           <FormLabel label="Branch" required />
 
           <View style={styles.optionWrap}>
-            {branches.map((item) => {
-              const selected = branch === item;
+            {branchOptions.map((item) => {
+              const selected = branch === item.name;
 
               return (
                 <TouchableOpacity
-                  key={item}
+                  key={item._id}
                   style={[
                     styles.optionButton,
                     selected && styles.optionButtonActive,
                   ]}
                   activeOpacity={0.8}
-                  onPress={() => setBranch(item)}
+                  onPress={() => setBranch(item.name)}
                 >
                   <MaterialCommunityIcons
                     name={
@@ -259,6 +262,9 @@ export default function AddUserPage() {
               );
             })}
           </View>
+          {branchOptions.length === 0 ? (
+            <Text style={{ color: '#D14343', fontSize: 12, marginTop: 6 }}>No active branches loaded. Check the backend connection.</Text>
+          ) : null}
 
           <FormLabel label="Password" required />
           <Input
@@ -301,6 +307,7 @@ export default function AddUserPage() {
             style={styles.saveButton}
             activeOpacity={0.85}
             onPress={handleSave}
+            disabled={saving}
           >
             <MaterialCommunityIcons
               name="check-circle-outline"
@@ -309,7 +316,7 @@ export default function AddUserPage() {
             />
 
             <Text style={styles.saveButtonText}>
-              Save User
+              {saving ? 'Saving...' : 'Save User'}
             </Text>
           </TouchableOpacity>
         </View>

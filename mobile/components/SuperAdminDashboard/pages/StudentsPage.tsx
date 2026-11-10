@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import {
   Alert,
@@ -14,9 +14,26 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  enrollStudentInSubject,
+  fetchBatchSubjectAssignments,
+  fetchStudentBatches,
+  fetchStudents,
+  fetchStudentSubjectEnrollments,
+  getReferenceId,
+  getReferenceName,
+  updateStudent,
+  updateStudentStatus,
+  updateStudentSubjectEnrollmentStatus,
+} from '../../../services/students';
+import type {
+  StudentApiRecord,
+  StudentBatch,
+  StudentSubjectEnrollment,
+} from '../../../services/students';
 
 /* =========================================================
    TYPES
@@ -30,15 +47,13 @@ type Student = {
   name: string;
   email: string;
   phone: string;
-
   batch: string;
+  batchId: string;
   standard: string;
   branch: string;
-
   guardianName: string;
   guardianMobile: string;
   address: string;
-
   status: StudentStatus;
 };
 
@@ -46,196 +61,39 @@ type MockBatchSubject = {
   id: string;
   name: string;
   teacher: string;
+  enrollmentId?: string;
+  enrollmentStatus?: EnrollmentStatus;
 };
 
 type EnrollmentStatus = 'active' | 'inactive';
 
-/* =========================================================
-   MOCK DATA
-   API INTEGRATION WILL BE DONE LATER
-========================================================= */
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : 'Something went wrong. Please try again.';
 
-const initialStudents: Student[] = [
-  {
-    id: '1',
-    studentId: 'STU001',
-    name: 'Aarav Sharma',
-    email: 'aarav.sharma@example.com',
-    phone: '+91 98765 43210',
-    batch: '12th JEE Morning',
-    standard: '12th',
-    branch: 'Pune Branch',
-    guardianName: 'Rajesh Sharma',
-    guardianMobile: '+91 98765 40001',
-    address: 'Pune, Maharashtra',
-    status: 'Active',
-  },
-  {
-    id: '2',
-    studentId: 'STU002',
-    name: 'Ananya Patil',
-    email: 'ananya.patil@example.com',
-    phone: '+91 98765 43211',
-    batch: '12th NEET Morning',
-    standard: '12th',
-    branch: 'Pune Branch',
-    guardianName: 'Suresh Patil',
-    guardianMobile: '+91 98765 40002',
-    address: 'Pune, Maharashtra',
-    status: 'Active',
-  },
-  {
-    id: '3',
-    studentId: 'STU003',
-    name: 'Rohan Kulkarni',
-    email: 'rohan.kulkarni@example.com',
-    phone: '+91 98765 43212',
-    batch: '11th MHT-CET Evening',
-    standard: '11th',
-    branch: 'Mumbai Branch',
-    guardianName: 'Mahesh Kulkarni',
-    guardianMobile: '+91 98765 40003',
-    address: 'Mumbai, Maharashtra',
-    status: 'Active',
-  },
-  {
-    id: '4',
-    studentId: 'STU004',
-    name: 'Ishita Joshi',
-    email: 'ishita.joshi@example.com',
-    phone: '+91 98765 43213',
-    batch: '10th Foundation',
-    standard: '10th',
-    branch: 'Nashik Branch',
-    guardianName: 'Vijay Joshi',
-    guardianMobile: '+91 98765 40004',
-    address: 'Nashik, Maharashtra',
-    status: 'Active',
-  },
-  {
-    id: '5',
-    studentId: 'STU005',
-    name: 'Vedant Deshmukh',
-    email: 'vedant.deshmukh@example.com',
-    phone: '+91 98765 43214',
-    batch: '9th Foundation',
-    standard: '9th',
-    branch: 'Nagpur Branch',
-    guardianName: 'Amit Deshmukh',
-    guardianMobile: '+91 98765 40005',
-    address: 'Nagpur, Maharashtra',
-    status: 'Inactive',
-  },
-  {
-    id: '6',
-    studentId: 'STU006',
-    name: 'Sakshi Mehta',
-    email: 'sakshi.mehta@example.com',
-    phone: '+91 98765 43215',
-    batch: '8th Foundation',
-    standard: '8th',
-    branch: 'Main Branch',
-    guardianName: 'Ramesh Mehta',
-    guardianMobile: '+91 98765 40006',
-    address: 'Pune, Maharashtra',
-    status: 'Active',
-  },
-];
+const mapApiStudent = (record: StudentApiRecord): Student => {
+  const user = record.userId && typeof record.userId === 'object' ? record.userId : undefined;
+  const batch = record.batchId && typeof record.batchId === 'object' ? record.batchId : undefined;
+  const branchReference = user?.branchId || batch?.branchId;
+  const apiStatus = (record.status || user?.status || 'active').toLowerCase();
 
-/* =========================================================
-   MOCK BATCH DATA
-========================================================= */
-
-const batches = [
-  {
-    name: '8th Foundation',
-    standard: '8th',
-    branch: 'Main Branch',
-  },
-  {
-    name: '9th Foundation',
-    standard: '9th',
-    branch: 'Nagpur Branch',
-  },
-  {
-    name: '10th Foundation',
-    standard: '10th',
-    branch: 'Nashik Branch',
-  },
-  {
-    name: '10th Standard - Morning',
-    standard: '10th',
-    branch: 'Pune Branch',
-  },
-  {
-    name: '10th Standard - Evening',
-    standard: '10th',
-    branch: 'Pune Branch',
-  },
-  {
-    name: '11th MHT-CET Evening',
-    standard: '11th',
-    branch: 'Mumbai Branch',
-  },
-  {
-    name: '12th JEE Morning',
-    standard: '12th',
-    branch: 'Pune Branch',
-  },
-  {
-    name: '12th NEET Morning',
-    standard: '12th',
-    branch: 'Pune Branch',
-  },
-];
-
-/* =========================================================
-   MOCK SUBJECTS ASSIGNED TO EACH BATCH
-   Frontend-only data. Backend integration will be done later.
-========================================================= */
-
-const mockBatchSubjects: Record<string, MockBatchSubject[]> = {
-  '8th Foundation': [
-    { id: '8-math', name: 'Mathematics', teacher: 'Amit Patil' },
-    { id: '8-science', name: 'Science', teacher: 'Neha Joshi' },
-    { id: '8-english', name: 'English', teacher: 'Priya Shah' },
-  ],
-  '9th Foundation': [
-    { id: '9-math', name: 'Mathematics', teacher: 'Amit Patil' },
-    { id: '9-science', name: 'Science', teacher: 'Neha Joshi' },
-    { id: '9-english', name: 'English', teacher: 'Priya Shah' },
-  ],
-  '10th Foundation': [
-    { id: '10f-math', name: 'Mathematics', teacher: 'Ganesh Mhamane' },
-    { id: '10f-science', name: 'Science', teacher: 'Rahul More' },
-    { id: '10f-english', name: 'English', teacher: 'Priya Shah' },
-  ],
-  '10th Standard - Morning': [
-    { id: '10m-math', name: 'Mathematics', teacher: 'Ganesh Mhamane' },
-    { id: '10m-science', name: 'Science', teacher: 'Rahul More' },
-    { id: '10m-english', name: 'English', teacher: 'Priya Shah' },
-  ],
-  '10th Standard - Evening': [
-    { id: '10e-math', name: 'Mathematics', teacher: 'Ganesh Mhamane' },
-    { id: '10e-science', name: 'Science', teacher: 'Rahul More' },
-    { id: '10e-english', name: 'English', teacher: 'Priya Shah' },
-  ],
-  '11th MHT-CET Evening': [
-    { id: '11-math', name: 'Mathematics', teacher: 'Amit Patil' },
-    { id: '11-physics', name: 'Physics', teacher: 'Sanjay Kulkarni' },
-    { id: '11-chemistry', name: 'Chemistry', teacher: 'Meera Desai' },
-  ],
-  '12th JEE Morning': [
-    { id: '12j-physics', name: 'Physics', teacher: 'Sanjay Kulkarni' },
-    { id: '12j-chemistry', name: 'Chemistry', teacher: 'Meera Desai' },
-    { id: '12j-math', name: 'Mathematics', teacher: 'Ganesh Mhamane' },
-  ],
-  '12th NEET Morning': [
-    { id: '12n-physics', name: 'Physics', teacher: 'Sanjay Kulkarni' },
-    { id: '12n-chemistry', name: 'Chemistry', teacher: 'Meera Desai' },
-    { id: '12n-biology', name: 'Biology', teacher: 'Dr. Kavita Rao' },
-  ],
+  return {
+    id: record._id || record.id || '',
+    studentId: record.studentId || '',
+    name: user?.fullName || user?.name || 'Unnamed student',
+    email: user?.email || '',
+    phone: user?.mobileNumber || '',
+    batch: batch?.name || '',
+    batchId: getReferenceId(record.batchId),
+    standard: batch?.standard || '',
+    branch: getReferenceName(branchReference) || '',
+    guardianName: record.guardianName || '',
+    guardianMobile: record.guardianMobile || '',
+    address: record.address || '',
+    status: apiStatus === 'inactive' ? 'Inactive' : 'Active',
+  };
 };
+
+/* Student and batch data are loaded from the backend. */
 
 /* =========================================================
    PAGE
@@ -251,8 +109,13 @@ export default function StudentsPage() {
      STUDENTS
   ------------------------------------------------------- */
 
-  const [students, setStudents] =
-    useState<Student[]>(initialStudents);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [batches, setBatches] = useState<StudentBatch[]>([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+  const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
+  const [isSavingStudent, setIsSavingStudent] = useState(false);
+  const [isSavingSubject, setIsSavingSubject] = useState(false);
+  const [batchSubjects, setBatchSubjects] = useState<MockBatchSubject[]>([]);
 
   /* -------------------------------------------------------
      SEARCH / FILTER
@@ -278,7 +141,7 @@ export default function StudentsPage() {
 
 
   /* -------------------------------------------------------
-     STUDENT SUBJECT ENROLLMENTS (MOCK)
+     STUDENT SUBJECT ENROLLMENTS
   ------------------------------------------------------- */
 
   const [showSubjectsModal, setShowSubjectsModal] =
@@ -286,18 +149,7 @@ export default function StudentsPage() {
 
   const [enrollmentStatuses, setEnrollmentStatuses] = useState<
     Record<string, EnrollmentStatus>
-  >({
-    '1:12j-physics': 'active',
-    '1:12j-math': 'active',
-    '2:12n-physics': 'active',
-    '2:12n-biology': 'active',
-    '3:11-math': 'active',
-    '4:10f-math': 'active',
-    '4:10f-science': 'active',
-    '5:9-math': 'active',
-    '6:8-math': 'active',
-    '6:8-english': 'active',
-  });
+  >({});
 
   /* -------------------------------------------------------
      VIEW MODAL
@@ -336,6 +188,42 @@ export default function StudentsPage() {
 
   const [editAddress, setEditAddress] =
     useState('');
+
+  /* -------------------------------------------------------
+     LOAD STUDENTS AND BATCHES FROM BACKEND
+  ------------------------------------------------------- */
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+
+      const loadData = async () => {
+        setIsLoadingStudents(true);
+        try {
+          const [studentRows, batchRows] = await Promise.all([
+            fetchStudents(),
+            fetchStudentBatches(),
+          ]);
+
+          if (!mounted) return;
+
+          setStudents(studentRows.map(mapApiStudent));
+          setBatches(batchRows.filter((batch) => !batch.isRemoved));
+        } catch (error) {
+          if (mounted) {
+            Alert.alert('Unable to Load Students', getErrorMessage(error));
+          }
+        } finally {
+          if (mounted) setIsLoadingStudents(false);
+        }
+      };
+
+      void loadData();
+      return () => {
+        mounted = false;
+      };
+    }, [])
+  );
 
   /* =======================================================
      FILTERED STUDENTS
@@ -389,12 +277,15 @@ export default function StudentsPage() {
   ======================================================= */
 
   const openAddStudent = () => {
+    // The route exists in app/(super_admin)/explore.tsx.
+    // Some checked-in Expo Router type declarations are stale and omit
+    // the (super_admin) route group, so cast only this valid route target.
     router.push({
       pathname: '/(super_admin)/explore',
       params: {
         feature: 'Add Student',
       },
-    });
+    } as unknown as import('expo-router').Href);
   };
 
   /* =======================================================
@@ -410,17 +301,119 @@ export default function StudentsPage() {
      MANAGE STUDENT SUBJECTS
   ======================================================= */
 
-  const openManageSubjects = () => {
+  const openManageSubjects = async () => {
     if (!selectedStudent) return;
+    if (!selectedStudent.batchId) {
+      Alert.alert('Batch Missing', 'This student does not have a valid batch assigned.');
+      return;
+    }
+
     setShowActions(false);
     setShowSubjectsModal(true);
+    setIsLoadingSubjects(true);
+    setBatchSubjects([]);
+    setEnrollmentStatuses({});
+
+    try {
+      const [assignments, enrollments] = await Promise.all([
+        fetchBatchSubjectAssignments(selectedStudent.batchId),
+        fetchStudentSubjectEnrollments(selectedStudent.id),
+      ]);
+
+      const activeAssignments = assignments.filter(
+        (assignment) => assignment.status === 'active' && getReferenceId(assignment.subjectId)
+      );
+
+      const mappedSubjects: MockBatchSubject[] = activeAssignments.map((assignment) => {
+        const enrollment = enrollments.find(
+          (item) => getReferenceId(item.batchSubjectId) === assignment._id
+        );
+        const subjectRef = assignment.subjectId && typeof assignment.subjectId === 'object'
+          ? assignment.subjectId
+          : undefined;
+        const teacherRef = assignment.teacherId && typeof assignment.teacherId === 'object'
+          ? assignment.teacherId
+          : undefined;
+
+        return {
+          id: assignment._id,
+          name: subjectRef?.name || 'Unnamed subject',
+          teacher: teacherRef?.fullName || 'Teacher not assigned',
+          enrollmentId: enrollment?._id,
+          enrollmentStatus: enrollment?.status,
+        };
+      });
+
+      const statuses: Record<string, EnrollmentStatus> = {};
+      mappedSubjects.forEach((subject) => {
+        if (subject.enrollmentStatus) {
+          statuses[`${selectedStudent.id}:${subject.id}`] = subject.enrollmentStatus;
+        }
+      });
+
+      setBatchSubjects(mappedSubjects);
+      setEnrollmentStatuses(statuses);
+    } catch (error) {
+      Alert.alert('Unable to Load Subjects', getErrorMessage(error));
+      setBatchSubjects([]);
+    } finally {
+      setIsLoadingSubjects(false);
+    }
   };
 
-  const toggleSubjectEnrollment = (subject: MockBatchSubject) => {
+  const persistSubjectEnrollment = async (
+    subject: MockBatchSubject,
+    targetStatus: EnrollmentStatus
+  ) => {
     if (!selectedStudent) return;
 
     const enrollmentKey = `${selectedStudent.id}:${subject.id}`;
-    const currentStatus = enrollmentStatuses[enrollmentKey];
+    setIsSavingSubject(true);
+
+    try {
+      let savedEnrollment: StudentSubjectEnrollment | null = null;
+
+      if (subject.enrollmentId) {
+        savedEnrollment = await updateStudentSubjectEnrollmentStatus(
+          subject.enrollmentId,
+          targetStatus
+        );
+      } else if (targetStatus === 'active') {
+        savedEnrollment = await enrollStudentInSubject(
+          selectedStudent.id,
+          subject.id
+        );
+      } else {
+        throw new Error('Enrollment record was not found. Refresh the subject list and try again.');
+      }
+
+      setBatchSubjects((current) => current.map((item) =>
+        item.id === subject.id
+          ? {
+              ...item,
+              enrollmentId: savedEnrollment?._id || item.enrollmentId,
+              enrollmentStatus: targetStatus,
+            }
+          : item
+      ));
+      setEnrollmentStatuses((current) => ({ ...current, [enrollmentKey]: targetStatus }));
+
+      Alert.alert(
+        'Subject Enrollment Updated',
+        `${subject.name} is now ${targetStatus === 'active' ? 'enrolled' : 'inactive'} for ${selectedStudent.name}.`
+      );
+    } catch (error) {
+      Alert.alert('Unable to Update Enrollment', getErrorMessage(error));
+    } finally {
+      setIsSavingSubject(false);
+    }
+  };
+
+  const toggleSubjectEnrollment = (subject: MockBatchSubject) => {
+    if (!selectedStudent || isSavingSubject) return;
+
+    const enrollmentKey = `${selectedStudent.id}:${subject.id}`;
+    const currentStatus = enrollmentStatuses[enrollmentKey] || subject.enrollmentStatus;
 
     if (currentStatus === 'active') {
       Alert.alert(
@@ -431,35 +424,24 @@ export default function StudentsPage() {
           {
             text: 'Deactivate',
             style: 'destructive',
-            onPress: () => {
-              setEnrollmentStatuses((current) => ({
-                ...current,
-                [enrollmentKey]: 'inactive',
-              }));
-            },
+            onPress: () => { void persistSubjectEnrollment(subject, 'inactive'); },
           },
         ]
       );
       return;
     }
 
-    const message = currentStatus === 'inactive'
-      ? `Reactivate ${subject.name} for ${selectedStudent.name}?`
-      : `Enroll ${selectedStudent.name} in ${subject.name}?`;
-
+    const isReactivation = currentStatus === 'inactive';
     Alert.alert(
-      currentStatus === 'inactive' ? 'Reactivate Subject' : 'Enroll in Subject',
-      message,
+      isReactivation ? 'Reactivate Subject' : 'Enroll in Subject',
+      isReactivation
+        ? `Reactivate ${subject.name} for ${selectedStudent.name}?`
+        : `Enroll ${selectedStudent.name} in ${subject.name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: currentStatus === 'inactive' ? 'Reactivate' : 'Enroll',
-          onPress: () => {
-            setEnrollmentStatuses((current) => ({
-              ...current,
-              [enrollmentKey]: 'active',
-            }));
-          },
+          text: isReactivation ? 'Reactivate' : 'Enroll',
+          onPress: () => { void persistSubjectEnrollment(subject, 'active'); },
         },
       ]
     );
@@ -503,128 +485,76 @@ export default function StudentsPage() {
      SAVE EDIT
   ======================================================= */
 
-  const saveStudentChanges = () => {
-    if (!selectedStudent) {
-      return;
-    }
+  const saveStudentChanges = async () => {
+    if (!selectedStudent || isSavingStudent) return;
 
     if (!editName.trim()) {
-      Alert.alert(
-        'Required',
-        'Please enter the student name.'
-      );
+      Alert.alert('Required', 'Please enter the student name.');
       return;
     }
-
     if (!editEmail.trim()) {
-      Alert.alert(
-        'Required',
-        'Please enter the email address.'
-      );
+      Alert.alert('Required', 'Please enter the email address.');
       return;
     }
-
     if (!editPhone.trim()) {
-      Alert.alert(
-        'Required',
-        'Please enter the mobile number.'
-      );
+      Alert.alert('Required', 'Please enter the mobile number.');
       return;
     }
-
     if (!editBatch) {
-      Alert.alert(
-        'Required',
-        'Please select a batch.'
-      );
+      Alert.alert('Required', 'Please select a batch.');
+      return;
+    }
+    if (editGuardianMobile.trim() && editGuardianMobile.trim().length < 10) {
+      Alert.alert('Invalid Mobile', 'Please enter a valid guardian mobile number.');
       return;
     }
 
-    if (
-      editGuardianMobile.trim() &&
-      editGuardianMobile.trim().length < 10
-    ) {
-      Alert.alert(
-        'Invalid Mobile',
-        'Please enter a valid guardian mobile number.'
-      );
+    const selectedBatch = batches.find((item) => item.name === editBatch);
+    if (!selectedBatch?._id) {
+      Alert.alert('Invalid Batch', 'Please select an available batch.');
       return;
     }
 
-    const selectedBatch = batches.find(
-      (batch) => batch.name === editBatch
-    );
+    setIsSavingStudent(true);
+    try {
+      const updatedRecord = await updateStudent(selectedStudent.id, {
+        fullName: editName.trim(),
+        email: editEmail.trim(),
+        mobileNumber: editPhone.trim(),
+        batchId: selectedBatch._id,
+        guardianName: editGuardianName.trim(),
+        guardianMobile: editGuardianMobile.trim(),
+        address: editAddress.trim(),
+      });
 
-    setStudents((currentStudents) =>
-      currentStudents.map((student) =>
-        student.id === selectedStudent.id
-          ? {
-              ...student,
+      let updatedStudent = mapApiStudent(updatedRecord);
+      setStudents((current) => current.map((item) =>
+        item.id === selectedStudent.id ? updatedStudent : item
+      ));
+      setSelectedStudent(updatedStudent);
 
-              name: editName.trim(),
-              email: editEmail.trim(),
-              phone: editPhone.trim(),
+      // Refresh populated branch and batch details after the update.
+      try {
+        const refreshedRows = await fetchStudents();
+        const refreshedStudents = refreshedRows.map(mapApiStudent);
+        setStudents(refreshedStudents);
+        const refreshedStudent = refreshedStudents.find((item) => item.id === selectedStudent.id);
+        if (refreshedStudent) {
+          updatedStudent = refreshedStudent;
+          setSelectedStudent(refreshedStudent);
+        }
+      } catch {
+        // The update already succeeded; keep the response data if refresh fails.
+      }
 
-              batch: editBatch,
-
-              standard:
-                selectedBatch?.standard ??
-                student.standard,
-
-              branch:
-                selectedBatch?.branch ??
-                student.branch,
-
-              guardianName:
-                editGuardianName.trim(),
-
-              guardianMobile:
-                editGuardianMobile.trim(),
-
-              address:
-                editAddress.trim(),
-            }
-          : student
-      )
-    );
-
-    setSelectedStudent((current) =>
-      current
-        ? {
-            ...current,
-
-            name: editName.trim(),
-            email: editEmail.trim(),
-            phone: editPhone.trim(),
-
-            batch: editBatch,
-
-            standard:
-              selectedBatch?.standard ??
-              current.standard,
-
-            branch:
-              selectedBatch?.branch ??
-              current.branch,
-
-            guardianName:
-              editGuardianName.trim(),
-
-            guardianMobile:
-              editGuardianMobile.trim(),
-
-            address:
-              editAddress.trim(),
-          }
-        : null
-    );
-
-    setShowEditModal(false);
-
-    Alert.alert(
-      'Updated',
-      'Student information has been updated successfully.'
-    );
+      setShowEditModal(false);
+      setShowBatchList(false);
+      Alert.alert('Updated', 'Student information has been updated successfully.');
+    } catch (error) {
+      Alert.alert('Unable to Update Student', getErrorMessage(error));
+    } finally {
+      setIsSavingStudent(false);
+    }
   };
 
   /* =======================================================
@@ -632,60 +562,39 @@ export default function StudentsPage() {
   ======================================================= */
 
   const toggleStudentStatus = () => {
-    if (!selectedStudent) {
-      return;
-    }
+    if (!selectedStudent) return;
 
     const nextStatus: StudentStatus =
-      selectedStudent.status === 'Active'
-        ? 'Inactive'
-        : 'Active';
-
-    const action =
-      nextStatus === 'Active'
-        ? 'activate'
-        : 'deactivate';
-
+      selectedStudent.status === 'Active' ? 'Inactive' : 'Active';
+    const backendStatus = nextStatus === 'Active' ? 'active' : 'inactive';
+    const action = nextStatus === 'Active' ? 'activate' : 'deactivate';
     setShowActions(false);
 
     Alert.alert(
       `${nextStatus} Student`,
       `Are you sure you want to ${action} ${selectedStudent.name}?`,
       [
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text:
-            nextStatus === 'Active'
-              ? 'Activate'
-              : 'Deactivate',
+          text: nextStatus === 'Active' ? 'Activate' : 'Deactivate',
           onPress: () => {
-            setStudents((currentStudents) =>
-              currentStudents.map((student) =>
-                student.id === selectedStudent.id
-                  ? {
-                      ...student,
-                      status: nextStatus,
-                    }
-                  : student
-              )
-            );
-
-            setSelectedStudent((current) =>
-              current
-                ? {
-                    ...current,
-                    status: nextStatus,
-                  }
-                : null
-            );
-
-            Alert.alert(
-              'Updated',
-              `${selectedStudent.name} is now ${nextStatus.toLowerCase()}.`
-            );
+            void (async () => {
+              try {
+                await updateStudentStatus(selectedStudent.id, backendStatus);
+                setStudents((current) => current.map((student) =>
+                  student.id === selectedStudent.id
+                    ? { ...student, status: nextStatus }
+                    : student
+                ));
+                setSelectedStudent((current) => current
+                  ? { ...current, status: nextStatus }
+                  : null
+                );
+                Alert.alert('Updated', `${selectedStudent.name} is now ${nextStatus.toLowerCase()}.`);
+              } catch (error) {
+                Alert.alert('Unable to Update Status', getErrorMessage(error));
+              }
+            })();
           },
         },
       ]
@@ -1081,11 +990,13 @@ export default function StudentsPage() {
               </View>
 
               <Text style={styles.emptyTitle}>
-                No students found
+                {isLoadingStudents ? 'Loading students...' : 'No students found'}
               </Text>
 
               <Text style={styles.emptyText}>
-                Try changing your search or filter.
+                {isLoadingStudents
+                  ? 'Fetching student records from the server.'
+                  : 'Try changing your search or filter.'}
               </Text>
             </View>
           }
@@ -1372,11 +1283,9 @@ export default function StudentsPage() {
               </View>
               <View style={styles.subjectsCountBadge}>
                 <Text style={styles.subjectsCountText}>
-                  {selectedStudent
-                    ? (mockBatchSubjects[selectedStudent.batch] || []).filter(
-                        (subject) => enrollmentStatuses[`${selectedStudent.id}:${subject.id}`] === 'active'
-                      ).length
-                    : 0}
+                  {batchSubjects.filter((subject) =>
+                    enrollmentStatuses[`${selectedStudent?.id || ''}:${subject.id}`] === 'active'
+                  ).length}
                 </Text>
               </View>
             </View>
@@ -1386,9 +1295,13 @@ export default function StudentsPage() {
               contentContainerStyle={styles.subjectsListContent}
               showsVerticalScrollIndicator={false}
             >
-              {selectedStudent && (mockBatchSubjects[selectedStudent.batch] || []).length > 0 ? (
-                (mockBatchSubjects[selectedStudent.batch] || []).map((subject) => {
-                  const enrollmentKey = `${selectedStudent.id}:${subject.id}`;
+              {isLoadingSubjects ? (
+                <View style={styles.subjectsEmptyState}>
+                  <Text style={styles.subjectsEmptyText}>Loading assigned subjects...</Text>
+                </View>
+              ) : batchSubjects.length > 0 ? (
+                batchSubjects.map((subject) => {
+                  const enrollmentKey = `${selectedStudent?.id || ''}:${subject.id}`;
                   const status = enrollmentStatuses[enrollmentKey];
                   const isEnrolled = status === 'active';
                   const isInactive = status === 'inactive';
@@ -1431,6 +1344,7 @@ export default function StudentsPage() {
                         ]}
                         onPress={() => toggleSubjectEnrollment(subject)}
                         activeOpacity={0.8}
+                        disabled={isSavingSubject}
                       >
                         <MaterialCommunityIcons
                           name={isEnrolled ? 'minus' : isInactive ? 'refresh' : 'plus'}
@@ -1452,7 +1366,7 @@ export default function StudentsPage() {
                   <MaterialCommunityIcons name="book-off-outline" size={34} color="#9AA8B8" />
                   <Text style={styles.subjectsEmptyTitle}>No subjects available</Text>
                   <Text style={styles.subjectsEmptyText}>
-                    No mock subjects are configured for this batch yet.
+                    No active subject assignments were found for this students batch.
                   </Text>
                 </View>
               )}
@@ -1460,7 +1374,7 @@ export default function StudentsPage() {
 
             <View style={styles.subjectsFooter}>
               <Text style={styles.subjectsFooterNote}>
-                Mock data only • API integration will be done later
+                Subject enrollment changes are saved to the server.
               </Text>
               <TouchableOpacity
                 style={styles.subjectsDoneButton}
@@ -1942,8 +1856,7 @@ export default function StudentsPage() {
                               styles.batchMeta
                             }
                           >
-                            {batch.standard} •{' '}
-                            {batch.branch}
+                            {batch.standard} • {getReferenceName(batch.branchId) || 'Branch not set'}
                           </Text>
                         </View>
 
@@ -2068,8 +1981,9 @@ export default function StudentsPage() {
 
               <TouchableOpacity
                 style={styles.editSaveButton}
-                onPress={saveStudentChanges}
+                onPress={() => { void saveStudentChanges(); }}
                 activeOpacity={0.8}
+                disabled={isSavingStudent}
               >
                 <MaterialCommunityIcons
                   name="content-save-outline"

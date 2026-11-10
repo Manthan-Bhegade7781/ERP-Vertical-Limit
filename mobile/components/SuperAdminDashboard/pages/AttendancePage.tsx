@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -17,12 +18,25 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import {
+  AttendanceApiRecord,
+  AttendanceBatch,
+  AttendanceStudent,
+  AttendanceStatus as ApiAttendanceStatus,
+  fetchAttendanceBatches,
+  fetchAttendanceRecords,
+  getReferenceId,
+  getReferenceName,
+  updateAttendanceRecord,
+} from '@/services/attendance';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Leave';
 
 type AttendanceRecord = {
-  id: number;
+  id: string;
+  studentMongoId: string;
+  dateKey: string;
   studentName: string;
   studentId: string;
   batch: string;
@@ -50,213 +64,6 @@ type StudentAttendance = {
   }[];
 };
 
-const initialRecords: AttendanceRecord[] = [
-  {
-    id: 1,
-    studentName: 'Aarav Sharma',
-    studentId: 'VLCC-STU-001',
-    batch: 'Professional Makeup - Morning',
-    branch: 'Pune Branch',
-    date: '05 Sep 2026',
-    status: 'Present',
-    checkIn: '09:02 AM',
-    remarks: '',
-  },
-  {
-    id: 2,
-    studentName: 'Ananya Patil',
-    studentId: 'VLCC-STU-002',
-    batch: 'Beauty Therapy - Evening',
-    branch: 'Mumbai Branch',
-    date: '05 Sep 2026',
-    status: 'Late',
-    checkIn: '06:18 PM',
-    remarks: 'Traffic delay',
-  },
-  {
-    id: 3,
-    studentName: 'Riya Kulkarni',
-    studentId: 'VLCC-STU-003',
-    batch: 'Hair Dressing - Morning',
-    branch: 'Pune Branch',
-    date: '05 Sep 2026',
-    status: 'Absent',
-    checkIn: '--',
-    remarks: 'No information received',
-  },
-  {
-    id: 4,
-    studentName: 'Neha Joshi',
-    studentId: 'VLCC-STU-004',
-    batch: 'Skin Care Specialist',
-    branch: 'Nashik Branch',
-    date: '05 Sep 2026',
-    status: 'Leave',
-    checkIn: '--',
-    remarks: 'Approved leave',
-  },
-  {
-    id: 5,
-    studentName: 'Kavya Mehta',
-    studentId: 'VLCC-STU-005',
-    batch: 'Nail Art Professional',
-    branch: 'Nagpur Branch',
-    date: '05 Sep 2026',
-    status: 'Present',
-    checkIn: '09:07 AM',
-    remarks: '',
-  },
-  {
-    id: 6,
-    studentName: 'Sneha Deshmukh',
-    studentId: 'VLCC-STU-006',
-    batch: 'Professional Makeup - Morning',
-    branch: 'Pune Branch',
-    date: '05 Sep 2026',
-    status: 'Present',
-    checkIn: '09:00 AM',
-    remarks: '',
-  },
-  {
-    id: 7,
-    studentName: 'Ishita Shah',
-    studentId: 'VLCC-STU-007',
-    batch: 'Beauty Therapy - Evening',
-    branch: 'Mumbai Branch',
-    date: '05 Sep 2026',
-    status: 'Late',
-    checkIn: '06:21 PM',
-    remarks: 'Public transport delay',
-  },
-  {
-    id: 8,
-    studentName: 'Pooja Verma',
-    studentId: 'VLCC-STU-008',
-    batch: 'Hair Dressing - Morning',
-    branch: 'Pune Branch',
-    date: '05 Sep 2026',
-    status: 'Present',
-    checkIn: '09:04 AM',
-    remarks: '',
-  },
-];
-
-/*
- * Demo historical attendance data.
- *
- * Later this can be replaced by your backend/API data.
- * The Total Attendance feature works for every student.
- */
-const studentHistory: Record<
-  string,
-  {
-    present: number;
-    absent: number;
-    late: number;
-    leave: number;
-    monthly: {
-      month: string;
-      percentage: number;
-    }[];
-  }
-> = {
-  'VLCC-STU-001': {
-    present: 21,
-    absent: 1,
-    late: 1,
-    leave: 1,
-    monthly: [
-      { month: 'Sep 2026', percentage: 95.8 },
-      { month: 'Aug 2026', percentage: 91.3 },
-      { month: 'Jul 2026', percentage: 94.0 },
-    ],
-  },
-
-  'VLCC-STU-002': {
-    present: 19,
-    absent: 2,
-    late: 2,
-    leave: 1,
-    monthly: [
-      { month: 'Sep 2026', percentage: 87.5 },
-      { month: 'Aug 2026', percentage: 90.2 },
-      { month: 'Jul 2026', percentage: 88.5 },
-    ],
-  },
-
-  'VLCC-STU-003': {
-    present: 20,
-    absent: 2,
-    late: 1,
-    leave: 1,
-    monthly: [
-      { month: 'Sep 2026', percentage: 87.5 },
-      { month: 'Aug 2026', percentage: 91.3 },
-      { month: 'Jul 2026', percentage: 88.0 },
-    ],
-  },
-
-  'VLCC-STU-004': {
-    present: 18,
-    absent: 2,
-    late: 1,
-    leave: 3,
-    monthly: [
-      { month: 'Sep 2026', percentage: 79.2 },
-      { month: 'Aug 2026', percentage: 86.4 },
-      { month: 'Jul 2026', percentage: 90.0 },
-    ],
-  },
-
-  'VLCC-STU-005': {
-    present: 22,
-    absent: 1,
-    late: 1,
-    leave: 0,
-    monthly: [
-      { month: 'Sep 2026', percentage: 95.8 },
-      { month: 'Aug 2026', percentage: 93.5 },
-      { month: 'Jul 2026', percentage: 96.0 },
-    ],
-  },
-
-  'VLCC-STU-006': {
-    present: 21,
-    absent: 2,
-    late: 1,
-    leave: 0,
-    monthly: [
-      { month: 'Sep 2026', percentage: 91.7 },
-      { month: 'Aug 2026', percentage: 90.1 },
-      { month: 'Jul 2026', percentage: 94.0 },
-    ],
-  },
-
-  'VLCC-STU-007': {
-    present: 19,
-    absent: 1,
-    late: 2,
-    leave: 2,
-    monthly: [
-      { month: 'Sep 2026', percentage: 87.5 },
-      { month: 'Aug 2026', percentage: 89.1 },
-      { month: 'Jul 2026', percentage: 86.0 },
-    ],
-  },
-
-  'VLCC-STU-008': {
-    present: 22,
-    absent: 1,
-    late: 0,
-    leave: 1,
-    monthly: [
-      { month: 'Sep 2026', percentage: 95.8 },
-      { month: 'Aug 2026', percentage: 94.0 },
-      { month: 'Jul 2026', percentage: 92.5 },
-    ],
-  },
-};
-
 const statusColors: Record<
   AttendanceStatus,
   {
@@ -270,24 +77,114 @@ const statusColors: Record<
     text: '#27A968',
     icon: 'check-circle-outline',
   },
-
   Absent: {
     background: '#FFE9EC',
     text: '#E84D61',
     icon: 'close-circle-outline',
   },
-
   Late: {
     background: '#FFF1E2',
     text: '#F28A17',
     icon: 'clock-alert-outline',
   },
-
   Leave: {
     background: '#EAF2FF',
     text: '#2675E8',
     icon: 'calendar-remove-outline',
   },
+};
+
+const monthShortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthLongNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const localDateKey = (date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const dateKeyFromValue = (value: string) => {
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+};
+
+const formatDateLabel = (value: string) => {
+  const key = dateKeyFromValue(value);
+  if (!key) return value || '--';
+  const [year, month, day] = key.split('-').map(Number);
+  return `${String(day).padStart(2, '0')} ${monthShortNames[month - 1]} ${year}`;
+};
+
+const formatLongDateLabel = (key: string) => {
+  if (!key) return '';
+  const [year, month, day] = key.split('-').map(Number);
+  return `${String(day).padStart(2, '0')} ${monthLongNames[month - 1]} ${year}`;
+};
+
+const formatCheckIn = (value?: string) => {
+  if (!value) return '--';
+  if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(value)) return value.toUpperCase();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) return value;
+  const hour24 = Number(match[1]);
+  const minutes = match[2];
+  if (hour24 > 23) return value;
+  const suffix = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 || 12;
+  return `${String(hour12).padStart(2, '0')}:${minutes} ${suffix}`;
+};
+
+const timeForApi = (value: string, status: AttendanceStatus) => {
+  if (status !== 'Present' && status !== 'Late') return '';
+  const clean = value.trim();
+  if (!clean || clean === '--') return '';
+  const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(clean);
+  if (!match) return clean;
+  let hour = Number(match[1]) % 12;
+  if (match[3].toUpperCase() === 'PM') hour += 12;
+  return `${String(hour).padStart(2, '0')}:${match[2]}`;
+};
+
+const getApiErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+
+const mapApiAttendanceRecord = (
+  apiRecord: AttendanceApiRecord,
+  batches: AttendanceBatch[]
+): AttendanceRecord => {
+  const student = apiRecord.studentId && typeof apiRecord.studentId === 'object'
+    ? apiRecord.studentId as AttendanceStudent
+    : undefined;
+  const populatedBatch = apiRecord.batchId && typeof apiRecord.batchId === 'object'
+    ? apiRecord.batchId as AttendanceBatch
+    : undefined;
+  const studentMongoId = getReferenceId(apiRecord.studentId);
+  const batchId = getReferenceId(apiRecord.batchId);
+  const batchFromList = batches.find((item) => item._id === batchId);
+  const batch = populatedBatch || batchFromList;
+  const branchReference = populatedBatch?.branchId && typeof populatedBatch.branchId === 'object'
+    ? populatedBatch.branchId
+    : batchFromList?.branchId || batch?.branchId;
+  const branchName = branchReference && typeof branchReference === 'object'
+    ? (branchReference.name || branchReference.code || '—')
+    : '—';
+  const studentName = student
+    ? getReferenceName(student.userId, student.studentId)
+    : '';
+  const dateKey = dateKeyFromValue(apiRecord.date || '');
+
+  return {
+    id: apiRecord._id,
+    studentMongoId,
+    dateKey,
+    studentName: studentName || student?.studentId || 'Unknown student',
+    studentId: student?.studentId || studentMongoId || '—',
+    batch: batch?.name || '—',
+    branch: branchName,
+    date: formatDateLabel(apiRecord.date || ''),
+    status: apiRecord.status,
+    checkIn: formatCheckIn(apiRecord.checkIn),
+    remarks: apiRecord.remarks || '',
+  };
 };
 
 export default function AttendancePage() {
@@ -296,8 +193,11 @@ export default function AttendancePage() {
 
   const isMobile = width < 600;
 
-  const [records, setRecords] =
-    useState<AttendanceRecord[]>(initialRecords);
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [batches, setBatches] = useState<AttendanceBatch[]>([]);
+  const [loadingRecords, setLoadingRecords] = useState(true);
+  const [recordsError, setRecordsError] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const [search, setSearch] = useState('');
 
@@ -325,30 +225,57 @@ export default function AttendancePage() {
   const [editCheckIn, setEditCheckIn] = useState('');
   const [editRemarks, setEditRemarks] = useState('');
 
+
+  const loadAttendance = useCallback(async () => {
+    setLoadingRecords(true);
+    setRecordsError('');
+    try {
+      const [apiRecords, batchData] = await Promise.all([
+        fetchAttendanceRecords(),
+        fetchAttendanceBatches().catch(() => [] as AttendanceBatch[]),
+      ]);
+      setBatches(batchData);
+      setRecords(apiRecords.map((record) => mapApiAttendanceRecord(record, batchData)));
+    } catch (error) {
+      setRecordsError(getApiErrorMessage(error));
+    } finally {
+      setLoadingRecords(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadAttendance();
+      return undefined;
+    }, [loadAttendance])
+  );
+
   /*
-   * Today's summary
+   * Today's summary — calculated from the live records returned by the API.
    */
-  const presentCount = records.filter(
+  const todayKey = localDateKey();
+  const todayLabel = formatLongDateLabel(todayKey);
+  const todaysRecords = records.filter((record) => record.dateKey === todayKey);
+
+  const presentCount = todaysRecords.filter(
     (record) => record.status === 'Present'
   ).length;
 
-  const absentCount = records.filter(
+  const absentCount = todaysRecords.filter(
     (record) => record.status === 'Absent'
   ).length;
 
-  const lateCount = records.filter(
+  const lateCount = todaysRecords.filter(
     (record) => record.status === 'Late'
   ).length;
 
-  const leaveCount = records.filter(
+  const leaveCount = todaysRecords.filter(
     (record) => record.status === 'Leave'
   ).length;
 
   const attendancePercentage =
-    records.length > 0
-      ? Math.round(
-          ((presentCount + lateCount) / records.length) * 100
-        )
+    todaysRecords.length > 0
+      ? Math.round(((presentCount + lateCount) / todaysRecords.length) * 100)
       : 0;
 
   /*
@@ -378,39 +305,58 @@ export default function AttendancePage() {
   }, [records, search, selectedFilter]);
 
   /*
-   * Create total attendance for any student.
+   * Calculate total and monthly attendance from actual backend records.
    */
   const getStudentAttendance = (
     record: AttendanceRecord
   ): StudentAttendance => {
-    const history = studentHistory[record.studentId] ?? {
-      present: record.status === 'Present' ? 1 : 0,
-      absent: record.status === 'Absent' ? 1 : 0,
-      late: record.status === 'Late' ? 1 : 0,
-      leave: record.status === 'Leave' ? 1 : 0,
-      monthly: [
-        {
-          month: 'Sep 2026',
-          percentage:
-            record.status === 'Present' ||
-            record.status === 'Late'
-              ? 100
-              : 0,
-        },
-      ],
+    const historyRecords = records.filter((item) =>
+      record.studentMongoId
+        ? item.studentMongoId === record.studentMongoId
+        : item.studentId === record.studentId
+    );
+
+    const summary = {
+      present: 0,
+      absent: 0,
+      late: 0,
+      leave: 0,
     };
+    const months: Record<string, { month: string; present: number; late: number; total: number }> = {};
 
-    const totalDays =
-      history.present +
-      history.absent +
-      history.late +
-      history.leave;
+    historyRecords.forEach((item) => {
+      if (item.status === 'Present') summary.present += 1;
+      if (item.status === 'Absent') summary.absent += 1;
+      if (item.status === 'Late') summary.late += 1;
+      if (item.status === 'Leave') summary.leave += 1;
 
-    const percentage =
-      totalDays > 0
-        ? ((history.present + history.late) / totalDays) *
-          100
-        : 0;
+      const monthKey = item.dateKey.slice(0, 7);
+      if (!monthKey) return;
+      if (!months[monthKey]) {
+        const [year, month] = monthKey.split('-').map(Number);
+        months[monthKey] = {
+          month: `${monthShortNames[month - 1]} ${year}`,
+          present: 0,
+          late: 0,
+          total: 0,
+        };
+      }
+      months[monthKey].total += 1;
+      if (item.status === 'Present') months[monthKey].present += 1;
+      if (item.status === 'Late') months[monthKey].late += 1;
+    });
+
+    const totalDays = summary.present + summary.absent + summary.late + summary.leave;
+    const percentage = totalDays > 0
+      ? ((summary.present + summary.late) / totalDays) * 100
+      : 0;
+    const monthly = Object.entries(months)
+      .sort(([left], [right]) => right.localeCompare(left))
+      .slice(0, 3)
+      .map(([, item]) => ({
+        month: item.month,
+        percentage: item.total > 0 ? ((item.present + item.late) / item.total) * 100 : 0,
+      }));
 
     return {
       studentName: record.studentName,
@@ -418,12 +364,12 @@ export default function AttendancePage() {
       batch: record.batch,
       branch: record.branch,
       totalDays,
-      present: history.present,
-      absent: history.absent,
-      late: history.late,
-      leave: history.leave,
+      present: summary.present,
+      absent: summary.absent,
+      late: summary.late,
+      leave: summary.leave,
       percentage,
-      monthly: history.monthly,
+      monthly,
     };
   };
 
@@ -464,75 +410,64 @@ export default function AttendancePage() {
   };
 
   /*
-   * Save edited attendance.
+   * Save edited attendance through the backend.
    */
-  const saveEdit = () => {
-    if (!selectedRecord) {
-      return;
+  const saveEdit = async () => {
+    if (!selectedRecord || savingEdit) return;
+
+    setSavingEdit(true);
+    try {
+      const updated = await updateAttendanceRecord(selectedRecord.id, {
+        status: editStatus as ApiAttendanceStatus,
+        checkIn: timeForApi(editCheckIn, editStatus),
+        remarks: editRemarks.trim(),
+      });
+      const updatedRecord = mapApiAttendanceRecord(updated, batches);
+      setRecords((currentRecords) => currentRecords.map((record) =>
+        record.id === updatedRecord.id ? updatedRecord : record
+      ));
+      setShowEditAttendance(false);
+      setSelectedRecord(null);
+      Alert.alert('Attendance Updated', 'The attendance record has been updated successfully.');
+    } catch (error) {
+      Alert.alert('Update Failed', getApiErrorMessage(error));
+    } finally {
+      setSavingEdit(false);
     }
-
-    setRecords((currentRecords) =>
-      currentRecords.map((record) =>
-        record.id === selectedRecord.id
-          ? {
-              ...record,
-              status: editStatus,
-              checkIn:
-                editStatus === 'Present' ||
-                editStatus === 'Late'
-                  ? editCheckIn
-                  : '--',
-              remarks: editRemarks,
-            }
-          : record
-      )
-    );
-
-    setShowEditAttendance(false);
-    setSelectedRecord(null);
-
-    Alert.alert(
-      'Attendance Updated',
-      'The attendance record has been updated successfully.'
-    );
   };
 
   /*
-   * Clear attendance.
+   * Clear attendance. The backend has no delete route, so clear marks the record Absent.
    */
   const clearAttendance = () => {
-    if (!selectedRecord) {
-      return;
-    }
-
+    if (!selectedRecord) return;
+    const target = selectedRecord;
     setShowActions(false);
 
     Alert.alert(
       'Clear Attendance',
-      `Clear today&apos;s attendance for ${selectedRecord.studentName}?`,
+      `Clear today's attendance for ${target.studentName}?`,
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: () => {
-            setRecords((currentRecords) =>
-              currentRecords.map((record) =>
-                record.id === selectedRecord.id
-                  ? {
-                      ...record,
-                      status: 'Absent',
-                      checkIn: '--',
-                      remarks: 'Attendance cleared',
-                    }
-                  : record
-              )
-            );
-
-            setSelectedRecord(null);
+          onPress: async () => {
+            try {
+              const updated = await updateAttendanceRecord(target.id, {
+                status: 'Absent',
+                checkIn: '',
+                remarks: 'Attendance cleared',
+              });
+              const updatedRecord = mapApiAttendanceRecord(updated, batches);
+              setRecords((currentRecords) => currentRecords.map((record) =>
+                record.id === updatedRecord.id ? updatedRecord : record
+              ));
+              setSelectedRecord(null);
+              Alert.alert('Attendance Cleared', 'The record has been updated.');
+            } catch (error) {
+              Alert.alert('Clear Failed', getApiErrorMessage(error));
+            }
           },
         },
       ]
@@ -552,7 +487,7 @@ export default function AttendancePage() {
    */
   const markAttendance = () => {
     router.push({
-      pathname: '/(super_admin)/explore',
+      pathname: '/(super_admin)/explore' as any,
       params: { feature: 'Mark Attendance' },
     });
   };
@@ -1302,8 +1237,7 @@ export default function AttendancePage() {
                 </Text>
 
                 <Text style={styles.overviewDescription}>
-                  Attendance overview for 05 September
-                  2026
+                  Attendance overview for {todayLabel}
                 </Text>
               </View>
 
@@ -1472,7 +1406,24 @@ export default function AttendancePage() {
           </View>
 
           {/* RECORDS */}
-          {filteredRecords.length > 0 ? (
+          {loadingRecords ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color="#7040D5" />
+              <Text style={styles.emptyTitle}>Loading attendance records</Text>
+              <Text style={styles.emptySubtitle}>Fetching attendance from the server.</Text>
+            </View>
+          ) : recordsError ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={32} color="#E84D61" />
+              </View>
+              <Text style={styles.emptyTitle}>Unable to load attendance</Text>
+              <Text style={styles.emptySubtitle}>{recordsError}</Text>
+              <TouchableOpacity style={styles.retryLoadButton} onPress={() => void loadAttendance()} activeOpacity={0.8}>
+                <Text style={styles.markButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : filteredRecords.length > 0 ? (
             <View style={styles.recordsList}>
               {filteredRecords.map(renderRecord)}
             </View>
@@ -2049,14 +2000,13 @@ export default function AttendancePage() {
                   />
 
                   <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={saveEdit}
+                    style={[styles.saveButton, savingEdit && { opacity: 0.6 }]}
+                    onPress={() => void saveEdit()}
                     activeOpacity={0.8}
+                    disabled={savingEdit}
                   >
-                    <Text
-                      style={styles.saveButtonText}
-                    >
-                      Save Changes
+                    <Text style={styles.saveButtonText}>
+                      {savingEdit ? 'Saving…' : 'Save Changes'}
                     </Text>
                   </TouchableOpacity>
                 </ScrollView>
@@ -2584,6 +2534,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#172033',
     marginTop: 13,
+  },
+
+  retryLoadButton: {
+    marginTop: 14,
+    minHeight: 38,
+    paddingHorizontal: 20,
+    borderRadius: 9,
+    backgroundColor: '#F1EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   emptySubtitle: {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -13,6 +13,8 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { createTeacher, fetchTeacherBranches } from "../../../services/teachers";
+import type { TeacherBranch } from "../../../services/teachers";
 
 type SelectFieldProps = {
   label: string;
@@ -128,6 +130,35 @@ export default function AddTeacherPage() {
 
   // CONTACT INFORMATION
   const [address, setAddress] = useState("");
+  const [branchOptions, setBranchOptions] = useState<TeacherBranch[]>([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadBranches = async () => {
+      setIsLoadingBranches(true);
+      try {
+        const result = await fetchTeacherBranches();
+        if (mounted) {
+          setBranchOptions(result.filter((item) => !item.status || item.status.toLowerCase() === "active"));
+        }
+      } catch (error) {
+        if (mounted) {
+          Alert.alert(
+            "Unable to Load Branches",
+            error instanceof Error ? error.message : "Please check your connection and try again.",
+          );
+        }
+      } finally {
+        if (mounted) setIsLoadingBranches(false);
+      }
+    };
+    void loadBranches();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const resetForm = () => {
     setFullName("");
@@ -141,15 +172,17 @@ export default function AddTeacherPage() {
     setAddress("");
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
+
     // Required fields
     if (
       !fullName.trim() ||
       !email.trim() ||
       !mobile.trim() ||
       !password.trim() ||
-      !qualification ||
-      !experience ||
+      !qualification.trim() ||
+      !experience.trim() ||
       !branch
     ) {
       Alert.alert(
@@ -159,7 +192,6 @@ export default function AddTeacherPage() {
       return;
     }
 
-    // Mobile validation
     if (!/^[6-9]\d{9}$/.test(mobile.trim())) {
       Alert.alert(
         "Invalid Mobile Number",
@@ -168,7 +200,6 @@ export default function AddTeacherPage() {
       return;
     }
 
-    // Email validation
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       Alert.alert(
         "Invalid Email",
@@ -177,7 +208,6 @@ export default function AddTeacherPage() {
       return;
     }
 
-    // Password validation
     if (password.trim().length < 6) {
       Alert.alert(
         "Invalid Password",
@@ -186,21 +216,52 @@ export default function AddTeacherPage() {
       return;
     }
 
-    // Temporary UI-only behavior.
-    // API integration will be added after backend modules are completed.
-    Alert.alert(
-      "Teacher Added",
-      `${fullName.trim()} has been added successfully.`,
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            resetForm();
-            router.back();
+    const selectedBranch = branchOptions.find((item) => item.name === branch);
+    if (!selectedBranch?._id) {
+      Alert.alert(
+        "Branch Required",
+        isLoadingBranches
+          ? "Please wait while active branches are loading."
+          : "Please select a valid active branch."
+      );
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const created = await createTeacher({
+        fullName: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        mobileNumber: mobile.trim(),
+        password,
+        branchId: selectedBranch._id,
+        specialization: specialization.trim(),
+        qualification: qualification.trim(),
+        experience: experience.trim(),
+        address: address.trim(),
+      });
+
+      Alert.alert(
+        "Teacher Added",
+        `${fullName.trim()} has been added successfully.\nEmployee ID: ${created.employeeId}`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              resetForm();
+              router.back();
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } catch (error) {
+      Alert.alert(
+        "Unable to Add Teacher",
+        error instanceof Error ? error.message : "Something went wrong. Please try again."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -357,13 +418,7 @@ export default function AddTeacherPage() {
               value={branch}
               placeholder="Select branch"
               icon="office-building-outline"
-              options={[
-                "Pune Branch",
-                "Mumbai Branch",
-                "Nashik Branch",
-                "Nagpur Branch",
-                "Main Branch",
-              ]}
+              options={branchOptions.map((item) => item.name)}
               onSelect={setBranch}
             />
           </View>
@@ -589,7 +644,8 @@ export default function AddTeacherPage() {
             <TouchableOpacity
               style={styles.saveButton}
               activeOpacity={0.85}
-              onPress={handleSave}
+              onPress={() => { void handleSave(); }}
+              disabled={isSaving || isLoadingBranches}
             >
               <MaterialCommunityIcons
                 name="account-plus-outline"
@@ -598,7 +654,7 @@ export default function AddTeacherPage() {
               />
 
               <Text style={styles.saveButtonText}>
-                Add Teacher
+                {isSaving ? "Adding Teacher..." : "Add Teacher"}
               </Text>
             </TouchableOpacity>
           </View>

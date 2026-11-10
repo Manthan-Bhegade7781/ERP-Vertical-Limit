@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -12,6 +12,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
+import {
+  createAssignment,
+  fetchAssignmentBatches,
+  fetchAssignmentBatchSubjects,
+  fetchAssignmentSubjects,
+} from "@/services/assignments";
 
 type SelectOption = {
   label: string;
@@ -113,6 +119,13 @@ const SelectField = ({
 export default function AddAssignmentsPage() {
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [assignmentCode, setAssignmentCode] = useState("");
+  const [totalMarks, setTotalMarks] = useState("100");
+  const [batches, setBatches] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [assignedSubjectIds, setAssignedSubjectIds] = useState<string[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [optionsError, setOptionsError] = useState("");
 
   const [standard, setStandard] = useState("");
   const [subject, setSubject] = useState("");
@@ -127,47 +140,62 @@ export default function AddAssignmentsPage() {
   const [pdfUri, setPdfUri] = useState("");
   const [pdfName, setPdfName] = useState("");
 
-  const standardOptions: SelectOption[] = [
-    { label: "8th", value: "8th" },
-    { label: "9th", value: "9th" },
-    { label: "10th", value: "10th" },
-    { label: "11th", value: "11th" },
-    { label: "12th", value: "12th" },
-  ];
+  const getId = (value: any): string =>
+    typeof value === "string" ? value : String(value?._id || value?.id || "");
 
-  const subjectOptions: SelectOption[] = [
-    { label: "Physics", value: "Physics" },
-    { label: "Mathematics", value: "Mathematics" },
-    { label: "Chemistry", value: "Chemistry" },
-    { label: "Biology", value: "Biology" },
-  ];
+  const standardOptions: SelectOption[] = useMemo(() => {
+    const values = [...new Set(batches.map((item) => item.standard).filter(Boolean))];
+    return values.map((value) => ({ label: String(value), value: String(value) }));
+  }, [batches]);
 
-  const batchOptions: SelectOption[] = [
-    {
-      label: "8th Foundation - Evening",
-      value: "8th Foundation - Evening",
-    },
-    {
-      label: "9th Foundation - Evening",
-      value: "9th Foundation - Evening",
-    },
-    {
-      label: "10th Foundation - Afternoon",
-      value: "10th Foundation - Afternoon",
-    },
-    {
-      label: "11th MHT-CET - Evening",
-      value: "11th MHT-CET - Evening",
-    },
-    {
-      label: "12th JEE - Morning",
-      value: "12th JEE - Morning",
-    },
-    {
-      label: "12th NEET - Morning",
-      value: "12th NEET - Morning",
-    },
-  ];
+  const batchOptions: SelectOption[] = useMemo(
+    () => batches
+      .filter((item) => !standard || String(item.standard || "") === standard)
+      .map((item) => ({ label: String(item.name || item.code || "Unnamed batch"), value: getId(item) })),
+    [batches, standard]
+  );
+
+  const subjectOptions: SelectOption[] = useMemo(
+    () => subjects
+      .filter((item) => assignedSubjectIds.includes(getId(item)))
+      .map((item) => ({ label: String(item.name || item.code || "Unnamed subject"), value: getId(item) })),
+    [subjects, assignedSubjectIds]
+  );
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoadingOptions(true);
+        setOptionsError("");
+        const [batchRows, subjectRows] = await Promise.all([
+          fetchAssignmentBatches(),
+          fetchAssignmentSubjects(),
+        ]);
+        if (!active) return;
+        setBatches(batchRows);
+        setSubjects(subjectRows.filter((item: any) => !item.status || item.status === "active"));
+      } catch (error) {
+        if (active) setOptionsError(error instanceof Error ? error.message : "Could not load batches and subjects.");
+      } finally {
+        if (active) setLoadingOptions(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleBatchChange = async (batchId: string) => {
+    setBatch(batchId);
+    setSubject("");
+    setAssignedSubjectIds([]);
+    try {
+      const rows = await fetchAssignmentBatchSubjects(batchId);
+      const activeRows = rows.filter((row: any) => String(row.status || "active").toLowerCase() === "active");
+      setAssignedSubjectIds(activeRows.map((row: any) => getId(row.subjectId)).filter(Boolean));
+    } catch (error) {
+      Alert.alert("Subjects unavailable", error instanceof Error ? error.message : "Could not load subjects assigned to this batch.");
+    }
+  };
 
   const assignmentTypeOptions: SelectOption[] = [
     {
@@ -192,7 +220,7 @@ export default function AddAssignmentsPage() {
     },
   ];
 
-  const handleAddAssignment = () => {
+  const handleAddAssignment = async () => {
     if (
       !assignmentTitle.trim() ||
       !assignmentCode.trim() ||
@@ -201,7 +229,8 @@ export default function AddAssignmentsPage() {
       !batch ||
       !assignmentType ||
       !assignedDate.trim() ||
-      !submissionDate.trim()
+      !submissionDate.trim() ||
+      !totalMarks.trim()
     ) {
       Alert.alert(
         "Required Fields",
@@ -248,27 +277,52 @@ export default function AddAssignmentsPage() {
       return;
     }
 
-    // The list remains mock-data-only. Pass the new assignment to the
-    // existing Assignments page through the current dashboard route.
-    router.replace({
-      pathname: "/(super_admin)/explore",
-      params: {
-        feature: "Assignments",
-        newAssignment: "true",
+    const selectedBatch = batches.find((item) => getId(item) === batch);
+    const selectedSubject = subjects.find((item) => getId(item) === subject);
+    if (!selectedBatch || !selectedSubject) {
+      Alert.alert("Invalid selection", "Select a valid batch and a subject assigned to that batch.");
+      return;
+    }
+
+    const marks = Number(totalMarks);
+    if (!Number.isFinite(marks) || marks < 1) {
+      Alert.alert("Invalid marks", "Total marks must be at least 1.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await createAssignment({
         assignmentTitle: assignmentTitle.trim(),
         assignmentCode: assignmentCode.trim().toUpperCase(),
-        assignmentStandard: standard,
-        assignmentSubject: subject,
-        assignmentBatch: batch,
-        assignmentType,
-        assignmentAssignedDate: assignedDate.trim(),
-        assignmentSubmissionDate: submissionDate.trim(),
-        assignmentDescription: description.trim(),
-        assignmentInstructions: instructions.trim(),
-        assignmentPdfUri: pdfUri,
-        assignmentPdfName: pdfName,
-      },
-    } as never);
+        batchId: batch,
+        subjectId: subject,
+        assignmentType: assignmentType as "homework" | "practice_set" | "worksheet" | "project" | "revision",
+        assignedDate: assignedDate.trim(),
+        submissionDate: submissionDate.trim(),
+        totalMarks: marks,
+        description: description.trim(),
+        instructions: instructions.trim(),
+      });
+
+      Alert.alert(
+        "Success",
+        pdfUri
+          ? "Assignment created successfully. The selected PDF was not uploaded because the current backend assignment route does not support file uploads yet."
+          : "Assignment created successfully.",
+        [{
+          text: "OK",
+          onPress: () => router.replace({
+            pathname: "/(super_admin)/explore",
+            params: { feature: "Assignments", refreshAssignments: "true" },
+          } as never),
+        }]
+      );
+    } catch (error) {
+      Alert.alert("Could not create assignment", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePickNotesPdf = async () => {
@@ -347,6 +401,12 @@ export default function AddAssignmentsPage() {
           </View>
         </View>
 
+        {optionsError ? (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoText}>{optionsError}</Text>
+          </View>
+        ) : null}
+
         {/* BASIC INFORMATION */}
 
         <View style={styles.card}>
@@ -408,7 +468,7 @@ export default function AddAssignmentsPage() {
                 value={standard}
                 placeholder="Select standard"
                 options={standardOptions}
-                onChange={setStandard}
+                onChange={(value) => { setStandard(value); setBatch(""); setSubject(""); setAssignedSubjectIds([]); }}
                 required
               />
             </View>
@@ -417,7 +477,7 @@ export default function AddAssignmentsPage() {
               <SelectField
                 label="Subject"
                 value={subject}
-                placeholder="Select subject"
+                placeholder={loadingOptions ? "Loading..." : !batch ? "Select batch first" : subjectOptions.length ? "Select subject" : "No assigned subjects"}
                 options={subjectOptions}
                 onChange={setSubject}
                 required
@@ -430,9 +490,9 @@ export default function AddAssignmentsPage() {
               <SelectField
                 label="Assigned Batch"
                 value={batch}
-                placeholder="Select batch"
+                placeholder={loadingOptions ? "Loading..." : "Select batch"}
                 options={batchOptions}
-                onChange={setBatch}
+                onChange={handleBatchChange}
                 required
               />
             </View>
@@ -523,6 +583,21 @@ export default function AddAssignmentsPage() {
                 </View>
               </View>
             </View>
+          </View>
+
+          <View style={styles.fieldWrapper}>
+            <Text style={styles.label}>
+              Total Marks
+              <Text style={styles.required}> *</Text>
+            </Text>
+            <TextInput
+              value={totalMarks}
+              onChangeText={setTotalMarks}
+              placeholder="e.g. 100"
+              placeholderTextColor="#A1A5B3"
+              keyboardType="numeric"
+              style={styles.input}
+            />
           </View>
         </View>
 
@@ -673,8 +748,9 @@ export default function AddAssignmentsPage() {
           </Pressable>
 
           <Pressable
-            style={styles.addButton}
+            style={[styles.addButton, saving && { opacity: 0.6 }]}
             onPress={handleAddAssignment}
+            disabled={saving}
           >
             <MaterialCommunityIcons
               name="plus"
@@ -683,7 +759,7 @@ export default function AddAssignmentsPage() {
             />
 
             <Text style={styles.addButtonText}>
-              Add Assignment
+              {saving ? "Saving..." : "Add Assignment"}
             </Text>
           </Pressable>
         </View>

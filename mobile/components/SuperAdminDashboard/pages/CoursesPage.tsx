@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { fetchSubjects, updateSubject, updateSubjectStatus, type SubjectApiRecord } from "../../../services/subjects";
 
 type Subject = {
   id: string;
@@ -28,69 +29,6 @@ type Subject = {
   description: string;
   status: "Active" | "Inactive";
 };
-
-const initialSubjects: Subject[] = [
-  {
-    id: "1",
-    name: "Physics",
-    code: "PHY12",
-    standard: "12th",
-    type: "Core",
-    duration: "1 Year",
-    description: "Physics subject for 12th standard.",
-    status: "Active",
-  },
-  {
-    id: "2",
-    name: "Chemistry",
-    code: "CHEM12",
-    standard: "12th",
-    type: "Core",
-    duration: "1 Year",
-    description: "Chemistry subject for 12th standard.",
-    status: "Active",
-  },
-  {
-    id: "3",
-    name: "Mathematics",
-    code: "MATH10",
-    standard: "10th",
-    type: "Core",
-    duration: "1 Year",
-    description: "Mathematics subject for 10th standard.",
-    status: "Active",
-  },
-  {
-    id: "4",
-    name: "Biology",
-    code: "BIO12",
-    standard: "12th",
-    type: "Core",
-    duration: "1 Year",
-    description: "Biology subject for 12th standard.",
-    status: "Active",
-  },
-  {
-    id: "5",
-    name: "English",
-    code: "ENG10",
-    standard: "10th",
-    type: "Core",
-    duration: "1 Year",
-    description: "English subject for 10th standard.",
-    status: "Active",
-  },
-  {
-    id: "6",
-    name: "Aptitude & Logical Reasoning",
-    code: "APT11",
-    standard: "11th",
-    type: "Entrance",
-    duration: "1 Year",
-    description: "Aptitude and logical reasoning preparation.",
-    status: "Active",
-  },
-];
 
 const standardOptions = [
   "8th",
@@ -117,8 +55,31 @@ export default function SubjectsPage() {
 
   const isDesktop = width >= 900;
 
-  const [subjects, setSubjects] =
-    useState<Subject[]>(initialSubjects);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadSubjects = async () => {
+    try {
+      setLoading(true);
+      const rows = await fetchSubjects();
+      setSubjects(rows.map((row) => ({
+        id: row._id,
+        name: row.name,
+        code: row.code,
+        standard: row.standard,
+        type: row.type,
+        duration: row.duration || "",
+        description: row.description || "",
+        status: row.status === "inactive" ? "Inactive" : "Active",
+      })));
+    } catch (error) {
+      Alert.alert("Unable to Load Subjects", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadSubjects(); }, []);
 
   const [search, setSearch] = useState("");
 
@@ -290,21 +251,25 @@ export default function SubjectsPage() {
       status: editStatus,
     };
 
-    setSubjects((currentSubjects) =>
-      currentSubjects.map((subject) =>
-        subject.id === selectedSubject.id
-          ? updatedSubject
-          : subject
-      )
-    );
-
-    setSelectedSubject(updatedSubject);
-    setShowEditModal(false);
-
-    Alert.alert(
-      "Updated",
-      "Subject information has been updated successfully."
-    );
+    void (async () => {
+      try {
+        await updateSubject(selectedSubject.id, {
+          name: updatedSubject.name,
+          code: updatedSubject.code,
+          standard: updatedSubject.standard,
+          type: updatedSubject.type,
+          duration: updatedSubject.duration,
+          description: updatedSubject.description,
+          status: updatedSubject.status === "Active" ? "active" : "inactive",
+        });
+        setSubjects((current) => current.map((item) => item.id === selectedSubject.id ? updatedSubject : item));
+        setSelectedSubject(updatedSubject);
+        setShowEditModal(false);
+        Alert.alert("Updated", "Subject information has been updated successfully.");
+      } catch (error) {
+        Alert.alert("Update Failed", error instanceof Error ? error.message : "Please try again.");
+      }
+    })();
   };
 
   const toggleSubjectStatus = () => {
@@ -351,25 +316,17 @@ export default function SubjectsPage() {
               ? "Deactivate"
               : "Activate",
           onPress: () => {
-            const updatedSubject = {
-              ...selectedSubject,
-              status: nextStatus,
-            };
-
-            setSubjects((currentSubjects) =>
-              currentSubjects.map((subject) =>
-                subject.id === selectedSubject.id
-                  ? updatedSubject
-                  : subject
-              )
-            );
-
-            setSelectedSubject(updatedSubject);
-
-            Alert.alert(
-              successTitle,
-              successMessage
-            );
+            void (async () => {
+              try {
+                await updateSubjectStatus(selectedSubject.id, nextStatus === "Active" ? "active" : "inactive");
+                const updatedSubject = { ...selectedSubject, status: nextStatus };
+                setSubjects((current) => current.map((item) => item.id === selectedSubject.id ? updatedSubject : item));
+                setSelectedSubject(updatedSubject);
+                Alert.alert(successTitle, successMessage);
+              } catch (error) {
+                Alert.alert("Status Update Failed", error instanceof Error ? error.message : "Please try again.");
+              }
+            })();
           },
         },
       ]
@@ -718,6 +675,7 @@ export default function SubjectsPage() {
 
         {/* SUBJECT LIST */}
 
+        {loading ? <Text style={styles.emptyText}>Loading subjects...</Text> : null}
         <FlatList
           data={filteredSubjects}
           keyExtractor={(item) => item.id}

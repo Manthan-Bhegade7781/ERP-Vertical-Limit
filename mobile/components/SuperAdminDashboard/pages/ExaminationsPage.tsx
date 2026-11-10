@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { fetchExaminations, updateExamination, cancelExamination, type ExaminationApiRecord } from '../../../services/examinations';
 import {
   Alert,
   Modal,
@@ -37,103 +38,38 @@ type Examination = {
   status: ExaminationStatus;
 };
 
-/*
- * UI-only mock data for the current frontend/backend review phase.
- * Keep this page disconnected from the API until final integration.
- * Replace these examples with actual API data during integration.
- */
-const initialExaminations: Examination[] = [
-  {
-    id: 'mock-exam-1',
-    name: 'JEE Full Syllabus Mock Test - 01',
-    code: 'VLCC-EXM-001',
-    subject: 'Physics',
-    batch: '12th JEE - Morning',
-    branch: 'Pune Branch',
-    date: '20 Oct 2026',
-    time: '09:00 AM',
-    durationMinutes: 180,
-    totalMarks: 300,
-    passingMarks: 105,
-    students: 72,
-    status: 'scheduled',
-  },
-  {
-    id: 'mock-exam-2',
-    name: 'NEET Full Syllabus Mock Test - 01',
-    code: 'VLCC-EXM-002',
-    subject: 'Biology',
-    batch: '12th NEET - Morning',
-    branch: 'Mumbai Branch',
-    date: '24 Oct 2026',
-    time: '09:00 AM',
-    durationMinutes: 200,
-    totalMarks: 720,
-    passingMarks: 250,
-    students: 68,
-    status: 'scheduled',
-  },
-  {
-    id: 'mock-exam-3',
-    name: 'MHT-CET PCM Mock Test - 02',
-    code: 'VLCC-EXM-003',
-    subject: 'Mathematics',
-    batch: '11th MHT-CET - Evening',
-    branch: 'Pune Branch',
-    date: '28 Oct 2026',
-    time: '02:00 PM',
-    durationMinutes: 180,
-    totalMarks: 100,
-    passingMarks: 35,
-    students: 64,
-    status: 'scheduled',
-  },
-  {
-    id: 'mock-exam-4',
-    name: 'Class 10 Science Unit Test',
-    code: 'VLCC-EXM-004',
-    subject: 'Chemistry',
-    batch: '10th Foundation - Afternoon',
-    branch: 'Nashik Branch',
-    date: '12 Sep 2026',
-    time: '03:00 PM',
-    durationMinutes: 120,
-    totalMarks: 100,
-    passingMarks: 35,
-    students: 58,
-    status: 'completed',
-  },
-  {
-    id: 'mock-exam-5',
-    name: 'Class 9 Mathematics Unit Test',
-    code: 'VLCC-EXM-005',
-    subject: 'Mathematics',
-    batch: '9th Foundation - Evening',
-    branch: 'Nagpur Branch',
-    date: '05 Sep 2026',
-    time: '06:00 PM',
-    durationMinutes: 90,
-    totalMarks: 100,
-    passingMarks: 35,
-    students: 52,
-    status: 'completed',
-  },
-  {
-    id: 'mock-exam-6',
-    name: 'Class 8 Foundation Assessment',
-    code: 'VLCC-EXM-006',
-    subject: 'Mathematics',
-    batch: '8th Foundation - Evening',
-    branch: 'Main Branch',
-    date: '02 Sep 2026',
-    time: '05:30 PM',
-    durationMinutes: 90,
-    totalMarks: 100,
-    passingMarks: 35,
-    students: 48,
-    status: 'results_published',
-  },
-];
+const initialExaminations: Examination[] = [];
+
+const formatDate = (value: unknown): string => {
+  const date = new Date(String(value || ''));
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const refName = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const item = value as Record<string, unknown>;
+    return String(item.name || item.fullName || item.code || '');
+  }
+  return '';
+};
+
+const mapApiExamination = (record: ExaminationApiRecord): Examination => ({
+  id: record._id,
+  name: record.examinationName,
+  code: record.examinationCode,
+  subject: refName(record.subjectId),
+  batch: refName(record.batchId),
+  branch: refName((record.batchId && typeof record.batchId === 'object') ? record.batchId.branchId : ''),
+  date: formatDate(record.examinationDate),
+  time: record.startTime,
+  durationMinutes: Number(record.durationMinutes || 0),
+  totalMarks: Number(record.totalMarks || 0),
+  passingMarks: Number(record.passingMarks || 0),
+  students: Number(record.studentCount || 0),
+  status: record.status,
+});
 
 const statusMeta: Record<
   ExaminationStatus,
@@ -188,8 +124,23 @@ export default function ExaminationsPage() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
 
-  const [examinations, setExaminations] =
-    useState<Examination[]>(initialExaminations);
+  const [examinations, setExaminations] = useState<Examination[]>(initialExaminations);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const loadExaminations = async () => {
+    try {
+      setLoading(true);
+      const records = await fetchExaminations();
+      setExaminations(records.map(mapApiExamination));
+    } catch (error) {
+      Alert.alert('Unable to load examinations', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadExaminations(); }, []);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'All' | ExaminationStatus>('All');
   const [selectedExam, setSelectedExam] = useState<Examination | null>(null);
@@ -258,67 +209,31 @@ export default function ExaminationsPage() {
     setShowEditModal(true);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!selectedExam) return;
-
     const durationMinutes = Number(editDuration);
     const totalMarks = Number(editTotalMarks);
     const passingMarks = Number(editPassingMarks);
-
-    if (
-      !editName.trim() ||
-      !editDate.trim() ||
-      !editTime.trim() ||
-      !Number.isFinite(durationMinutes) ||
-      durationMinutes <= 0 ||
-      !Number.isFinite(totalMarks) ||
-      totalMarks <= 0 ||
-      !Number.isFinite(passingMarks) ||
-      passingMarks < 0 ||
-      passingMarks > totalMarks
-    ) {
-      Alert.alert(
-        'Invalid details',
-        'Enter a name, date, time, valid duration, total marks and passing marks. Passing marks cannot exceed total marks.',
-      );
+    if (!editName.trim() || !editDate.trim() || !editTime.trim() || !Number.isFinite(durationMinutes) || durationMinutes <= 0 || !Number.isFinite(totalMarks) || totalMarks <= 0 || !Number.isFinite(passingMarks) || passingMarks < 0 || passingMarks > totalMarks) {
+      Alert.alert('Invalid details', 'Enter a name, date, time, valid duration, total marks and passing marks. Passing marks cannot exceed total marks.');
       return;
     }
-
-    setExaminations((current) =>
-      current.map((exam) =>
-        exam.id === selectedExam.id
-          ? {
-              ...exam,
-              name: editName.trim(),
-              date: editDate.trim(),
-              time: editTime.trim(),
-              durationMinutes,
-              totalMarks,
-              passingMarks,
-            }
-          : exam,
-      ),
-    );
-
-    setSelectedExam((current) =>
-      current
-        ? {
-            ...current,
-            name: editName.trim(),
-            date: editDate.trim(),
-            time: editTime.trim(),
-            durationMinutes,
-            totalMarks,
-            passingMarks,
-          }
-        : current,
-    );
-
-    setShowEditModal(false);
-    Alert.alert(
-      'Updated locally',
-      'The mock examination has been updated on this screen. API integration is intentionally not enabled yet.',
-    );
+    if (selectedExam.status !== 'scheduled') {
+      Alert.alert('Cannot edit', 'Only scheduled examinations can be updated.');
+      return;
+    }
+    try {
+      setSaving(true);
+      const dateParts = editDate.trim().match(/^(\d{2}) ([A-Za-z]{3}) (\d{4})$/);
+      const monthMap: Record<string, string> = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+      const apiDate = dateParts ? `${dateParts[1]}/${monthMap[dateParts[2]] || '01'}/${dateParts[3]}` : editDate.trim();
+      await updateExamination(selectedExam.id, { examinationName: editName.trim(), examinationDate: apiDate, startTime: editTime.trim(), durationMinutes, totalMarks, passingMarks });
+      setShowEditModal(false);
+      await loadExaminations();
+      Alert.alert('Updated', 'Examination updated successfully.');
+    } catch (error) {
+      Alert.alert('Update failed', error instanceof Error ? error.message : 'Unable to update examination.');
+    } finally { setSaving(false); }
   };
 
   const cancelExam = (exam: Examination) => {
@@ -337,21 +252,14 @@ export default function ExaminationsPage() {
         {
           text: 'Cancel Examination',
           style: 'destructive',
-          onPress: () => {
-            setExaminations((current) =>
-              current.map((item) =>
-                item.id === exam.id
-                  ? { ...item, status: 'cancelled' }
-                  : item,
-              ),
-            );
-            if (selectedExam?.id === exam.id) {
-              setSelectedExam({ ...exam, status: 'cancelled' });
+          onPress: async () => {
+            try {
+              await cancelExamination(exam.id);
+              await loadExaminations();
+              Alert.alert('Cancelled', 'Examination cancelled successfully.');
+            } catch (error) {
+              Alert.alert('Cancellation failed', error instanceof Error ? error.message : 'Unable to cancel examination.');
             }
-            Alert.alert(
-              'Cancelled locally',
-              'The mock examination is now marked as cancelled on this screen. No API request was made.',
-            );
           },
         },
       ],
@@ -596,7 +504,9 @@ export default function ExaminationsPage() {
           })}
         </ScrollView>
 
-        {filteredExaminations.length === 0 ? (
+        {loading ? (
+          <View style={{ padding: 24, alignItems: 'center' }}><Text style={styles.emptyTitle}>Loading examinations...</Text></View>
+        ) : filteredExaminations.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="file-search-outline" size={48} color="#B1B8C5" />
             <Text style={styles.emptyTitle}>No examinations found</Text>

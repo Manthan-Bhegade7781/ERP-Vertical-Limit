@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -12,15 +12,28 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  fetchTeacherBranches,
+  fetchTeachers,
+  getTeacherReferenceId,
+  updateTeacher,
+  updateTeacherStatus,
+} from "../../../services/teachers";
+import type {
+  TeacherApiRecord,
+  TeacherBranch,
+  TeacherStatus,
+} from "../../../services/teachers";
 
 type Teacher = {
   id: string;
   employeeId: string;
   name: string;
   branch: string;
+  branchId: string;
   specialization: string;
   qualification: string;
   experience: string;
@@ -30,94 +43,38 @@ type Teacher = {
   status: "Active" | "Inactive";
 };
 
-const initialTeachers: Teacher[] = [
-  {
-    id: "1",
-    employeeId: "TCH001",
-    name: "Anita Desai",
-    branch: "Pune Branch",
-    specialization: "Physics",
-    qualification: "M.Sc.",
-    experience: "8 Years",
-    phone: "+91 98765 50001",
-    email: "anita.desai@example.com",
-    address: "Pune, Maharashtra",
-    status: "Active",
-  },
-  {
-    id: "2",
-    employeeId: "TCH002",
-    name: "Neha Kapoor",
-    branch: "Mumbai Branch",
-    specialization: "Chemistry",
-    qualification: "M.Sc.",
-    experience: "7 Years",
-    phone: "+91 98765 50002",
-    email: "neha.kapoor@example.com",
-    address: "Mumbai, Maharashtra",
-    status: "Active",
-  },
-  {
-    id: "3",
-    employeeId: "TCH003",
-    name: "Pooja Sharma",
-    branch: "Nashik Branch",
-    specialization: "Biology",
-    qualification: "M.Sc.",
-    experience: "6 Years",
-    phone: "+91 98765 50003",
-    email: "pooja.sharma@example.com",
-    address: "Nashik, Maharashtra",
-    status: "Active",
-  },
-  {
-    id: "4",
-    employeeId: "TCH004",
-    name: "Ravi Patil",
-    branch: "Nagpur Branch",
-    specialization: "Mathematics",
-    qualification: "M.Tech.",
-    experience: "9 Years",
-    phone: "+91 98765 50004",
-    email: "ravi.patil@example.com",
-    address: "Nagpur, Maharashtra",
-    status: "Active",
-  },
-  {
-    id: "5",
-    employeeId: "TCH005",
-    name: "Meena Joshi",
-    branch: "Pune Branch",
-    specialization: "English",
-    qualification: "M.Ed.",
-    experience: "5 Years",
-    phone: "+91 98765 50005",
-    email: "meena.joshi@example.com",
-    address: "Pune, Maharashtra",
-    status: "Active",
-  },
-  {
-    id: "6",
-    employeeId: "TCH006",
-    name: "Karan Shah",
-    branch: "Main Branch",
-    specialization: "Physics",
-    qualification: "B.Tech.",
-    experience: "10 Years",
-    phone: "+91 98765 50006",
-    email: "karan.shah@example.com",
-    address: "Mumbai, Maharashtra",
-    status: "Inactive",
-  },
-];
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : "Something went wrong. Please try again.";
 
-const branches = [
-  "Pune Branch",
-  "Mumbai Branch",
-  "Nashik Branch",
-  "Nagpur Branch",
-  "Main Branch",
-];
+const mapApiTeacher = (
+  record: TeacherApiRecord,
+  branches: TeacherBranch[],
+): Teacher => {
+  const user = record.userId && typeof record.userId === "object"
+    ? record.userId
+    : undefined;
+  const branchId = getTeacherReferenceId(user?.branchId);
+  const branchReference = user?.branchId && typeof user.branchId === "object"
+    ? user.branchId
+    : undefined;
+  const selectedBranch = branches.find((item) => item._id === branchId);
+  const statusValue = (record.status || user?.status || "active").toLowerCase();
+
+  return {
+    id: record._id,
+    employeeId: record.employeeId || "",
+    name: user?.fullName || user?.name || "Unnamed teacher",
+    branch: selectedBranch?.name || branchReference?.name || "Branch not assigned",
+    branchId,
+    specialization: record.specialization || "",
+    qualification: record.qualification || "",
+    experience: record.experience || "",
+    phone: user?.mobileNumber || "",
+    email: user?.email || "",
+    address: record.address || "",
+    status: statusValue === "inactive" ? "Inactive" : "Active",
+  };
+};
 
 const specializationOptions = [
   "Physics",
@@ -136,8 +93,11 @@ export default function TeachersPage() {
 
   const isDesktop = width >= 900;
 
-  const [teachers, setTeachers] =
-    useState<Teacher[]>(initialTeachers);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [branchOptions, setBranchOptions] = useState<TeacherBranch[]>([]);
+  const [isLoadingTeachers, setIsLoadingTeachers] = useState(true);
+  const [isSavingTeacher, setIsSavingTeacher] = useState(false);
+  const branches = branchOptions.map((branch) => branch.name);
 
   const [search, setSearch] = useState("");
 
@@ -170,6 +130,40 @@ export default function TeachersPage() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filterStatus, setFilterStatus] =
     useState<"All" | "Active" | "Inactive">("All");
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+
+      const loadTeachers = async () => {
+        setIsLoadingTeachers(true);
+        try {
+          const [teacherRows, branchRows] = await Promise.all([
+            fetchTeachers(),
+            fetchTeacherBranches(),
+          ]);
+          if (!mounted) return;
+
+          const activeBranches = branchRows.filter(
+            (branch) => !branch.status || branch.status.toLowerCase() === "active",
+          );
+          setBranchOptions(activeBranches);
+          setTeachers(teacherRows.map((teacher) => mapApiTeacher(teacher, activeBranches)));
+        } catch (error) {
+          if (mounted) {
+            Alert.alert("Unable to Load Teachers", getErrorMessage(error));
+          }
+        } finally {
+          if (mounted) setIsLoadingTeachers(false);
+        }
+      };
+
+      void loadTeachers();
+      return () => {
+        mounted = false;
+      };
+    }, []),
+  );
 
   const filteredTeachers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -214,7 +208,7 @@ export default function TeachersPage() {
       params: {
         feature: "Add Teacher",
       },
-    });
+    } as unknown as import("expo-router").Href);
   };
 
   const openTeacherActions = (teacher: Teacher) => {
@@ -269,162 +263,111 @@ Status: ${selectedTeacher.status}`
     setShowEditModal(true);
   };
 
-  const saveTeacherChanges = () => {
-    if (!selectedTeacher) {
-      return;
-    }
+  const saveTeacherChanges = async () => {
+    if (!selectedTeacher || isSavingTeacher) return;
 
     if (!editName.trim()) {
-      Alert.alert(
-        "Required",
-        "Please enter the teacher name."
-      );
+      Alert.alert("Required", "Please enter the teacher name.");
       return;
     }
-
     if (!editEmail.trim()) {
-      Alert.alert(
-        "Required",
-        "Please enter the email address."
-      );
+      Alert.alert("Required", "Please enter the email address.");
       return;
     }
-
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) {
-      Alert.alert(
-        "Invalid Email",
-        "Please enter a valid email address."
-      );
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
       return;
     }
-
     if (!editPhone.trim()) {
-      Alert.alert(
-        "Required",
-        "Please enter the phone number."
-      );
+      Alert.alert("Required", "Please enter the phone number.");
       return;
     }
-
-    if (!/^[6-9]\d{9}$/.test(
-      editPhone.replace(/\D/g, "").slice(-10)
-    )) {
-      Alert.alert(
-        "Invalid Mobile",
-        "Please enter a valid 10-digit mobile number."
-      );
+    if (!/^[6-9]\d{9}$/.test(editPhone.replace(/\D/g, "").slice(-10))) {
+      Alert.alert("Invalid Mobile", "Please enter a valid 10-digit mobile number.");
       return;
     }
-
     if (!editBranch) {
-      Alert.alert(
-        "Required",
-        "Please select a branch."
-      );
+      Alert.alert("Required", "Please select a branch.");
       return;
     }
-
     if (!editQualification.trim()) {
-      Alert.alert(
-        "Required",
-        "Please enter the qualification."
-      );
+      Alert.alert("Required", "Please enter the qualification.");
       return;
     }
-
     if (!editExperience.trim()) {
-      Alert.alert(
-        "Required",
-        "Please enter the teaching experience."
-      );
+      Alert.alert("Required", "Please enter the teaching experience.");
       return;
     }
 
-    setTeachers((currentTeachers) =>
-      currentTeachers.map((teacher) =>
-        teacher.id === selectedTeacher.id
-          ? {
-              ...teacher,
-              name: editName.trim(),
-              email: editEmail.trim(),
-              phone: editPhone.trim(),
-              branch: editBranch,
-              specialization:
-                editSpecialization.trim(),
-              qualification:
-                editQualification.trim(),
-              experience:
-                editExperience.trim(),
-              address: editAddress.trim(),
-            }
-          : teacher
-      )
-    );
+    const selectedBranch = branchOptions.find((branch) => branch.name === editBranch);
+    if (!selectedBranch?._id) {
+      Alert.alert("Invalid Branch", "Select an active branch from the list.");
+      return;
+    }
 
-    setSelectedTeacher((current) =>
-      current
-        ? {
-            ...current,
-            name: editName.trim(),
-            email: editEmail.trim(),
-            phone: editPhone.trim(),
-            branch: editBranch,
-            specialization:
-              editSpecialization.trim(),
-            qualification:
-              editQualification.trim(),
-            experience:
-              editExperience.trim(),
-            address: editAddress.trim(),
-          }
-        : null
-    );
+    setIsSavingTeacher(true);
+    try {
+      const savedRecord = await updateTeacher(selectedTeacher.id, {
+        fullName: editName.trim(),
+        email: editEmail.trim().toLowerCase(),
+        mobileNumber: editPhone.replace(/\D/g, "").slice(-10),
+        branchId: selectedBranch._id,
+        specialization: editSpecialization.trim(),
+        qualification: editQualification.trim(),
+        experience: editExperience.trim(),
+        address: editAddress.trim(),
+      });
 
-    setShowEditModal(false);
-
-    Alert.alert(
-      "Updated",
-      "Teacher information has been updated successfully."
-    );
+      const updatedTeacher = mapApiTeacher(savedRecord, branchOptions);
+      setTeachers((current) => current.map((teacher) =>
+        teacher.id === updatedTeacher.id ? updatedTeacher : teacher,
+      ));
+      setSelectedTeacher(updatedTeacher);
+      setShowEditModal(false);
+      setShowBranchList(false);
+      setShowSpecializationList(false);
+      Alert.alert("Updated", "Teacher information has been updated successfully.");
+    } catch (error) {
+      Alert.alert("Unable to Update Teacher", getErrorMessage(error));
+    } finally {
+      setIsSavingTeacher(false);
+    }
   };
 
   const toggleTeacherStatus = () => {
-    if (!selectedTeacher) {
-      return;
-    }
+    if (!selectedTeacher) return;
 
-    const newStatus =
-      selectedTeacher.status === "Active"
-        ? "Inactive"
-        : "Active";
-
+    const targetStatus: TeacherStatus = selectedTeacher.status === "Active" ? "inactive" : "active";
+    const displayStatus = targetStatus === "active" ? "Active" : "Inactive";
     const teacherName = selectedTeacher.name;
-
-    setTeachers((currentTeachers) =>
-      currentTeachers.map((teacher) =>
-        teacher.id === selectedTeacher.id
-          ? {
-              ...teacher,
-              status: newStatus,
-            }
-          : teacher
-      )
-    );
-
-    setSelectedTeacher((current) =>
-      current
-        ? {
-            ...current,
-            status: newStatus,
-          }
-        : null
-    );
-
+    const teacherId = selectedTeacher.id;
     setShowActions(false);
 
     Alert.alert(
-      "Status Updated",
-      `${teacherName} is now ${newStatus.toLowerCase()}.`
+      `${displayStatus} Teacher`,
+      `Are you sure you want to ${targetStatus === "active" ? "activate" : "deactivate"} ${teacherName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: displayStatus,
+          style: targetStatus === "inactive" ? "destructive" : "default",
+          onPress: () => {
+            void (async () => {
+              try {
+                const savedRecord = await updateTeacherStatus(teacherId, targetStatus);
+                const updatedTeacher = mapApiTeacher(savedRecord, branchOptions);
+                setTeachers((current) => current.map((teacher) =>
+                  teacher.id === teacherId ? updatedTeacher : teacher,
+                ));
+                setSelectedTeacher(updatedTeacher);
+                Alert.alert("Status Updated", `${teacherName} is now ${displayStatus.toLowerCase()}.`);
+              } catch (error) {
+                Alert.alert("Unable to Update Status", getErrorMessage(error));
+              }
+            })();
+          },
+        },
+      ],
     );
   };
 
@@ -765,11 +708,13 @@ Status: ${selectedTeacher.status}`
               </View>
 
               <Text style={styles.emptyTitle}>
-                No teachers found
+                {isLoadingTeachers ? "Loading teachers..." : "No teachers found"}
               </Text>
 
               <Text style={styles.emptyText}>
-                Try changing your search or filter.
+                {isLoadingTeachers
+                  ? "Fetching teacher records from the server."
+                  : "Try changing your search or filter."}
               </Text>
             </View>
           }
@@ -1324,8 +1269,9 @@ Status: ${selectedTeacher.status}`
 
               <TouchableOpacity
                 style={styles.editSaveButton}
-                onPress={saveTeacherChanges}
+                onPress={() => { void saveTeacherChanges(); }}
                 activeOpacity={0.8}
+                disabled={isSavingTeacher}
               >
                 <MaterialCommunityIcons
                   name="content-save-outline"
@@ -1334,7 +1280,7 @@ Status: ${selectedTeacher.status}`
                 />
 
                 <Text style={styles.editSaveText}>
-                  Save Changes
+                  {isSavingTeacher ? "Saving..." : "Save Changes"}
                 </Text>
               </TouchableOpacity>
             </View>

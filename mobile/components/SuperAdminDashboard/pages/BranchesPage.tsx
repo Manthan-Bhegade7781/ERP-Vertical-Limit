@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   Alert,
@@ -17,6 +17,8 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
+import { API_BASE_URL } from '@/config/api';
 
 type Branch = {
   id: string;
@@ -33,87 +35,75 @@ type Branch = {
   status: 'Active' | 'Inactive';
 };
 
-const initialBranches: Branch[] = [
-  {
-    id: '1',
-    name: 'Pune Branch',
-    code: 'VLCC-BR-001',
-    address: 'Pune Main Road',
-    city: 'Pune',
-    state: 'Maharashtra',
-    branchHead: 'Amit Kulkarni',
-    contactNumber: '+91 98765 60001',
-    email: 'pune@example.com',
-    students: 684,
-    teachers: 42,
-    status: 'Active',
-  },
-  {
-    id: '2',
-    name: 'Mumbai Branch',
-    code: 'VLCC-BR-002',
-    address: 'Mumbai Main Road',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    branchHead: 'Priya Mehta',
-    contactNumber: '+91 98765 60002',
-    email: 'mumbai@example.com',
-    students: 742,
-    teachers: 48,
-    status: 'Active',
-  },
-  {
-    id: '3',
-    name: 'Nashik Branch',
-    code: 'VLCC-BR-003',
-    address: 'Nashik Main Road',
-    city: 'Nashik',
-    state: 'Maharashtra',
-    branchHead: 'Rahul Patil',
-    contactNumber: '+91 98765 60003',
-    email: 'nashik@example.com',
-    students: 365,
-    teachers: 24,
-    status: 'Active',
-  },
-  {
-    id: '4',
-    name: 'Nagpur Branch',
-    code: 'VLCC-BR-004',
-    address: 'Nagpur Main Road',
-    city: 'Nagpur',
-    state: 'Maharashtra',
-    branchHead: 'Sneha Joshi',
-    contactNumber: '+91 98765 60004',
-    email: 'nagpur@example.com',
-    students: 291,
-    teachers: 21,
-    status: 'Active',
-  },
-  {
-    id: '5',
-    name: 'Main Branch',
-    code: 'VLCC-BR-005',
-    address: 'Main Pune Road',
-    city: 'Pune',
-    state: 'Maharashtra',
-    branchHead: 'Vikram Shah',
-    contactNumber: '+91 98765 60005',
-    email: 'main@example.com',
-    students: 486,
-    teachers: 21,
-    status: 'Inactive',
-  },
-];
-
 export default function BranchesPage() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   const isDesktop = width >= 900;
 
-  const [branches, setBranches] =
-    useState<Branch[]>(initialBranches);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const getAuthHeaders = useCallback(async () => {
+    const token = await SecureStore.getItemAsync('auth_token');
+    if (!token) {
+      throw new Error('Your session has expired. Please sign in again.');
+    }
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+  }, []);
+
+  const mapBranch = useCallback((raw: any): Branch => ({
+    id: String(raw._id ?? raw.id ?? ''),
+    name: String(raw.name ?? ''),
+    code: String(raw.code ?? ''),
+    address: String(raw.address ?? ''),
+    city: String(raw.city ?? ''),
+    state: String(raw.state ?? ''),
+    branchHead: String(raw.branchHead ?? 'Not assigned'),
+    contactNumber: String(raw.contactNumber ?? ''),
+    email: String(raw.email ?? ''),
+    students: Number(raw.students ?? 0),
+    teachers: Number(raw.teachers ?? 0),
+    status: String(raw.status ?? 'active').toLowerCase() === 'inactive'
+      ? 'Inactive'
+      : 'Active',
+  }), []);
+
+  const fetchBranches = useCallback(async () => {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/admin/branches`, {
+        method: 'GET',
+        headers,
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(result.message || `Unable to load branches (${response.status}).`);
+      }
+
+      const rows = result?.data?.branches ?? result?.branches ?? [];
+      if (!Array.isArray(rows)) {
+        throw new Error('The server returned an unexpected branches response.');
+      }
+
+      setBranches(rows.map(mapBranch));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to load branches.';
+      Alert.alert('Branch Loading Failed', message);
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthHeaders, mapBranch]);
+
+  useEffect(() => {
+    void fetchBranches();
+  }, [fetchBranches]);
 
   const [search, setSearch] = useState('');
 
@@ -209,117 +199,143 @@ export default function BranchesPage() {
     setShowEditModal(true);
   };
 
-  const saveBranchChanges = () => {
-    if (!selectedBranch) {
+  const saveBranchChanges = async () => {
+    if (!selectedBranch) return;
+
+    if (!editName.trim() || !editCode.trim() || !editAddress.trim() ||
+        !editCity.trim() || !editState.trim() || !editContactNumber.trim() ||
+        !editEmail.trim()) {
+      Alert.alert('Required Fields', 'Please complete all branch fields.');
       return;
     }
 
-    if (!editName.trim()) {
-      Alert.alert('Required', 'Please enter the branch name.');
+    const email = editEmail.trim().toLowerCase();
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
       return;
     }
 
-    if (!editCode.trim()) {
-      Alert.alert('Required', 'Please enter the branch code.');
-      return;
+    setSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/admin/branches/${encodeURIComponent(selectedBranch.id)}`,
+        {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            name: editName.trim(),
+            code: editCode.trim().toUpperCase(),
+            address: editAddress.trim(),
+            city: editCity.trim(),
+            state: editState.trim(),
+            contactNumber: editContactNumber.trim(),
+            email,
+            status: editStatus.toLowerCase(),
+          }),
+        }
+      );
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(result.message || `Unable to update branch (${response.status}).`);
+      }
+
+      const rawBranch = result?.data?.branch ?? result?.branch;
+      const updatedBranch = rawBranch
+        ? mapBranch(rawBranch)
+        : {
+            ...selectedBranch,
+            name: editName.trim(),
+            code: editCode.trim().toUpperCase(),
+            address: editAddress.trim(),
+            city: editCity.trim(),
+            state: editState.trim(),
+            contactNumber: editContactNumber.trim(),
+            email,
+            status: editStatus,
+          };
+
+      setBranches((current) =>
+        current.map((branch) => branch.id === selectedBranch.id ? updatedBranch : branch)
+      );
+      setSelectedBranch(updatedBranch);
+      setShowEditModal(false);
+      Alert.alert('Updated', 'Branch information has been saved successfully.');
+    } catch (error) {
+      Alert.alert(
+        'Update Failed',
+        error instanceof Error ? error.message : 'Unable to update branch.'
+      );
+    } finally {
+      setSaving(false);
     }
-
-    if (!editAddress.trim()) {
-      Alert.alert('Required', 'Please enter the address.');
-      return;
-    }
-
-    if (!editCity.trim()) {
-      Alert.alert('Required', 'Please enter the city.');
-      return;
-    }
-
-    if (!editState.trim()) {
-      Alert.alert('Required', 'Please enter the state.');
-      return;
-    }
-
-    if (!editContactNumber.trim()) {
-      Alert.alert('Required', 'Please enter the contact number.');
-      return;
-    }
-
-    if (!editEmail.trim()) {
-      Alert.alert('Required', 'Please enter the email address.');
-      return;
-    }
-
-    const updatedBranch = {
-      ...selectedBranch,
-      name: editName.trim(),
-      code: editCode.trim().toUpperCase(),
-      address: editAddress.trim(),
-      city: editCity.trim(),
-      state: editState.trim(),
-      contactNumber: editContactNumber.trim(),
-      email: editEmail.trim().toLowerCase(),
-      status: editStatus,
-    };
-
-    setBranches((currentBranches) =>
-      currentBranches.map((branch) =>
-        branch.id === selectedBranch.id
-          ? updatedBranch
-          : branch
-      )
-    );
-
-    setSelectedBranch(updatedBranch);
-    setShowEditModal(false);
-
-    Alert.alert(
-      'Updated',
-      'Branch information has been updated successfully.'
-    );
   };
 
   const toggleBranchStatus = () => {
-    if (!selectedBranch) {
-      return;
-    }
+    if (!selectedBranch) return;
 
-    const branchId = selectedBranch.id;
-    const branchName = selectedBranch.name;
-    const nextStatus = selectedBranch.status === 'Active' ? 'Inactive' : 'Active';
+    const branch = selectedBranch;
+    const nextStatus: 'Active' | 'Inactive' =
+      branch.status === 'Active' ? 'Inactive' : 'Active';
     const actionText = nextStatus === 'Inactive' ? 'deactivate' : 'activate';
 
     setShowActions(false);
-
     Alert.alert(
       `${nextStatus === 'Inactive' ? 'Deactivate' : 'Activate'} Branch`,
-      `Are you sure you want to ${actionText} ${branchName}?`,
+      `Are you sure you want to ${actionText} ${branch.name}?`,
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: nextStatus === 'Inactive' ? 'Deactivate' : 'Activate',
           style: nextStatus === 'Inactive' ? 'destructive' : 'default',
-          onPress: () => {
-            setBranches((currentBranches) =>
-              currentBranches.map((branch) =>
-                branch.id === branchId
-                  ? { ...branch, status: nextStatus }
-                  : branch
-              )
-            );
+          onPress: async () => {
+            setSaving(true);
+            try {
+              const headers = await getAuthHeaders();
+              const response = await fetch(
+                `${API_BASE_URL}/admin/branches/${encodeURIComponent(branch.id)}`,
+                {
+                  method: 'PUT',
+                  headers,
+                  body: JSON.stringify({
+                    name: branch.name,
+                    code: branch.code,
+                    address: branch.address,
+                    city: branch.city,
+                    state: branch.state,
+                    contactNumber: branch.contactNumber,
+                    email: branch.email,
+                    status: nextStatus.toLowerCase(),
+                  }),
+                }
+              );
+              const result = await response.json().catch(() => ({}));
+              if (!response.ok) {
+                throw new Error(result.message || `Unable to change branch status (${response.status}).`);
+              }
 
-            setSelectedBranch((currentBranch) =>
-              currentBranch
-                ? { ...currentBranch, status: nextStatus }
-                : null
-            );
+              const rawBranch = result?.data?.branch ?? result?.branch;
+              const updatedBranch = rawBranch
+                ? mapBranch(rawBranch)
+                : { ...branch, status: nextStatus };
 
-            Alert.alert(
-              nextStatus === 'Inactive' ? 'Branch Deactivated' : 'Branch Activated',
-              `${branchName} has been ${nextStatus === 'Inactive' ? 'deactivated' : 'activated'} successfully.`
-            );
+              setBranches((current) =>
+                current.map((item) => item.id === branch.id ? updatedBranch : item)
+              );
+              setSelectedBranch(updatedBranch);
+              Alert.alert(
+                nextStatus === 'Inactive' ? 'Branch Deactivated' : 'Branch Activated',
+                `${branch.name} has been ${actionText}d successfully.`
+              );
+            } catch (error) {
+              Alert.alert(
+                'Status Update Failed',
+                error instanceof Error ? error.message : 'Unable to update branch status.'
+              );
+            } finally {
+              setSaving(false);
+            }
           },
         },
       ]
@@ -703,12 +719,23 @@ export default function BranchesPage() {
               </View>
 
               <Text style={styles.emptyTitle}>
-                No branches found
+                {loading ? 'Loading branches...' : 'No branches found'}
               </Text>
 
               <Text style={styles.emptyText}>
-                Try changing your search.
+                {loading ? 'Fetching branch records from the server.' : 'Try changing your search.'}
               </Text>
+
+              {!loading && (
+                <TouchableOpacity
+                  onPress={fetchBranches}
+                  style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 9, backgroundColor: '#F1EAFF' }}
+                >
+                  <Text style={{ color: '#7040D5', fontFamily: 'PoppinsSemiBold', fontSize: 10 }}>
+                    Retry
+                  </Text>
+                </TouchableOpacity>
+              )}
 
             </View>
           }
@@ -1145,8 +1172,9 @@ export default function BranchesPage() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.editSaveButton}
+                style={[styles.editSaveButton, saving && { opacity: 0.65 }]}
                 onPress={saveBranchChanges}
+                disabled={saving}
                 activeOpacity={0.8}
               >
                 <MaterialCommunityIcons
@@ -1156,7 +1184,7 @@ export default function BranchesPage() {
                 />
 
                 <Text style={styles.editSaveText}>
-                  Save Changes
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </Text>
               </TouchableOpacity>
 

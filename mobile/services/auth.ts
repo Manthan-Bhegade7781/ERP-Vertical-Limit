@@ -1,3 +1,5 @@
+
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import { API_BASE_URL } from '@/config/api';
@@ -39,7 +41,44 @@ type UpdateProfileResponse = {
   };
 };
 
-// Login and securely store JWT
+/**
+ * Platform-aware token storage.
+ *
+ * Web: localStorage (development convenience).
+ * Native: Expo SecureStore.
+ *
+ * For production web apps, prefer secure, HttpOnly cookies
+ * configured by the backend instead of localStorage.
+ */
+const tokenStorage = {
+  async get(): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    return SecureStore.getItemAsync(TOKEN_KEY);
+  },
+
+  async set(token: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      localStorage.setItem(TOKEN_KEY, token);
+      return;
+    }
+
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
+  },
+
+  async remove(): Promise<void> {
+    if (Platform.OS === 'web') {
+      localStorage.removeItem(TOKEN_KEY);
+      return;
+    }
+
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+  },
+};
+
+// Login and store JWT
 export const login = async (
   email: string,
   password: string
@@ -65,10 +104,7 @@ export const login = async (
     result.success &&
     result.data?.token
   ) {
-    await SecureStore.setItemAsync(
-      TOKEN_KEY,
-      result.data.token
-    );
+    await tokenStorage.set(result.data.token);
   }
 
   return result;
@@ -76,7 +112,7 @@ export const login = async (
 
 // Get stored JWT
 export const getToken = async (): Promise<string | null> => {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return tokenStorage.get();
 };
 
 // Get currently logged-in user
@@ -103,8 +139,7 @@ export const getCurrentUser =
       return null;
     }
 
-    const result: MeResponse =
-      await response.json();
+    const result: MeResponse = await response.json();
 
     if (!result.success || !result.data?.user) {
       await logout();
@@ -114,7 +149,7 @@ export const getCurrentUser =
     return result.data.user;
   };
 
-  // Update currently logged-in user's profile
+// Update currently logged-in user's profile
 export const updateCurrentUser = async (
   fullName: string,
   email: string,
@@ -153,5 +188,5 @@ export const updateCurrentUser = async (
 
 // Logout
 export const logout = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await tokenStorage.remove();
 };
