@@ -1,66 +1,97 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 
 import AttendanceDetails from './AttendanceDetails';
+import {
+  getMyAttendance,
+  StudentAttendanceData,
+  StudentAttendanceSubject,
+} from '../../../services/attendance';
 
 type AttendancePageProps = {
+  data?: StudentAttendanceData | null;
+  loading?: boolean;
+  onRefresh?: () => void;
   onContentScroll?: (event: any) => void;
 };
 
 type AttendanceView = 'overview' | 'details';
 
-type SubjectAttendance = {
-  subject: string;
-  percentage: number;
-  present: number;
-  total: number;
-  color: string;
-  background: string;
-  icon: keyof typeof Ionicons.glyphMap;
-};
-
-const SUBJECT_ATTENDANCE: SubjectAttendance[] = [
-  {
-    subject: 'Physics',
-    percentage: 95,
-    present: 19,
-    total: 20,
-    color: '#6630D7',
-    background: '#EEE7FF',
-    icon: 'flask-outline',
-  },
-  {
-    subject: 'Mathematics',
-    percentage: 90,
-    present: 18,
-    total: 20,
-    color: '#1670E8',
-    background: '#E6F0FF',
-    icon: 'calculator-outline',
-  },
-  {
-    subject: 'Chemistry',
-    percentage: 91,
-    present: 20,
-    total: 22,
-    color: '#22A55A',
-    background: '#E3F7EB',
-    icon: 'beaker-outline',
-  },
-];
+const SUBJECT_COLORS = [
+  { color: '#6630D7', background: '#EEE7FF', icon: 'flask-outline' },
+  { color: '#1670E8', background: '#E6F0FF', icon: 'calculator-outline' },
+  { color: '#22A55A', background: '#E3F7EB', icon: 'beaker-outline' },
+  { color: '#F28A17', background: '#FFF0DF', icon: 'book-outline' },
+  { color: '#E95386', background: '#FDECF1', icon: 'school-outline' },
+  { color: '#7040D5', background: '#F1EAFF', icon: 'atom' },
+] as const;
 
 export default function AttendancePage({
+  data: initialData,
+  loading: initialLoading,
+  onRefresh: parentRefresh,
   onContentScroll,
 }: AttendancePageProps) {
   const [currentView, setCurrentView] =
     useState<AttendanceView>('overview');
+
+  const [attendanceData, setAttendanceData] =
+    useState<StudentAttendanceData | null>(initialData ?? null);
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchAttendance = useCallback(async () => {
+    try {
+      const res = await getMyAttendance();
+      setAttendanceData(res);
+    } catch (err) {
+      console.error('Failed to load student attendance:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialData !== undefined) {
+      setAttendanceData(initialData);
+    } else {
+      void fetchAttendance();
+    }
+  }, [initialData, fetchAttendance]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchAttendance();
+    }, [fetchAttendance]),
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (parentRefresh) {
+      parentRefresh();
+    }
+    await fetchAttendance();
+  };
+
+  const overall = attendanceData?.overall ?? {
+    percentage: 0,
+    present: 0,
+    absent: 0,
+    total: 0,
+    statusText: 'No attendance records',
+  };
+
+  const subjects = attendanceData?.subjects ?? [];
+  const recentRecords = attendanceData?.recent ?? [];
 
   if (currentView === 'details') {
     return (
@@ -84,6 +115,7 @@ export default function AttendancePage({
 
         <View style={styles.detailsContent}>
           <AttendanceDetails
+            records={attendanceData?.records}
             onContentScroll={onContentScroll}
           />
         </View>
@@ -101,6 +133,14 @@ export default function AttendancePage({
         showsVerticalScrollIndicator={false}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#6630D7']}
+            tintColor="#6630D7"
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -131,14 +171,14 @@ export default function AttendancePage({
             </Text>
 
             <Text style={styles.overallPercentage}>
-              92%
+              {overall.percentage}%
             </Text>
 
             <View style={styles.statusRow}>
               <View style={styles.statusDot} />
 
               <Text style={styles.statusText}>
-                Good attendance
+                {overall.statusText}
               </Text>
             </View>
           </View>
@@ -146,7 +186,7 @@ export default function AttendancePage({
           <View style={styles.progressCircle}>
             <View style={styles.progressInner}>
               <Text style={styles.progressText}>
-                92
+                {overall.percentage}
               </Text>
 
               <Text style={styles.progressPercent}>
@@ -160,7 +200,7 @@ export default function AttendancePage({
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>
-              57
+              {overall.present}
             </Text>
 
             <Text style={styles.summaryLabel}>
@@ -172,7 +212,7 @@ export default function AttendancePage({
 
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>
-              5
+              {overall.absent}
             </Text>
 
             <Text style={styles.summaryLabel}>
@@ -184,7 +224,7 @@ export default function AttendancePage({
 
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>
-              62
+              {overall.total}
             </Text>
 
             <Text style={styles.summaryLabel}>
@@ -207,75 +247,88 @@ export default function AttendancePage({
             </View>
           </View>
 
-          {SUBJECT_ATTENDANCE.map(
-            (item, index) => (
-              <View
-                key={item.subject}
-                style={[
-                  styles.subjectRow,
-                  index !==
-                    SUBJECT_ATTENDANCE.length - 1 &&
-                    styles.subjectBorder,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.subjectIcon,
-                    {
-                      backgroundColor:
-                        item.background,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={item.icon}
-                    size={20}
-                    color={item.color}
-                  />
-                </View>
+          {subjects.length === 0 ? (
+            <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'PoppinsRegular', fontSize: 12, color: '#9AA4B4' }}>
+                No subject attendance records found
+              </Text>
+            </View>
+          ) : (
+            subjects.map(
+              (item, index) => {
+                const meta =
+                  SUBJECT_COLORS[index % SUBJECT_COLORS.length];
 
-                <View style={styles.subjectContent}>
+                return (
                   <View
-                    style={styles.subjectTitleRow}
-                  >
-                    <Text style={styles.subjectName}>
-                      {item.subject}
-                    </Text>
-
-                    <Text
-                      style={[
-                        styles.subjectPercentage,
-                        {
-                          color: item.color,
-                        },
-                      ]}
-                    >
-                      {item.percentage}%
-                    </Text>
-                  </View>
-
-                  <View
-                    style={styles.progressBackground}
+                    key={item.subjectId || item.subject}
+                    style={[
+                      styles.subjectRow,
+                      index !==
+                        subjects.length - 1 &&
+                        styles.subjectBorder,
+                    ]}
                   >
                     <View
                       style={[
-                        styles.progressBar,
+                        styles.subjectIcon,
                         {
-                          width: `${item.percentage}%`,
                           backgroundColor:
-                            item.color,
+                            meta.background,
                         },
                       ]}
-                    />
-                  </View>
+                    >
+                      <Ionicons
+                        name={meta.icon as any}
+                        size={20}
+                        color={meta.color}
+                      />
+                    </View>
 
-                  <Text style={styles.subjectCount}>
-                    {item.present} of {item.total}{' '}
-                    classes attended
-                  </Text>
-                </View>
-              </View>
-            ),
+                    <View style={styles.subjectContent}>
+                      <View
+                        style={styles.subjectTitleRow}
+                      >
+                        <Text style={styles.subjectName}>
+                          {item.subject}
+                        </Text>
+
+                        <Text
+                          style={[
+                            styles.subjectPercentage,
+                            {
+                              color: meta.color,
+                            },
+                          ]}
+                        >
+                          {item.percentage}%
+                        </Text>
+                      </View>
+
+                      <View
+                        style={styles.progressBackground}
+                      >
+                        <View
+                          style={[
+                            styles.progressBar,
+                            {
+                              width: `${Math.min(100, Math.max(0, item.percentage))}%`,
+                              backgroundColor:
+                                meta.color,
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <Text style={styles.subjectCount}>
+                        {item.present} of {item.total}{' '}
+                        classes attended
+                      </Text>
+                    </View>
+                  </View>
+                );
+              },
+            )
           )}
         </View>
 
@@ -328,26 +381,23 @@ export default function AttendancePage({
             </View>
           </View>
 
-          <RecentAttendance
-            subject="Physics"
-            date="16 Sep 2026"
-            time="10:00 AM"
-            present
-          />
-
-          <RecentAttendance
-            subject="Mathematics"
-            date="15 Sep 2026"
-            time="02:00 PM"
-            present
-          />
-
-          <RecentAttendance
-            subject="Chemistry"
-            date="14 Sep 2026"
-            time="12:00 PM"
-            present={false}
-          />
+          {recentRecords.length === 0 ? (
+            <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'PoppinsRegular', fontSize: 12, color: '#9AA4B4' }}>
+                No recent class attendance records
+              </Text>
+            </View>
+          ) : (
+            recentRecords.map((item) => (
+              <RecentAttendance
+                key={item.id}
+                subject={item.subject}
+                date={item.date}
+                time={item.time}
+                present={item.status === 'Present'}
+              />
+            ))
+          )}
         </View>
 
         {/* Reminder */}

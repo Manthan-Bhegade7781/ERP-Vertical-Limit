@@ -57,6 +57,9 @@ const toIsoDate = (value: string): string | null => {
   if (!value || !value.trim()) return null;
   const parsed = new Date(value.trim());
   if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getFullYear() < 100) {
+    parsed.setFullYear(2000 + parsed.getFullYear());
+  }
   return parsed.toISOString();
 };
 

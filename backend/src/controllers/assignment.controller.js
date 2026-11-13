@@ -6,6 +6,7 @@ const Assignment = require("../models/assignment.model");
 const Batch = require("../models/Batch");
 const Subject = require("../models/Subject");
 const BatchSubject = require("../models/BatchSubject");
+const Student = require("../models/Student");
 
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads", "assignments");
 
@@ -15,6 +16,7 @@ const hasRole = (user, role) =>
 const isSuperAdmin = (user) => hasRole(user, "super_admin");
 const isAdmin = (user) => hasRole(user, "admin");
 const isTeacher = (user) => hasRole(user, "teacher");
+const isStudent = (user) => hasRole(user, "student");
 
 const parseDate = (value) => {
   if (!value) return null;
@@ -119,6 +121,13 @@ const canManageAssignment = async (user, assignment) => {
     });
 
     return Boolean(assigned);
+  }
+
+  if (isStudent(user)) {
+    const student = await Student.findOne({ userId: user._id });
+    if (!student || !student.batchId) return false;
+    const batchId = assignment.batchId?._id || assignment.batchId;
+    return student.batchId.toString() === batchId.toString();
   }
 
   return false;
@@ -443,6 +452,16 @@ const getAssignments = async (req, res) => {
       delete filter.batchId;
       delete filter.subjectId;
       delete filter.$or;
+    } else if (isStudent(req.user) && !isSuperAdmin(req.user)) {
+      const student = await Student.findOne({ userId: req.user._id });
+      if (!student || !student.batchId) {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          data: [],
+        });
+      }
+      filter.batchId = student.batchId;
     } else if (!isSuperAdmin(req.user)) {
       return res.status(403).json({
         success: false,

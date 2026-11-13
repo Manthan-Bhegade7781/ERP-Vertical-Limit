@@ -54,7 +54,7 @@ export type TimetableSummary = {
   exams: number;
 };
 
-type TimetableResponse = {
+export type TimetableResponse = {
   success: boolean;
   message?: string;
   count?: number;

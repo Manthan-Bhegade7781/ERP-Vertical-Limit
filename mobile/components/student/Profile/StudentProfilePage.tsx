@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -10,11 +11,18 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/context/AuthContext';
+import { getCurrentUser, updateCurrentUser } from '@/services/auth';
+import { getMyClasses } from '@/services/classes';
 
 type StudentProfilePageProps = {
   onContentScroll?: (event: any) => void;
   onChangePasswordPress?: () => void;
   onHelpPress?: () => void;
+  onCalendarPress?: () => void;
+  onFeedbackPress?: () => void;
+  onPTGPress?: () => void;
+  onMessagesPress?: () => void;
   onLogout?: () => void;
 };
 
@@ -26,11 +34,27 @@ export default function StudentProfilePage({
   onContentScroll,
   onChangePasswordPress,
   onHelpPress,
+  onCalendarPress,
+  onFeedbackPress,
+  onPTGPress,
+  onMessagesPress,
   onLogout,
 }: StudentProfilePageProps) {
-  const [name, setName] = useState('Aarav Mehta');
-  const [email, setEmail] = useState('aarav.mehta@gmail.com');
-  const [phone, setPhone] = useState('9876543210');
+  const { user: authUser, updateUser, logout } = useAuth();
+
+  const [loading, setLoading] = useState(!authUser);
+  const [saving, setSaving] = useState(false);
+
+  const [name, setName] = useState(authUser?.fullName || '');
+  const [email, setEmail] = useState(authUser?.email || '');
+  const [phone, setPhone] = useState(
+    authUser?.mobileNumber ? authUser.mobileNumber.replace(/\D/g, '').slice(-10) : ''
+  );
+  const [studentId, setStudentId] = useState(authUser?.studentId || '');
+  const [standard, setStandard] = useState(authUser?.standard || '');
+  const [batchName, setBatchName] = useState(authUser?.batchName || '');
+  const [branchName, setBranchName] = useState('Main Branch');
+  const [subjects, setSubjects] = useState('');
 
   const [editVisible, setEditVisible] = useState(false);
 
@@ -40,10 +64,66 @@ export default function StudentProfilePage({
 
   const [logoutVisible, setLogoutVisible] = useState(false);
 
+  const loadData = useCallback(async () => {
+    try {
+      const [currentUserRes, classesDataRes] = await Promise.allSettled([
+        getCurrentUser(),
+        getMyClasses(),
+      ]);
+
+      if (currentUserRes.status === 'fulfilled' && currentUserRes.value) {
+        const u = currentUserRes.value;
+        setName(u.fullName || '');
+        setEmail(u.email || '');
+        setPhone(u.mobileNumber ? u.mobileNumber.replace(/\D/g, '').slice(-10) : '');
+        if (u.studentId) setStudentId(u.studentId);
+        if (u.standard) setStandard(u.standard);
+        if (u.batchName) setBatchName(u.batchName);
+      }
+
+      if (classesDataRes.status === 'fulfilled' && classesDataRes.value) {
+        const activeBatch = classesDataRes.value.currentBatch || classesDataRes.value.batches?.[0];
+        if (activeBatch) {
+          if (activeBatch.standard) setStandard((prev) => prev || activeBatch.standard || '');
+          if (activeBatch.name) setBatchName((prev) => prev || activeBatch.name);
+          if (activeBatch.branchName || activeBatch.branch) {
+            setBranchName(activeBatch.branchName || activeBatch.branch);
+          }
+          if (activeBatch.subjects && activeBatch.subjects.length > 0) {
+            const subjectNames = activeBatch.subjects.map((s) => s.name).filter(Boolean).join(', ');
+            setSubjects(subjectNames || 'No subjects assigned');
+          }
+        }
+      }
+    } catch (err) {
+      console.log('Error loading student profile data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (authUser) {
+      if (authUser.fullName) setName(authUser.fullName);
+      if (authUser.email) setEmail(authUser.email);
+      if (authUser.mobileNumber !== undefined) {
+        setPhone(authUser.mobileNumber ? authUser.mobileNumber.replace(/\D/g, '').slice(-10) : '');
+      }
+      if (authUser.studentId) setStudentId(authUser.studentId);
+      if (authUser.standard) setStandard(authUser.standard);
+      if (authUser.batchName) setBatchName(authUser.batchName);
+    }
+  }, [authUser]);
+
+  const isPhoneValid = editPhone.length === 0 || editPhone.length === 10;
   const isFormValid =
-    editName.trim().length > 0 &&
+    editName.trim().length >= 2 &&
     isValidEmail(editEmail.trim()) &&
-    editPhone.length === 10;
+    isPhoneValid;
 
   const openEditModal = () => {
     setEditName(name);
@@ -52,27 +132,58 @@ export default function StudentProfilePage({
     setEditVisible(true);
   };
 
-  const handleSaveProfile = () => {
-    if (!isFormValid) {
+  const handleSaveProfile = async () => {
+    if (!isFormValid || saving) {
       return;
     }
 
-    setName(editName.trim());
-    setEmail(editEmail.trim());
-    setPhone(editPhone);
+    try {
+      setSaving(true);
+      const res = await updateCurrentUser(editName, editEmail, editPhone);
 
-    setEditVisible(false);
+      if (res.success && res.data?.user) {
+        updateUser(res.data.user);
+        setName(res.data.user.fullName);
+        setEmail(res.data.user.email);
+        setPhone(
+          res.data.user.mobileNumber
+            ? res.data.user.mobileNumber.replace(/\D/g, '').slice(-10)
+            : ''
+        );
+        setEditVisible(false);
+        Alert.alert('Success', 'Profile updated successfully.');
+      } else {
+        Alert.alert('Update Failed', res.message || 'Unable to update profile.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'An error occurred while saving profile.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setLogoutVisible(false);
 
     if (onLogout) {
       onLogout();
     } else {
-      Alert.alert('Logout', 'You have been logged out.');
+      try {
+        await logout();
+        Alert.alert('Logout', 'You have been logged out.');
+      } catch (err) {
+        Alert.alert('Logout Error', 'Failed to log out.');
+      }
     }
   };
+
+  const initials = (name || '')
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'ST';
 
   return (
     <>
@@ -82,114 +193,118 @@ export default function StudentProfilePage({
         scrollEventThrottle={16}
         contentContainerStyle={styles.contentContainer}
       >
-        {/* PROFILE HEADER */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {name
-                .split(' ')
-                .map((part) => part[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase()}
-            </Text>
+        {loading && !name ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6630D7" />
+            <Text style={styles.loadingText}>Loading profile...</Text>
           </View>
+        ) : (
+          <>
+            {/* PROFILE HEADER */}
+            <View style={styles.profileCard}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {initials}
+                </Text>
+              </View>
 
-          <View style={styles.profileMain}>
-            <Text style={styles.profileName}>
-              {name}
-            </Text>
+              <View style={styles.profileMain}>
+                <Text style={styles.profileName}>
+                  {name || 'Student'}
+                </Text>
 
-            <Text style={styles.profileRole}>
-              10th Standard • Student
-            </Text>
+                <Text style={styles.profileRole}>
+                  {`${standard || '10th Standard'} • Student`}
+                </Text>
 
-            <Text style={styles.profileId}>
-              Student ID: STU1001
-            </Text>
-          </View>
+                <Text style={styles.profileId}>
+                  {`Student ID: ${studentId || 'N/A'}`}
+                </Text>
+              </View>
 
-          <Pressable
-            style={styles.editIconButton}
-            onPress={openEditModal}
-          >
-            <Ionicons
-              name="create-outline"
-              size={18}
-              color="#6630D7"
-            />
-          </Pressable>
-        </View>
+              <Pressable
+                style={styles.editIconButton}
+                onPress={openEditModal}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={18}
+                  color="#6630D7"
+                />
+              </Pressable>
+            </View>
 
-        {/* PERSONAL INFORMATION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Personal Information
-          </Text>
+            {/* PERSONAL INFORMATION */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Personal Information
+              </Text>
 
-          <View style={styles.infoCard}>
-            <InfoRow
-              icon="person-outline"
-              label="Full Name"
-              value={name}
-            />
+              <View style={styles.infoCard}>
+                <InfoRow
+                  icon="person-outline"
+                  label="Full Name"
+                  value={name || 'Not provided'}
+                />
 
-            <View style={styles.divider} />
+                <View style={styles.divider} />
 
-            <InfoRow
-              icon="mail-outline"
-              label="Email Address"
-              value={email}
-            />
+                <InfoRow
+                  icon="mail-outline"
+                  label="Email Address"
+                  value={email || 'Not provided'}
+                />
 
-            <View style={styles.divider} />
+                <View style={styles.divider} />
 
-            <InfoRow
-              icon="call-outline"
-              label="Phone Number"
-              value={`+91 ${phone}`}
-            />
-          </View>
-        </View>
+                <InfoRow
+                  icon="call-outline"
+                  label="Phone Number"
+                  value={phone ? `+91 ${phone}` : 'Not provided'}
+                />
+              </View>
+            </View>
 
-        {/* ACADEMIC INFORMATION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Academic Information
-          </Text>
+            {/* ACADEMIC INFORMATION */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Academic Information
+              </Text>
 
-          <View style={styles.infoCard}>
-            <InfoRow
-              icon="school-outline"
-              label="Class"
-              value="10th Standard"
-            />
+              <View style={styles.infoCard}>
+                <InfoRow
+                  icon="school-outline"
+                  label="Class"
+                  value={standard || '10th Standard'}
+                />
 
-            <View style={styles.divider} />
+                <View style={styles.divider} />
 
-            <InfoRow
-              icon="people-outline"
-              label="Batch"
-              value="10th Standard A"
-            />
+                <InfoRow
+                  icon="people-outline"
+                  label="Batch"
+                  value={batchName || 'Batch'}
+                />
 
-            <View style={styles.divider} />
+                <View style={styles.divider} />
 
-            <InfoRow
-              icon="business-outline"
-              label="Branch"
-              value="Main Branch"
-            />
+                <InfoRow
+                  icon="business-outline"
+                  label="Branch"
+                  value={branchName || 'Main Branch'}
+                />
 
-            <View style={styles.divider} />
+                <View style={styles.divider} />
 
-            <InfoRow
-              icon="book-outline"
-              label="Subjects"
-              value="Physics, Mathematics, Chemistry"
-            />
-          </View>
-        </View>
+                <InfoRow
+                  icon="book-outline"
+                  label="Subjects"
+                  value={subjects || 'No subjects assigned'}
+                />
+              </View>
+            </View>
+          </>
+        )}
 
         {/* ACCOUNT */}
         <View style={styles.section}>
@@ -198,6 +313,17 @@ export default function StudentProfilePage({
           </Text>
 
           <View style={styles.accountCard}>
+            <View style={styles.divider} />
+
+            <AccountRow
+              icon="chatbubbles-outline"
+              title="Feedback & Suggestions"
+              subtitle="Submit feedback and track responses"
+              onPress={onFeedbackPress}
+            />
+
+            <View style={styles.divider} />
+
             <AccountRow
               icon="lock-closed-outline"
               title="Change Password"
@@ -347,23 +473,27 @@ export default function StudentProfilePage({
 
             {/* SAVE */}
             <Pressable
-              disabled={!isFormValid}
+              disabled={!isFormValid || saving}
               onPress={handleSaveProfile}
               style={[
                 styles.saveButton,
-                !isFormValid &&
+                (!isFormValid || saving) &&
                   styles.saveButtonDisabled,
               ]}
             >
-              <Text
-                style={[
-                  styles.saveButtonText,
-                  !isFormValid &&
-                    styles.saveButtonTextDisabled,
-                ]}
-              >
-                Save Changes
-              </Text>
+              {saving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text
+                  style={[
+                    styles.saveButtonText,
+                    !isFormValid &&
+                      styles.saveButtonTextDisabled,
+                  ]}
+                >
+                  Save Changes
+                </Text>
+              )}
             </Pressable>
           </View>
         </View>
@@ -519,6 +649,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 20,
+  },
+
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 50,
+  },
+
+  loadingText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 13,
+    color: '#8A82A0',
+    marginTop: 10,
   },
 
   profileCard: {
@@ -833,6 +976,7 @@ const styles = StyleSheet.create({
   logoutCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 22,
+    marginBottom: 150,
     borderRadius: 22,
     padding: 22,
     alignItems: 'center',

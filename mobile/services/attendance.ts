@@ -474,3 +474,54 @@ export const updateAttendanceRecord =
 
     return result.data;
   };
+
+/* =====================================================
+   STUDENT: GET MY ATTENDANCE
+   GET /api/attendance/my
+===================================================== */
+
+export type StudentAttendanceSubject = {
+  subjectId: string;
+  subject: string;
+  present: number;
+  absent: number;
+  late: number;
+  leave: number;
+  total: number;
+  percentage: number;
+};
+
+export type StudentAttendanceRecordItem = {
+  id: string;
+  date: string;
+  isoDate: string;
+  subject: string;
+  teacher: string;
+  time: string;
+  status: 'Present' | 'Absent';
+  rawStatus?: string;
+  remarks?: string;
+};
+
+export type StudentAttendanceData = {
+  overall: {
+    percentage: number;
+    present: number;
+    absent: number;
+    total: number;
+    statusText: string;
+  };
+  subjects: StudentAttendanceSubject[];
+  recent: StudentAttendanceRecordItem[];
+  records: StudentAttendanceRecordItem[];
+};
+
+export const getMyAttendance = async (): Promise<StudentAttendanceData> => {
+  const result = await apiRequest<StudentAttendanceData>('/attendance/my');
+
+  if (!result.data || typeof result.data !== 'object') {
+    throw new Error('Unable to load your attendance data.');
+  }
+
+  return result.data;
+};

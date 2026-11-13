@@ -308,6 +308,32 @@ const createPTG = async (req, res) => {
       excludeUserId: req.user._id,
     });
 
+    // Also send an official Message to the student's inbox
+    if (student && student.userId) {
+      const studentUserId = student.userId._id || student.userId;
+      if (isValidId(studentUserId)) {
+        try {
+          const Message = require("../models/Message");
+          const dateStr = parsedDate.toLocaleString("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "Asia/Kolkata",
+          });
+          await Message.create({
+            sender: req.user._id,
+            recipients: [{ user: studentUserId }],
+            subject: `PTG Meeting Scheduled: ${studentName}`,
+            body: `Dear ${studentName},\n\nA Parent-Teacher Gathering (PTG) meeting has been scheduled for you.\n\n📅 Date & Time: ${dateStr}\n👨‍🏫 Teacher: ${teacherName}\n🎯 Purpose: ${purpose.trim()}\n${notes ? `📝 Notes: ${notes.trim()}\n` : ""}\nPlease ensure to attend the meeting along with your parents/guardians.`,
+            category: "Events",
+            priority: "Important",
+            branchId: student.batchId?.branchId || null,
+          });
+        } catch (msgErr) {
+          console.error("PTG message creation error:", msgErr.message);
+        }
+      }
+    }
+
     return res.status(201).json({
       success: true,
       message: "PTG meeting scheduled successfully.",
@@ -360,6 +386,52 @@ const getPTGMeetings = async (req, res) => {
     }
 
     const filter = {};
+
+    const user = req.user;
+    const userRoles = user?.roles || [];
+
+    // Filter by student if authenticated as a student
+    if (userRoles.includes("student")) {
+      const studentDoc = await Student.findOne({ userId: user._id });
+      if (!studentDoc) {
+        return res.status(200).json({
+          success: true,
+          message: "PTG meetings retrieved successfully.",
+          data: {
+            meetings: [],
+            pagination: {
+              total: 0,
+              page: parsedPage,
+              limit: parsedLimit,
+              totalPages: 0,
+            },
+          },
+        });
+      }
+      filter.studentId = studentDoc._id;
+    } else if (
+      userRoles.includes("teacher") &&
+      !userRoles.includes("admin") &&
+      !userRoles.includes("super_admin")
+    ) {
+      const teacherDoc = await Teacher.findOne({ userId: user._id });
+      if (!teacherDoc) {
+        return res.status(200).json({
+          success: true,
+          message: "PTG meetings retrieved successfully.",
+          data: {
+            meetings: [],
+            pagination: {
+              total: 0,
+              page: parsedPage,
+              limit: parsedLimit,
+              totalPages: 0,
+            },
+          },
+        });
+      }
+      filter.teacherId = teacherDoc._id;
+    }
 
     if (status) {
       const allowedStatuses = [

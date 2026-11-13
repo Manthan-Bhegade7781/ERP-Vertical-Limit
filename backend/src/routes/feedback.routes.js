@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   submitFeedback,
   getFeedback,
+  getMyFeedback,
   updateFeedbackStatus,
   deleteFeedback
 } = require("../controllers/feedback.controller");
@@ -21,7 +22,14 @@ router.post(
   submitFeedback
 );
 
-// Only Admin and Super Admin can view feedback.
+// Students can view their own feedback history.
+router.get(
+  "/my",
+  authorizeRoles("student"),
+  getMyFeedback
+);
+
+// Only Admin and Super Admin can view all feedback.
 router.get(
   "/",
   authorizeRoles("super_admin", "admin"),

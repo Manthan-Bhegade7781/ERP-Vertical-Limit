@@ -15,32 +15,39 @@ const {
 const { protect } = require("../middleware/auth.middleware");
 const { authorizeRoles } = require("../middleware/role.middleware");
 
-// All PTG routes require authentication and Super Admin access.
+// All PTG routes require authentication.
 router.use(protect);
-router.use(authorizeRoles("super_admin","admin"));
 
 // Create a PTG meeting.
-router.post("/", createPTG);
+router.post("/", authorizeRoles("super_admin", "admin"), createPTG);
 
 // Retrieve dashboard statistics.
-router.get("/stats", getPTGStats);
+router.get("/stats", authorizeRoles("super_admin", "admin"), getPTGStats);
 
 // Retrieve students for the meeting form.
-router.get("/students", getPTGStudents);
+router.get("/students", authorizeRoles("super_admin", "admin"), getPTGStudents);
 
 // Retrieve teachers for the meeting form.
-router.get("/teachers", getPTGTeachers);
+router.get("/teachers", authorizeRoles("super_admin", "admin"), getPTGTeachers);
 
-// Retrieve all PTG meetings.
-router.get("/", getPTGMeetings);
+// Retrieve all PTG meetings (students see their own, teachers see their own, admins see all).
+router.get(
+  "/",
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  getPTGMeetings
+);
 
 // Retrieve one PTG meeting.
-router.get("/:id", getPTGById);
+router.get(
+  "/:id",
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  getPTGById
+);
 
 // Update a PTG meeting.
-router.put("/:id", updatePTG);
+router.put("/:id", authorizeRoles("super_admin", "admin"), updatePTG);
 
 // Delete a PTG meeting.
-router.delete("/:id", deletePTG);
+router.delete("/:id", authorizeRoles("super_admin", "admin"), deletePTG);
 
 module.exports = router;

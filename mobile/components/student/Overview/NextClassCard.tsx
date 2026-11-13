@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -8,11 +9,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 type NextClassCardProps = {
-  subject: string;
-  batch: string;
-  teacher: string;
-  time: string;
-  room: string;
+  subject?: string;
+  batch?: string;
+  teacher?: string;
+  time?: string;
+  room?: string;
+  loading?: boolean;
   onPress?: () => void;
 };
 
@@ -22,13 +24,67 @@ export default function NextClassCard({
   teacher,
   time,
   room,
+  loading = false,
   onPress,
 }: NextClassCardProps) {
+  if (loading) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="small" color="#1670E8" />
+          <Text style={styles.loadingText}>Checking next class...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!subject) {
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.card,
+          pressed && onPress && styles.pressed,
+        ]}
+        onPress={onPress}
+      >
+        <View style={styles.left}>
+          <View style={[styles.iconBox, { backgroundColor: '#F0E9FF' }]}>
+            <Ionicons
+              name="checkmark-done-circle-outline"
+              size={24}
+              color="#6630D7"
+            />
+          </View>
+
+          <View style={styles.content}>
+            <Text style={[styles.label, { color: '#6630D7' }]}>
+              NEXT CLASS
+            </Text>
+
+            <Text style={styles.subject}>
+              No More Classes Today
+            </Text>
+
+            <Text style={styles.batch}>
+              You have no pending lectures scheduled for today.
+            </Text>
+          </View>
+        </View>
+
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color="#9A9AA5"
+        />
+      </Pressable>
+    );
+  }
+
   return (
     <Pressable
       style={({ pressed }) => [
         styles.card,
-        pressed && styles.pressed,
+        pressed && onPress && styles.pressed,
       ]}
       onPress={onPress}
     >
@@ -51,7 +107,7 @@ export default function NextClassCard({
           </Text>
 
           <Text style={styles.batch}>
-            {batch} • {teacher}
+            {batch ? `${batch} • ` : ''}{teacher || 'Assigned Teacher'}
           </Text>
 
           <View style={styles.timeRow}>
@@ -62,16 +118,15 @@ export default function NextClassCard({
             />
 
             <Text style={styles.time}>
-              {time}
+              {time || 'Today'}
             </Text>
 
-            <Text style={styles.separator}>
-              •
-            </Text>
-
-            <Text style={styles.room}>
-              {room}
-            </Text>
+            {room ? (
+              <>
+                <Text style={styles.separator}>•</Text>
+                <Text style={styles.room}>{room}</Text>
+              </>
+            ) : null}
           </View>
         </View>
       </View>
@@ -99,7 +154,23 @@ const styles = StyleSheet.create({
 
   left: {
     flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
+  },
+
+  loadingBox: {
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    gap: 10,
+  },
+
+  loadingText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10.5,
+    color: '#747481',
   },
 
   iconBox: {

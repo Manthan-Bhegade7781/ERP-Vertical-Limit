@@ -1,126 +1,91 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-type TestResult = {
-  id: string;
-  testName: string;
-  subject: string;
-  teacher: string;
-  date: string;
-  marksObtained: number;
-  totalMarks: number;
-  percentage: number;
-  feedback: string;
-  correctAnswers: number;
-  totalQuestions: number;
-};
+import {
+  fetchStudentResults,
+  type StudentTestResult,
+} from '@/services/examinations';
 
 type ResultsPageProps = {
   onContentScroll?: (event: any) => void;
+  onViewUpcoming?: () => void;
 };
-
-const resultsData: TestResult[] = [
-  {
-    id: 'result-1',
-    testName: 'Physics Unit Test',
-    subject: 'Physics',
-    teacher: 'Priya Sharma',
-    date: '12 Sep 2026',
-    marksObtained: 27,
-    totalMarks: 30,
-    percentage: 90,
-    feedback:
-      'Excellent understanding of Newton’s Laws. Keep practising numerical problems.',
-    correctAnswers: 9,
-    totalQuestions: 10,
-  },
-  {
-    id: 'result-2',
-    testName: 'Mathematics Chapter Test',
-    subject: 'Mathematics',
-    teacher: 'Rahul Sir',
-    date: '08 Sep 2026',
-    marksObtained: 34,
-    totalMarks: 40,
-    percentage: 85,
-    feedback:
-      'Good performance. Work a little more on quadratic equation problems.',
-    correctAnswers: 17,
-    totalQuestions: 20,
-  },
-  {
-    id: 'result-3',
-    testName: 'Chemistry Test',
-    subject: 'Chemistry',
-    teacher: 'Anjali Ma’am',
-    date: '05 Sep 2026',
-    marksObtained: 21,
-    totalMarks: 25,
-    percentage: 84,
-    feedback:
-      'Good work. Revise chemical equations and reaction types.',
-    correctAnswers: 17,
-    totalQuestions: 20,
-  },
-  {
-    id: 'result-4',
-    testName: 'Motion Test',
-    subject: 'Physics',
-    teacher: 'Priya Sharma',
-    date: '28 Aug 2026',
-    marksObtained: 24,
-    totalMarks: 30,
-    percentage: 80,
-    feedback:
-      'Good attempt. Focus on interpreting motion graphs accurately.',
-    correctAnswers: 8,
-    totalQuestions: 10,
-  },
-];
-
-const subjects = ['All', 'Physics', 'Mathematics', 'Chemistry'];
 
 export default function ResultsPage({
   onContentScroll,
+  onViewUpcoming,
 }: ResultsPageProps) {
+  const [results, setResults] = useState<StudentTestResult[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState('All');
   const [selectedResult, setSelectedResult] =
-    useState<TestResult | null>(null);
+    useState<StudentTestResult | null>(null);
+
+  const loadResults = useCallback(async () => {
+    try {
+      const data = await fetchStudentResults();
+      setResults(data);
+    } catch (err) {
+      console.log('Error fetching student test results:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadResults();
+  }, [loadResults]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    void loadResults();
+  }, [loadResults]);
+
+  const subjects = useMemo(() => {
+    const set = new Set<string>();
+    results.forEach((r) => {
+      if (r.subject) set.add(r.subject);
+    });
+    return ['All', ...Array.from(set)];
+  }, [results]);
 
   const filteredResults = useMemo(() => {
     if (subjectFilter === 'All') {
-      return resultsData;
+      return results;
     }
 
-    return resultsData.filter(
+    return results.filter(
       (result) => result.subject === subjectFilter,
     );
-  }, [subjectFilter]);
+  }, [results, subjectFilter]);
 
   const averagePercentage =
-    resultsData.length > 0
+    results.length > 0
       ? Math.round(
-          resultsData.reduce(
+          results.reduce(
             (sum, result) => sum + result.percentage,
             0,
-          ) / resultsData.length,
+          ) / results.length,
         )
       : 0;
 
-  const totalMarksObtained = resultsData.reduce(
+  const totalMarksObtained = results.reduce(
     (sum, result) => sum + result.marksObtained,
     0,
   );
 
-  const totalMarks = resultsData.reduce(
+  const totalMarks = results.reduce(
     (sum, result) => sum + result.totalMarks,
     0,
   );
@@ -169,6 +134,14 @@ export default function ResultsPage({
         contentContainerStyle={styles.content}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#6630D7"
+            colors={['#6630D7']}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.headerRow}>
@@ -189,70 +162,97 @@ export default function ResultsPage({
           </View>
         </View>
 
-        {/* Overall Performance */}
-        <View style={styles.overallCard}>
-          <View style={styles.overallTop}>
-            <View>
-              <Text style={styles.overallLabel}>
-                OVERALL PERFORMANCE
-              </Text>
+        {/* Tab switcher: Upcoming Tests vs Results */}
+        <View style={styles.tabSwitcher}>
+          <Pressable
+            style={styles.tabButton}
+            onPress={() => {
+              if (onViewUpcoming) {
+                onViewUpcoming();
+              }
+            }}
+          >
+            <Ionicons name="calendar-outline" size={17} color="#7E7292" />
+            <Text style={styles.tabButtonText}>Upcoming Tests</Text>
+          </Pressable>
 
-              <Text style={styles.overallPercentage}>
-                {averagePercentage}%
-              </Text>
-
-              <Text style={styles.overallSubtext}>
-                Average across {resultsData.length} tests
-              </Text>
-            </View>
-
-            <View style={styles.circularPlaceholder}>
-              <Text style={styles.circleValue}>
-                {averagePercentage}%
-              </Text>
-
-              <Text style={styles.circleLabel}>
-                Average
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.overallStats}>
-            <View style={styles.overallStat}>
-              <Text style={styles.statValue}>
-                {totalMarksObtained}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Marks Obtained
-              </Text>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.overallStat}>
-              <Text style={styles.statValue}>
-                {totalMarks}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Total Marks
-              </Text>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.overallStat}>
-              <Text style={styles.statValue}>
-                {resultsData.length}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Tests
-              </Text>
-            </View>
+          <View style={[styles.tabButton, styles.activeTabButton]}>
+            <Ionicons name="trophy-outline" size={17} color="#6630D7" />
+            <Text style={[styles.tabButtonText, styles.activeTabButtonText]}>Past Results</Text>
           </View>
         </View>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6630D7" />
+            <Text style={styles.loadingText}>Loading test results...</Text>
+          </View>
+        ) : (
+          <>
+            {/* Overall Performance */}
+            <View style={styles.overallCard}>
+              <View style={styles.overallTop}>
+                <View>
+                  <Text style={styles.overallLabel}>
+                    OVERALL PERFORMANCE
+                  </Text>
+
+                  <Text style={styles.overallPercentage}>
+                    {averagePercentage}%
+                  </Text>
+
+                  <Text style={styles.overallSubtext}>
+                    Average across {results.length} tests
+                  </Text>
+                </View>
+
+                <View style={styles.circularPlaceholder}>
+                  <Text style={styles.circleValue}>
+                    {averagePercentage}%
+                  </Text>
+
+                  <Text style={styles.circleLabel}>
+                    Average
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.overallStats}>
+                <View style={styles.overallStat}>
+                  <Text style={styles.statValue}>
+                    {totalMarksObtained}
+                  </Text>
+
+                  <Text style={styles.statLabel}>
+                    Marks Obtained
+                  </Text>
+                </View>
+
+                <View style={styles.statDivider} />
+
+                <View style={styles.overallStat}>
+                  <Text style={styles.statValue}>
+                    {totalMarks}
+                  </Text>
+
+                  <Text style={styles.statLabel}>
+                    Total Marks
+                  </Text>
+                </View>
+
+                <View style={styles.statDivider} />
+
+                <View style={styles.overallStat}>
+                  <Text style={styles.statValue}>
+                    {results.length}
+                  </Text>
+
+                  <Text style={styles.statLabel}>
+                    Tests
+                  </Text>
+                </View>
+              </View>
+            </View>
 
         {/* Subject Filter */}
         <View style={styles.filterHeader}>
@@ -300,7 +300,26 @@ export default function ResultsPage({
           Test History
         </Text>
 
-        {filteredResults.map((result) => (
+        {filteredResults.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons
+                name="document-text-outline"
+                size={28}
+                color="#6630D7"
+              />
+            </View>
+
+            <Text style={styles.emptyTitle}>
+              No test results yet
+            </Text>
+
+            <Text style={styles.emptyText}>
+              Your evaluated test results and teacher feedback will appear here once you take a test.
+            </Text>
+          </View>
+        ) : (
+          filteredResults.map((result) => (
           <Pressable
             key={result.id}
             style={styles.resultCard}
@@ -443,7 +462,8 @@ export default function ResultsPage({
               />
             </View>
           </Pressable>
-        ))}
+        ))
+        )}
 
         {/* Performance Note */}
         <View style={styles.performanceCard}>
@@ -466,6 +486,8 @@ export default function ResultsPage({
             </Text>
           </View>
         </View>
+        </>
+        )}
 
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -710,6 +732,91 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+
+  tabSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: '#EBE5F7',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+    gap: 6,
+  },
+
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+
+  activeTabButton: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+
+  tabButtonText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 13,
+    color: '#7E7292',
+  },
+
+  activeTabButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    color: '#6630D7',
+  },
+
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+
+  loadingText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 13,
+    color: '#8A82A0',
+    marginTop: 10,
+  },
+
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 24,
+    alignItems: 'center',
+    marginTop: 6,
+    marginBottom: 16,
+  },
+
+  emptyIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#EEE7FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  emptyTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 15,
+    color: '#24212D',
+  },
+
+  emptyText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    color: '#8A82A0',
+    textAlign: 'center',
+    marginTop: 4,
   },
 
   headerText: {

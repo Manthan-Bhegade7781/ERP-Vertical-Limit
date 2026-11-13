@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -22,10 +23,12 @@ import MyClassesPage from './Classes/MyClassesPage';
 import TimetablePage from './Classes/TimetablePage';
 
 import AttendancePage from './Attendance/AttendancePage';
+import { getMyAttendance, StudentAttendanceData } from '../../services/attendance';
 
 import StudyMaterialsPage from './Learning/StudyMaterialsPage';
 import LectureNotesPage from './Learning/LectureNotesPage';
 import AssignmentsPage from './Learning/AssignmentsPage';
+import { fetchAssignments } from '../../services/assignments';
 
 import UpcomingTestsPage from './Tests/UpcomingTestsPage';
 import TakeTestPage from './Tests/TakeTestPage';
@@ -37,13 +40,21 @@ import FeeOverviewPage from './Fees/FeeOverviewPage';
 import PaymentHistoryPage from './Fees/PaymentHistoryPage';
 import PayFeesPage from './Fees/PayFeesPage';
 import FeeReceipt from './Fees/FeeReceipt';
+import { getMyFees, StudentFeesSummary } from '../../services/fees';
 
 import StudentProfilePage from './Profile/StudentProfilePage';
 import ChangePasswordPage from './Profile/ChangePasswordPage';
 
 import HelpSupportPage from './Support/HelpSupportPage';
 
+import AnnouncementsPage from './Announcements/AnnouncementsPage';
+import AcademicCalendarPage from './AcademicCalendar/AcademicCalendarPage';
+import FeedbackPage from './Feedback/FeedbackPage';
+import PTGPage from './PTG/PTGPage';
+import StudentMessagesPage from './Messages/StudentMessagesPage';
+
 import NotificationsPage from './Notifications/NotificationsPage';
+import { fetchUnreadNotificationCount } from '../../services/notifications';
 
 type BottomTab =
   | 'home'
@@ -71,7 +82,12 @@ type CurrentPage =
   | 'profile'
   | 'changePassword'
   | 'helpSupport'
-  | 'notifications';
+  | 'notifications'
+  | 'announcements'
+  | 'academicCalendar'
+  | 'feedback'
+  | 'ptg'
+  | 'messages';
 
 type PageBackButtonProps = {
   title: string;
@@ -104,7 +120,7 @@ function PageBackButton({
 }
 
 export default function StudentDashboard() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -119,6 +135,86 @@ export default function StudentDashboard() {
 
   const [currentPage, setCurrentPage] =
     useState<CurrentPage>('home');
+
+  const [attendanceData, setAttendanceData] =
+    useState<StudentAttendanceData | null>(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+
+  const fetchAttendance = useCallback(async () => {
+    try {
+      setLoadingAttendance(true);
+      const res = await getMyAttendance();
+      setAttendanceData(res);
+    } catch (error) {
+      console.log('Error fetching student attendance:', error);
+    } finally {
+      setLoadingAttendance(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchAttendance();
+  }, [fetchAttendance]);
+
+  const [feesSummary, setFeesSummary] = useState<StudentFeesSummary | null>(null);
+  const [selectedReceiptPayment, setSelectedReceiptPayment] = useState<any | null>(null);
+  const [selectedExamTest, setSelectedExamTest] = useState<any | null>(null);
+
+  const fetchFees = useCallback(async () => {
+    try {
+      const res = await getMyFees();
+      setFeesSummary(res);
+    } catch (err) {
+      console.log('Error fetching student fees:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchFees();
+  }, [fetchFees]);
+
+  const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState<number>(0);
+
+  const fetchAssignmentsCount = useCallback(async () => {
+    try {
+      const records = await fetchAssignments();
+      setPendingAssignmentsCount(records.length);
+    } catch (err) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchAssignmentsCount();
+  }, [fetchAssignmentsCount]);
+
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState<number>(0);
+
+  const fetchUnreadNotifications = useCallback(async () => {
+    try {
+      const count = await fetchUnreadNotificationCount();
+      setUnreadNotificationCount(count);
+    } catch (err) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchUnreadNotifications();
+  }, [fetchUnreadNotifications]);
+
+  const [homeRefreshing, setHomeRefreshing] = useState(false);
+
+  const handleHomeRefresh = async () => {
+    setHomeRefreshing(true);
+    await Promise.allSettled([
+      fetchAttendance(),
+      fetchFees(),
+      fetchAssignmentsCount(),
+      fetchUnreadNotifications(),
+    ]);
+    setHomeRefreshing(false);
+  };
 
   const bottomNavTranslateY = useRef(
     new Animated.Value(0),
@@ -241,9 +337,26 @@ export default function StudentDashboard() {
   return (
     <View style={styles.pageContainer}>
       <StudentHeader
+        unreadCount={unreadNotificationCount}
         onNotificationPress={() =>
           openPage('notifications')
         }
+        onViewAllNotifications={() =>
+          openPage('notifications')
+        }
+        onAnnouncementPress={() =>
+          openPage('announcements')
+        }
+        onPTGPress={() =>
+          openPage('ptg')
+        }
+        onMessagesPress={() =>
+          openPage('messages')
+        }
+        onProfilePress={() =>
+          openPage('profile', 'profile')
+        }
+        onLogoutPress={handleLogout}
       />
 
       <Animated.ScrollView
@@ -251,8 +364,19 @@ export default function StudentDashboard() {
         onScroll={handleContentScroll}
         scrollEventThrottle={16}
         contentContainerStyle={styles.homeContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={homeRefreshing}
+            onRefresh={handleHomeRefresh}
+            colors={['#6630D7']}
+            tintColor="#6630D7"
+          />
+        }
       >
         <StudentOverview
+          attendancePercentage={attendanceData?.overall?.percentage}
+          pendingFees={feesSummary?.pendingFees ?? 0}
+          pendingAssignmentsCount={pendingAssignmentsCount}
           onAttendancePress={() =>
             openPage('attendance')
           }
@@ -268,6 +392,9 @@ export default function StudentDashboard() {
           onTimetablePress={() =>
             openPage('timetable', 'classes')
           }
+          onAssignmentsPress={() =>
+            openPage('assignments')
+          }
         />
 
         <QuickAccessSection
@@ -277,8 +404,29 @@ export default function StudentDashboard() {
           onAttendancePress={() =>
             openPage('attendance')
           }
+          onLectureNotesPress={() =>
+            openPage('lectureNotes')
+          }
           onTestsPress={() =>
             openPage('upcomingTests', 'tests')
+          }
+          onAnnouncementsPress={() =>
+            openPage('announcements')
+          }
+          onCalendarPress={() =>
+            openPage('academicCalendar')
+          }
+          onFeedbackPress={() =>
+            openPage('feedback')
+          }
+          onPTGPress={() =>
+            openPage('ptg')
+          }
+          onMessagesPress={() =>
+            openPage('messages')
+          }
+          onHelpPress={() =>
+            openPage('helpSupport', 'profile')
           }
         />
 
@@ -353,6 +501,9 @@ export default function StudentDashboard() {
         />
 
         <AttendancePage
+          data={attendanceData}
+          loading={loadingAttendance}
+          onRefresh={fetchAttendance}
           onContentScroll={
             handleContentScroll
           }
@@ -381,6 +532,7 @@ export default function StudentDashboard() {
           onContentScroll={
             handleContentScroll
           }
+          onNavigate={(page) => openPage(page)}
         />
 
         {renderBottomNav()}
@@ -402,6 +554,7 @@ export default function StudentDashboard() {
           onContentScroll={
             handleContentScroll
           }
+          onNavigate={(page) => openPage(page)}
         />
 
         {renderBottomNav()}
@@ -423,6 +576,7 @@ export default function StudentDashboard() {
           onContentScroll={
             handleContentScroll
           }
+          onNavigate={(page) => openPage(page)}
         />
 
         {renderBottomNav()}
@@ -448,6 +602,11 @@ export default function StudentDashboard() {
           onContentScroll={
             handleContentScroll
           }
+          onTakeTest={(test) => {
+            setSelectedExamTest(test);
+            openPage('takeTest', 'tests');
+          }}
+          onViewResults={() => openPage('results', 'tests')}
         />
 
         {renderBottomNav()}
@@ -469,9 +628,12 @@ export default function StudentDashboard() {
         />
 
         <TakeTestPage
+          test={selectedExamTest}
           onContentScroll={
             handleContentScroll
           }
+          onBack={() => openPage('upcomingTests', 'tests')}
+          onTestSubmitted={() => openPage('results', 'tests')}
         />
 
         {renderBottomNav()}
@@ -496,6 +658,7 @@ export default function StudentDashboard() {
           onContentScroll={
             handleContentScroll
           }
+          onViewUpcoming={() => openPage('upcomingTests', 'tests')}
         />
 
         {renderBottomNav()}
@@ -543,8 +706,16 @@ export default function StudentDashboard() {
         />
 
         <FeeOverviewPage
+          data={feesSummary}
+          onRefresh={fetchFees}
           onContentScroll={
             handleContentScroll
+          }
+          onPaymentHistoryPress={() =>
+            openPage('paymentHistory', 'fees')
+          }
+          onPayFeesPress={() =>
+            openPage('payFees', 'fees')
           }
         />
 
@@ -567,9 +738,14 @@ export default function StudentDashboard() {
         />
 
         <PaymentHistoryPage
+          onRefresh={fetchFees}
           onContentScroll={
             handleContentScroll
           }
+          onReceiptPress={(payment) => {
+            setSelectedReceiptPayment(payment);
+            openPage('feeReceipt', 'fees');
+          }}
         />
 
         {renderBottomNav()}
@@ -591,8 +767,23 @@ export default function StudentDashboard() {
         />
 
         <PayFeesPage
+          feeRecords={feesSummary?.records}
           onContentScroll={
             handleContentScroll
+          }
+          onPaymentSuccess={(payment) => {
+            setSelectedReceiptPayment(payment);
+            void fetchFees();
+          }}
+          onViewReceipt={(payment) => {
+            setSelectedReceiptPayment(payment);
+            openPage('feeReceipt', 'fees');
+          }}
+          onBack={() =>
+            openPage(
+              'feeOverview',
+              'fees',
+            )
           }
         />
 
@@ -615,8 +806,21 @@ export default function StudentDashboard() {
         />
 
         <FeeReceipt
+          payment={selectedReceiptPayment}
+          studentInfo={{
+            name: user?.fullName,
+            studentId: user?.studentId,
+            standard: user?.standard,
+            batchName: user?.batchName,
+          }}
           onContentScroll={
             handleContentScroll
+          }
+          onBack={() =>
+            openPage(
+              'feeOverview',
+              'fees',
+            )
           }
         />
 
@@ -646,6 +850,18 @@ export default function StudentDashboard() {
           }
           onHelpPress={() =>
             openPage('helpSupport', 'profile')
+          }
+          onCalendarPress={() =>
+            openPage('academicCalendar')
+          }
+          onFeedbackPress={() =>
+            openPage('feedback')
+          }
+          onPTGPress={() =>
+            openPage('ptg')
+          }
+          onMessagesPress={() =>
+            openPage('messages')
           }
           onLogout={handleLogout}
         />
@@ -735,6 +951,131 @@ export default function StudentDashboard() {
           onContentScroll={
             handleContentScroll
           }
+          onNavigate={(targetPage) => openPage(targetPage as any)}
+          onUnreadCountChange={setUnreadNotificationCount}
+        />
+
+        {renderBottomNav()}
+      </View>
+    );
+  };
+
+  /* =========================
+     ANNOUNCEMENTS
+  ========================= */
+
+  const renderAnnouncements = () => {
+    return (
+      <View style={styles.pageContainer}>
+        <PageBackButton
+          title="Announcements"
+          onBack={() =>
+            openPage('home', 'home')
+          }
+        />
+
+        <AnnouncementsPage
+          onContentScroll={
+            handleContentScroll
+          }
+        />
+
+        {renderBottomNav()}
+      </View>
+    );
+  };
+
+  /* =========================
+     ACADEMIC CALENDAR
+  ========================= */
+
+  const renderAcademicCalendar = () => {
+    return (
+      <View style={styles.pageContainer}>
+        <PageBackButton
+          title="Academic Calendar"
+          onBack={() =>
+            openPage('home', 'home')
+          }
+        />
+
+        <AcademicCalendarPage
+          onContentScroll={
+            handleContentScroll
+          }
+        />
+
+        {renderBottomNav()}
+      </View>
+    );
+  };
+
+  /* =========================
+     FEEDBACK
+  ========================= */
+
+  const renderFeedback = () => {
+    return (
+      <View style={styles.pageContainer}>
+        <PageBackButton
+          title="Feedback"
+          onBack={() =>
+            openPage('home', 'home')
+          }
+        />
+
+        <FeedbackPage
+          onContentScroll={
+            handleContentScroll
+          }
+        />
+
+        {renderBottomNav()}
+      </View>
+    );
+  };
+
+  /* =========================
+     PTG MEETINGS
+  ========================= */
+
+  const renderPTG = () => {
+    return (
+      <View style={styles.pageContainer}>
+        <PageBackButton
+          title="PTG Schedule"
+          onBack={() =>
+            openPage('home', 'home')
+          }
+        />
+
+        <PTGPage
+          onContentScroll={handleContentScroll}
+          onNavigateToMessages={() => openPage('messages')}
+        />
+
+        {renderBottomNav()}
+      </View>
+    );
+  };
+
+  /* =========================
+     STUDENT MESSAGES
+  ========================= */
+
+  const renderMessages = () => {
+    return (
+      <View style={styles.pageContainer}>
+        <PageBackButton
+          title="Messages"
+          onBack={() =>
+            openPage('home', 'home')
+          }
+        />
+
+        <StudentMessagesPage
+          onContentScroll={handleContentScroll}
+          onNavigateToPTG={() => openPage('ptg')}
         />
 
         {renderBottomNav()}
@@ -803,6 +1144,21 @@ export default function StudentDashboard() {
 
     case 'notifications':
       return renderNotifications();
+
+    case 'announcements':
+      return renderAnnouncements();
+
+    case 'academicCalendar':
+      return renderAcademicCalendar();
+
+    case 'feedback':
+      return renderFeedback();
+
+    case 'ptg':
+      return renderPTG();
+
+    case 'messages':
+      return renderMessages();
 
     default:
       return renderHome();

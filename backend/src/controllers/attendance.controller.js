@@ -758,6 +758,159 @@ const getStudentAttendanceSummary = async (req, res) => {
 };
 
 // =====================================================
+// GET LOGGED-IN STUDENT ATTENDANCE
+// GET /api/attendance/my
+// =====================================================
+
+const getMyAttendance = async (req, res) => {
+  try {
+    const user = req.user;
+
+    const student = await Student.findOne({ userId: user._id });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student profile not found.",
+      });
+    }
+
+    const records = await Attendance.find({ studentId: student._id })
+      .populate("subjectId", "name code standard")
+      .populate("markedBy", "fullName email")
+      .populate("batchId", "name code standard")
+      .sort({ date: -1, createdAt: -1 });
+
+    let present = 0;
+    let absent = 0;
+    let late = 0;
+    let leave = 0;
+
+    for (const record of records) {
+      if (record.status === "Present") present++;
+      else if (record.status === "Absent") absent++;
+      else if (record.status === "Late") late++;
+      else if (record.status === "Leave") leave++;
+    }
+
+    const totalDays = records.length;
+    const attendedCount = present + late;
+    const percentage =
+      totalDays === 0 ? 0 : Math.round((attendedCount / totalDays) * 100);
+
+    const subjectMap = new Map();
+
+    for (const record of records) {
+      const subId = record.subjectId?._id?.toString() || "other";
+      const subName = record.subjectId?.name || "General";
+
+      if (!subjectMap.has(subId)) {
+        subjectMap.set(subId, {
+          subjectId: subId,
+          subject: subName,
+          present: 0,
+          absent: 0,
+          late: 0,
+          leave: 0,
+          total: 0,
+        });
+      }
+
+      const s = subjectMap.get(subId);
+      s.total++;
+      if (record.status === "Present" || record.status === "Late") {
+        s.present++;
+      } else if (record.status === "Absent") {
+        s.absent++;
+      } else if (record.status === "Leave") {
+        s.leave++;
+      }
+    }
+
+    // Also include subjects assigned to the student's batch even if no attendance yet
+    if (student.batchId) {
+      const batchSubjects = await BatchSubject.find({
+        batchId: student.batchId,
+        status: "active",
+      }).populate("subjectId", "name code");
+
+      for (const bs of batchSubjects) {
+        if (bs.subjectId) {
+          const subId = bs.subjectId._id.toString();
+          if (!subjectMap.has(subId)) {
+            subjectMap.set(subId, {
+              subjectId: subId,
+              subject: bs.subjectId.name,
+              present: 0,
+              absent: 0,
+              late: 0,
+              leave: 0,
+              total: 0,
+            });
+          }
+        }
+      }
+    }
+
+    const subjectList = Array.from(subjectMap.values()).map((s) => ({
+      ...s,
+      percentage: s.total === 0 ? 0 : Math.round((s.present / s.total) * 100),
+    }));
+
+    const formattedRecords = records.map((record) => {
+      const d = new Date(record.date);
+      const dateFormatted = !isNaN(d.getTime())
+        ? d.toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "";
+
+      return {
+        id: record._id.toString(),
+        date: dateFormatted,
+        isoDate: record.date,
+        subject: record.subjectId?.name || "Subject",
+        teacher: record.markedBy?.fullName || "Teacher",
+        time: record.checkIn || "10:00 AM",
+        status: record.status === "Late" ? "Present" : record.status,
+        rawStatus: record.status,
+        remarks: record.remarks || "",
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        overall: {
+          percentage,
+          present: attendedCount,
+          absent,
+          total: totalDays,
+          statusText:
+            percentage >= 85
+              ? "Good attendance"
+              : percentage >= 75
+              ? "Average attendance"
+              : "Needs improvement",
+        },
+        subjects: subjectList,
+        recent: formattedRecords.slice(0, 5),
+        records: formattedRecords,
+      },
+    });
+  } catch (error) {
+    console.error("Get my attendance error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch attendance records.",
+    });
+  }
+};
+
+// =====================================================
 // EXPORT CONTROLLERS
 // =====================================================
 
@@ -767,4 +920,5 @@ module.exports = {
   getAttendanceById,
   updateAttendance,
   getStudentAttendanceSummary,
+  getMyAttendance,
 };

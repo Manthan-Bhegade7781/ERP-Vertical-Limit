@@ -117,6 +117,9 @@ const formatAnnouncementDate = (value?: string | null) => {
 const toIsoDate = (value: string) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getFullYear() < 100) {
+    parsed.setFullYear(2000 + parsed.getFullYear());
+  }
   return parsed.toISOString();
 };
 

@@ -8,6 +8,7 @@ const {
   getAttendanceById,
   updateAttendance,
   getStudentAttendanceSummary,
+  getMyAttendance,
 } = require("../controllers/attendance.controller");
 
 const { protect } = require("../middleware/auth.middleware");
@@ -18,6 +19,13 @@ const {
 
 // All attendance endpoints require authentication.
 router.use(protect);
+
+// Student: view own attendance
+router.get(
+  "/my",
+  authorizeRoles("student"),
+  getMyAttendance
+);
 
 // Mark attendance
 router.post(

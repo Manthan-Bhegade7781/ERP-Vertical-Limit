@@ -1,111 +1,75 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-type Test = {
-  id: string;
-  title: string;
-  subject: string;
-  teacher: string;
-  date: string;
-  day: string;
-  time: string;
-  duration: string;
-  totalMarks: number;
-  syllabus: string;
-  room: string;
-  mode: 'Offline' | 'Online';
-};
+import {
+  fetchStudentUpcomingTests,
+  type StudentUpcomingTest,
+} from '@/services/examinations';
 
 type UpcomingTestsPageProps = {
   onContentScroll?: (event: any) => void;
-  onTakeTest?: (test: Test) => void;
+  onTakeTest?: (test: StudentUpcomingTest) => void;
+  onViewResults?: () => void;
 };
-
-const testsData: Test[] = [
-  {
-    id: 'test-1',
-    title: 'Physics Unit Test',
-    subject: 'Physics',
-    teacher: 'Priya Sharma',
-    date: '18 Sep 2026',
-    day: 'Friday',
-    time: '10:00 AM',
-    duration: '60 mins',
-    totalMarks: 30,
-    syllabus: 'Newton’s Laws, Motion, Force and Friction',
-    room: 'Room 204',
-    mode: 'Offline',
-  },
-  {
-    id: 'test-2',
-    title: 'Mathematics Chapter Test',
-    subject: 'Mathematics',
-    teacher: 'Rahul Sir',
-    date: '21 Sep 2026',
-    day: 'Monday',
-    time: '2:00 PM',
-    duration: '60 mins',
-    totalMarks: 40,
-    syllabus: 'Quadratic Equations and Polynomials',
-    room: 'Room 105',
-    mode: 'Offline',
-  },
-  {
-    id: 'test-3',
-    title: 'Chemistry Test',
-    subject: 'Chemistry',
-    teacher: 'Anjali Ma’am',
-    date: '24 Sep 2026',
-    day: 'Thursday',
-    time: '11:00 AM',
-    duration: '45 mins',
-    totalMarks: 25,
-    syllabus: 'Chemical Reactions and Equations',
-    room: 'Lab 2',
-    mode: 'Offline',
-  },
-  {
-    id: 'test-4',
-    title: 'Science Revision Test',
-    subject: 'Physics',
-    teacher: 'Priya Sharma',
-    date: '28 Sep 2026',
-    day: 'Monday',
-    time: '9:30 AM',
-    duration: '90 mins',
-    totalMarks: 50,
-    syllabus: 'Motion, Force, Energy and Work',
-    room: 'Room 204',
-    mode: 'Offline',
-  },
-];
-
-const subjects = ['All', 'Physics', 'Mathematics', 'Chemistry'];
 
 export default function UpcomingTestsPage({
   onContentScroll,
   onTakeTest,
+  onViewResults,
 }: UpcomingTestsPageProps) {
+  const [tests, setTests] = useState<StudentUpcomingTest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState('All');
-  const [selectedTest, setSelectedTest] = useState<Test | null>(null);
+  const [selectedTest, setSelectedTest] = useState<StudentUpcomingTest | null>(null);
+
+  const loadTests = useCallback(async () => {
+    try {
+      const data = await fetchStudentUpcomingTests();
+      setTests(data);
+    } catch (err) {
+      console.log('Error fetching student upcoming tests:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTests();
+  }, [loadTests]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    void loadTests();
+  }, [loadTests]);
+
+  const subjects = useMemo(() => {
+    const list = new Set<string>();
+    tests.forEach((t) => {
+      if (t.subject) list.add(t.subject);
+    });
+    return ['All', ...Array.from(list)];
+  }, [tests]);
 
   const filteredTests = useMemo(() => {
     if (subjectFilter === 'All') {
-      return testsData;
+      return tests;
     }
 
-    return testsData.filter(
+    return tests.filter(
       (test) => test.subject === subjectFilter,
     );
-  }, [subjectFilter]);
+  }, [tests, subjectFilter]);
 
   const getSubjectBackground = (subject: string) => {
     switch (subject) {
@@ -133,7 +97,7 @@ export default function UpcomingTestsPage({
     }
   };
 
-  const handleTakeTest = (test: Test) => {
+  const handleTakeTest = (test: StudentUpcomingTest) => {
     setSelectedTest(null);
 
     if (onTakeTest) {
@@ -148,6 +112,14 @@ export default function UpcomingTestsPage({
         contentContainerStyle={styles.content}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#6630D7"
+            colors={['#6630D7']}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.headerRow}>
@@ -167,6 +139,34 @@ export default function UpcomingTestsPage({
             />
           </View>
         </View>
+
+        {/* Tab switcher: Upcoming Tests vs Results */}
+        <View style={styles.tabSwitcher}>
+          <View style={[styles.tabButton, styles.activeTabButton]}>
+            <Ionicons name="calendar-outline" size={17} color="#6630D7" />
+            <Text style={[styles.tabButtonText, styles.activeTabButtonText]}>Upcoming Tests</Text>
+          </View>
+
+          <Pressable
+            style={styles.tabButton}
+            onPress={() => {
+              if (onViewResults) {
+                onViewResults();
+              }
+            }}
+          >
+            <Ionicons name="trophy-outline" size={17} color="#7E7292" />
+            <Text style={styles.tabButtonText}>Past Results</Text>
+          </Pressable>
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6630D7" />
+            <Text style={styles.loadingText}>Loading upcoming tests...</Text>
+          </View>
+        ) : (
+          <>
 
         {/* Next Test */}
         {filteredTests.length > 0 && (
@@ -448,6 +448,8 @@ export default function UpcomingTestsPage({
             </Text>
           </View>
         </View>
+        </>
+        )}
 
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -658,6 +660,58 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+
+  tabSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: '#EBE5F7',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+    gap: 6,
+  },
+
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+
+  activeTabButton: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+
+  tabButtonText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 13,
+    color: '#7E7292',
+  },
+
+  activeTabButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    color: '#6630D7',
+  },
+
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+
+  loadingText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 13,
+    color: '#8A82A0',
+    marginTop: 10,
   },
 
   headerText: {

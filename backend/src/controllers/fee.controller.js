@@ -589,9 +589,10 @@ const getMyFeeRecords = async (req, res) => {
     }).select("_id studentId");
 
     if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student profile not found",
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
       });
     }
 
@@ -631,6 +632,143 @@ const getMyFeeRecords = async (req, res) => {
       success: false,
       message: "Failed to fetch your fee records",
     });
+  }
+};
+
+// --------------------------------------------------
+// 6b. Student pays their own fee
+// POST /api/fees/my/pay
+// --------------------------------------------------
+
+const payStudentFee = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    const student = await Student.findOne({ userId: req.user._id }).select(
+      "_id studentId userId"
+    );
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student profile not found",
+      });
+    }
+
+    const {
+      feeRecordId,
+      amount,
+      method = "UPI",
+      reference = "",
+      remarks = "",
+    } = req.body;
+
+    if (!isValidId(feeRecordId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid feeRecordId is required",
+      });
+    }
+
+    const paymentAmount = Number(amount);
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment amount must be greater than zero",
+      });
+    }
+
+    const validMethods = ["Cash", "UPI", "Card", "Bank Transfer"];
+    const normalizedMethod = validMethods.includes(method) ? method : "UPI";
+
+    let paymentId;
+
+    await session.withTransaction(async () => {
+      const fee = await FeeRecord.findOne({
+        _id: feeRecordId,
+        studentId: student._id,
+      }).session(session);
+
+      if (!fee) {
+        const error = new Error("Fee record not found for this student");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const balance =
+        Math.round((fee.totalAmount - fee.paidAmount) * 100) / 100;
+
+      if (paymentAmount > balance) {
+        const error = new Error(
+          `Payment exceeds the outstanding balance of ₹${balance.toFixed(2)}`
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const receiptNumber = `VL-${Date.now()}-${new mongoose.Types.ObjectId()
+        .toString()
+        .slice(-6)
+        .toUpperCase()}`;
+
+      const [payment] = await Payment.create(
+        [
+          {
+            feeRecordId: fee._id,
+            amount: Math.round(paymentAmount * 100) / 100,
+            paymentDate: new Date(),
+            method: normalizedMethod,
+            receiptNumber,
+            reference:
+              String(reference).trim() ||
+              `TXN${Math.floor(10000000 + Math.random() * 89999999)}`,
+            remarks: String(remarks).trim() || "Online student fee payment",
+            receivedBy: req.user._id,
+          },
+        ],
+        { session }
+      );
+
+      fee.paidAmount =
+        Math.round((fee.paidAmount + paymentAmount) * 100) / 100;
+
+      await fee.save({ session });
+
+      paymentId = payment._id;
+    });
+
+    const payment = await Payment.findById(paymentId);
+    const updatedFee = await FeeRecord.findById(feeRecordId)
+      .populate("batchId", "name code standard academicYear")
+      .populate("branchId", "name code");
+
+    // Super Admin notification
+    await notifySuperAdmins({
+      title: "Student Online Fee Payment",
+      message: `Student ${student.studentId} paid ₹${Number(
+        payment.amount
+      ).toFixed(2)} for ${updatedFee.feeType} (${payment.receiptNumber}).`,
+      icon: "cash-check",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Payment completed successfully",
+      data: {
+        payment,
+        fee: formatFee(updatedFee),
+      },
+    });
+  } catch (error) {
+    console.error("Student fee payment error:", error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.statusCode
+        ? error.message
+        : "Failed to process fee payment",
+    });
+  } finally {
+    await session.endSession();
   }
 };
 
@@ -823,4 +961,5 @@ module.exports = {
   recordPayment,
   getPaymentHistory,
   getMyFeeRecords,
+  payStudentFee,
 };

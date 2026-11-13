@@ -303,13 +303,12 @@ export default function AddAssignmentsPage() {
         totalMarks: marks,
         description: description.trim(),
         instructions: instructions.trim(),
+        ...(pdfUri ? { file: { uri: pdfUri, name: pdfName || 'Notes.pdf', type: 'application/pdf' } } : {}),
       });
 
       Alert.alert(
         "Success",
-        pdfUri
-          ? "Assignment created successfully. The selected PDF was not uploaded because the current backend assignment route does not support file uploads yet."
-          : "Assignment created successfully.",
+        "Assignment created successfully.",
         [{
           text: "OK",
           onPress: () => router.replace({

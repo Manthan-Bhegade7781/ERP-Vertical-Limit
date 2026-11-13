@@ -7,6 +7,7 @@ const {
   getStudentById,
   updateStudent,
   updateStudentStatus,
+  getMyClasses,
 } = require("../controllers/student.controller");
 
 const { protect } = require("../middleware/auth.middleware");
@@ -28,6 +29,14 @@ router.get(
   protect,
   authorizeRoles("super_admin", "admin"),
   getStudents
+);
+
+// Get logged-in student classes
+router.get(
+  "/my/classes",
+  protect,
+  authorizeRoles("student"),
+  getMyClasses
 );
 
 // Get student by ID

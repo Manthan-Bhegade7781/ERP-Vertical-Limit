@@ -601,6 +601,94 @@ const updateStudentStatus = async (req, res) => {
 };
 
 // =====================================================
+// GET LOGGED-IN STUDENT CLASSES & BATCH INFO
+// =====================================================
+
+const getMyClasses = async (req, res) => {
+  try {
+    const student = await Student.findOne({ userId: req.user._id })
+      .populate({
+        path: "batchId",
+        populate: { path: "branchId", select: "name code address city" },
+      });
+
+    if (!student || !student.batchId) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          batches: [],
+          currentBatch: null,
+        },
+      });
+    }
+
+    const batch = student.batchId;
+
+    // Get count of students in this batch
+    const studentsCount = await Student.countDocuments({
+      batchId: batch._id,
+      status: "active",
+    });
+
+    // Get active subjects for this batch
+    const BatchSubject = require("../models/BatchSubject");
+    const batchSubjects = await BatchSubject.find({
+      batchId: batch._id,
+      status: "active",
+    })
+      .populate("subjectId", "name code standard type description")
+      .populate("teacherId", "fullName email mobileNumber");
+
+    const subjects = batchSubjects.map((bs) => ({
+      _id: bs.subjectId?._id,
+      batchSubjectId: bs._id,
+      name: bs.subjectId?.name || "Subject",
+      code: bs.subjectId?.code || "",
+      teacher: bs.teacherId?.fullName || "Unassigned",
+      teacherEmail: bs.teacherId?.email || "",
+      teacherMobile: bs.teacherId?.mobileNumber || "",
+      type: bs.subjectId?.type || "Core",
+    }));
+
+    const daysCount = Array.isArray(batch.schedule?.days)
+      ? batch.schedule.days.length
+      : 0;
+
+    const formattedBatch = {
+      _id: batch._id,
+      name: batch.name,
+      code: batch.code,
+      standard: batch.standard,
+      branch: batch.branchId?.name
+        ? `Vertical Limits • ${batch.branchId.name}`
+        : "Vertical Limits • Main Branch",
+      branchName: batch.branchId?.name || "Main Branch",
+      academicYear: batch.academicYear,
+      studentsCount: studentsCount || 1,
+      subjectsCount: subjects.length,
+      daysPerWeek: daysCount || 6,
+      schedule: batch.schedule || { startTime: "", endTime: "", days: [] },
+      subjects,
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        batches: [formattedBatch],
+        currentBatch: formattedBatch,
+      },
+    });
+  } catch (error) {
+    console.error("Get student classes error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch student classes",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
 // EXPORT CONTROLLERS
 // =====================================================
 
@@ -610,4 +698,5 @@ module.exports = {
   getStudentById,
   updateStudent,
   updateStudentStatus,
+  getMyClasses,
 };

@@ -29,6 +29,7 @@ export type AssignmentPayload = {
   totalMarks: number;
   description?: string;
   instructions?: string;
+  file?: { uri: string; name: string; type?: string };
 };
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -62,20 +63,99 @@ export async function fetchAssignments(): Promise<AssignmentRecord[]> {
   return Array.isArray(result.data) ? result.data : [];
 }
 
-export async function createAssignment(payload: AssignmentPayload): Promise<AssignmentRecord> {
-  const result = await request<{ data?: AssignmentRecord }>('/assignments', {
+export async function createAssignment(payload: AssignmentPayload | FormData): Promise<AssignmentRecord> {
+  const token = await getToken();
+  let body: any;
+  let headers: Record<string, string> = { Accept: 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  if (payload instanceof FormData) {
+    body = payload;
+  } else if (payload.file) {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (k === 'file' && v && typeof v === 'object') {
+        const fileObj = v as { uri: string; name: string; type?: string };
+        formData.append('attachment', {
+          uri: fileObj.uri,
+          name: fileObj.name || 'assignment.pdf',
+          type: fileObj.type || 'application/pdf',
+        } as any);
+      } else if (v !== undefined && v !== null) {
+        formData.append(k, String(v));
+      }
+    });
+    body = formData;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(payload);
+  }
+
+  const response = await fetch(`${API_BASE_URL}/assignments`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    headers,
+    body,
   });
+
+  const raw = await response.text();
+  let result: any = {};
+  try {
+    result = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(`Server returned an invalid response (HTTP ${response.status}).`);
+  }
+
+  if (!response.ok || result.success === false) {
+    throw new Error(result.message || `Request failed (HTTP ${response.status}).`);
+  }
   if (!result.data) throw new Error('Assignment was created but no assignment data was returned.');
   return result.data;
 }
 
-export async function updateAssignment(id: string, payload: Partial<AssignmentPayload>): Promise<AssignmentRecord> {
-  const result = await request<{ data?: AssignmentRecord }>(`/assignments/${id}`, {
+export async function updateAssignment(id: string, payload: Partial<AssignmentPayload> | FormData): Promise<AssignmentRecord> {
+  const token = await getToken();
+  let body: any;
+  let headers: Record<string, string> = { Accept: 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  if (payload instanceof FormData) {
+    body = payload;
+  } else if ((payload as any).file) {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (k === 'file' && v) {
+        formData.append('attachment', {
+          uri: (v as any).uri,
+          name: (v as any).name || 'assignment.pdf',
+          type: (v as any).type || 'application/pdf',
+        } as any);
+      } else if (v !== undefined && v !== null) {
+        formData.append(k, String(v));
+      }
+    });
+    body = formData;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(payload);
+  }
+
+  const response = await fetch(`${API_BASE_URL}/assignments/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(payload),
+    headers,
+    body,
   });
+
+  const raw = await response.text();
+  let result: any = {};
+  try {
+    result = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(`Server returned an invalid response (HTTP ${response.status}).`);
+  }
+
+  if (!response.ok || result.success === false) {
+    throw new Error(result.message || `Request failed (HTTP ${response.status}).`);
+  }
   if (!result.data) throw new Error('No updated assignment data was returned.');
   return result.data;
 }

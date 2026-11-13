@@ -40,7 +40,7 @@ export default function QuickAccessCard({
       >
         <Ionicons
           name={icon}
-          size={22}
+          size={18}
           color={color}
         />
       </View>
@@ -67,8 +67,8 @@ const styles = StyleSheet.create({
   },
 
   iconBox: {
-    width: 40,
-    height: 40,
+    width: 35,
+    height: 35,
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   label: {
     flex: 1,
     color: '#242637',
-    fontSize: 10.5,
+    fontSize: 10,
     lineHeight: 14,
     fontFamily: 'PoppinsSemiBold',
   },

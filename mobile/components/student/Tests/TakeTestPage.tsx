@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -9,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { submitStudentTest } from '@/services/examinations';
 
 type Test = {
   id: string;
@@ -170,11 +172,13 @@ export default function TakeTestPage({
     Record<string, number>
   >({});
 
-  const [secondsLeft, setSecondsLeft] = useState(60 * 60);
+  const durationMinutes = (test as any).durationMinutes || (parseInt(test.duration, 10) || 60);
+  const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
 
   const [showSubmitModal, setShowSubmitModal] =
     useState(false);
 
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const question = questions[currentQuestion];
@@ -246,12 +250,30 @@ export default function TakeTestPage({
     }
   };
 
-  const submitTest = () => {
+  const submitTest = async () => {
     setShowSubmitModal(false);
-    setSubmitted(true);
-
-    if (onTestSubmitted) {
-      onTestSubmitted();
+    try {
+      setSubmitting(true);
+      const score = calculateScore();
+      const correctCount = questions.reduce(
+        (acc, item) => (answers[item.id] === item.correctAnswer ? acc + 1 : acc),
+        0,
+      );
+      await submitStudentTest({
+        examinationId: test.id,
+        testName: test.title,
+        subject: test.subject,
+        teacher: test.teacher,
+        marksObtained: score,
+        totalMarks: test.totalMarks || totalMarks,
+        correctAnswers: correctCount,
+        totalQuestions: questions.length,
+      });
+    } catch (err) {
+      console.log('Error submitting test result to backend:', err);
+    } finally {
+      setSubmitting(false);
+      setSubmitted(true);
     }
   };
 
@@ -390,6 +412,27 @@ export default function TakeTestPage({
               </Text>
             </View>
           </View>
+
+          <Pressable
+            style={styles.resultsButton}
+            onPress={() => {
+              if (onTestSubmitted) {
+                onTestSubmitted();
+              } else if (onBack) {
+                onBack();
+              }
+            }}
+          >
+            <Ionicons
+              name="trophy-outline"
+              size={18}
+              color="#FFFFFF"
+            />
+
+            <Text style={styles.resultsButtonText}>
+              View All Results
+            </Text>
+          </Pressable>
 
           <Pressable
             style={styles.backButton}
@@ -745,10 +788,15 @@ export default function TakeTestPage({
               <Pressable
                 style={styles.confirmSubmitButton}
                 onPress={submitTest}
+                disabled={submitting}
               >
-                <Text style={styles.confirmSubmitText}>
-                  Submit
-                </Text>
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmSubmitText}>
+                    Submit
+                  </Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -1307,6 +1355,24 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     color: '#66558A',
     marginTop: 2,
+  },
+
+  resultsButton: {
+    width: '100%',
+    height: 46,
+    borderRadius: 13,
+    backgroundColor: '#6630D7',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 18,
+  },
+
+  resultsButtonText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+    color: '#FFFFFF',
   },
 
   backButton: {

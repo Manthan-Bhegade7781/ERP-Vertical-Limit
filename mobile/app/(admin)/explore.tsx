@@ -16,6 +16,7 @@ import ExaminationsPage from "../../components/AdminDashboard/pages/Examinations
 import MessagesPage from "../../components/AdminDashboard/pages/MessagesPage";
 import PerformancePage from "../../components/AdminDashboard/pages/PerformancePage";
 import ProfilePage from "../../components/AdminDashboard/pages/ProfilePage";
+import ChangePasswordPage from "../../components/AdminDashboard/pages/ChangePasswordPage";
 import ReportsPage from "../../components/AdminDashboard/pages/ReportsPage";
 import SettingsPage from "../../components/AdminDashboard/pages/SettingsPage";
 
@@ -165,6 +166,13 @@ export default function AdminExplore() {
 
     case "Profile":
       return <ProfilePage />;
+
+    /* -------------------------------------------------------
+       CHANGE PASSWORD
+    ------------------------------------------------------- */
+
+    case "Change Password":
+      return <ChangePasswordPage />;
 
     /* -------------------------------------------------------
        SETTINGS

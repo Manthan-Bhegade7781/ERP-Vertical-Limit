@@ -17,6 +17,7 @@ import MessagesPage from "@/components/SuperAdminDashboard/pages/MessagesPage";
 import ReportsPage from "@/components/SuperAdminDashboard/pages/ReportsPage";
 import SettingsPage from "@/components/SuperAdminDashboard/pages/SettingsPage";
 import ProfilePage from "@/components/SuperAdminDashboard/pages/ProfilePage";
+import ChangePasswordPage from "@/components/SuperAdminDashboard/pages/ChangePasswordPage";
 import TimetablePage from "@/components/SuperAdminDashboard/pages/TimetablePage";
 import StaffOnLeavePage from "@/components/SuperAdminDashboard/pages/StaffOnLeavePage";
 import AcademicsPage from "@/components/SuperAdminDashboard/pages/AcademicsPage";
@@ -342,6 +343,14 @@ export default function ExploreScreen() {
 
   if (feature === "Profile") {
     return <ProfilePage />;
+  }
+
+  /* =====================================================
+     CHANGE PASSWORD
+     ===================================================== */
+
+  if (feature === "Change Password") {
+    return <ChangePasswordPage />;
   }
 
   /* =====================================================

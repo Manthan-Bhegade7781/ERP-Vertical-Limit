@@ -1,6 +1,9 @@
 
 const mongoose = require("mongoose");
 const Announcement = require("../models/Announcement");
+const User = require("../models/User");
+const Student = require("../models/Student");
+const createNotification = require("../utils/createNotification");
 
 // --------------------------------------------------
 // HELPERS
@@ -122,6 +125,61 @@ const isValidDate = (value) =>
 // Validate the current user's ID.
 const getUserId = (user) => user?._id ?? user?.id ?? null;
 
+// Notify target users when an announcement is published
+const notifyAnnouncementRecipients = async (announcement) => {
+  try {
+    if (!announcement || announcement.status !== "Published") return;
+
+    let targetRoles = ["student"];
+    const audience = announcement.audience;
+
+    if (audience === "All Users" || audience === "Students & Teachers") {
+      targetRoles = ["student", "teacher"];
+    } else if (
+      audience === "Teachers" ||
+      audience === "Academic Staff" ||
+      audience === "Staff"
+    ) {
+      targetRoles = ["teacher"];
+    } else if (
+      audience === "All Students" ||
+      audience === "Students"
+    ) {
+      targetRoles = ["student"];
+    }
+
+    const userQuery = {
+      roles: { $in: targetRoles },
+      status: "active",
+    };
+
+    if (announcement.branchId) {
+      userQuery.$or = [
+        { branchId: announcement.branchId },
+        { branchId: null },
+      ];
+    }
+
+    const recipients = await User.find(userQuery).select("_id");
+    const notifications = recipients.map((r) =>
+      createNotification({
+        recipient: r._id,
+        title: `Announcement: ${announcement.title}`,
+        message: announcement.description
+          ? announcement.description.slice(0, 160)
+          : "A new announcement has been published.",
+        type: "announcement",
+        icon: "bullhorn-outline",
+        link: "/announcements",
+      })
+    );
+
+    await Promise.allSettled(notifications);
+  } catch (error) {
+    console.error("notifyAnnouncementRecipients error:", error.message);
+  }
+};
+
 // --------------------------------------------------
 // GET ANNOUNCEMENTS
 // GET /api/announcements
@@ -134,22 +192,26 @@ const getAnnouncements = async (req, res) => {
 
     let filter = {};
 
-    if (!isSuperAdmin(user)) {
-      const branchId = getUserBranchId(user);
-
-      if (!branchId || !isValidObjectId(branchId)) {
-        return res.status(403).json({
-          success: false,
-          message: "Your account is not assigned to a valid branch.",
-        });
+    let branchId = getUserBranchId(user);
+    if (!branchId && roles.includes("student")) {
+      const student = await Student.findOne({ userId: user._id }).populate("batchId");
+      if (student?.batchId?.branchId) {
+        branchId = student.batchId.branchId;
       }
+    }
 
-      // Include announcements for the user's branch and
-      // institute-wide announcements (branchId: null).
-      filter.$or = [
-        { branchId },
-        { branchId: null },
-      ];
+    if (!isSuperAdmin(user)) {
+      if (branchId && isValidObjectId(branchId)) {
+        // Include announcements for the user's branch and
+        // institute-wide announcements (branchId: null).
+        filter.$or = [
+          { branchId },
+          { branchId: null },
+        ];
+      } else {
+        // Institute-wide announcements
+        filter.branchId = null;
+      }
     }
 
     if (!canManageAnnouncements(user)) {
@@ -163,9 +225,8 @@ const getAnnouncements = async (req, res) => {
         });
       }
 
-      // Students and teachers see published, non-expired announcements.
+      // Students and teachers see published announcements for their audience.
       filter.status = "Published";
-      filter.expiresAt = { $gt: new Date() };
 
       const audiences = [];
 
@@ -357,6 +418,12 @@ const createAnnouncement = async (req, res) => {
       .populate("createdBy", "fullName email")
       .populate("branchId", "name");
 
+    if (finalStatus === "Published") {
+      notifyAnnouncementRecipients(populatedAnnouncement).catch((err) =>
+        console.error("Announcement notification broadcast error:", err)
+      );
+    }
+
     return res.status(201).json({
       success: true,
       message: "Announcement created successfully.",
@@ -508,6 +575,12 @@ const updateAnnouncement = async (req, res) => {
       .populate("createdBy", "fullName email")
       .populate("branchId", "name");
 
+    if (announcement.status === "Published") {
+      notifyAnnouncementRecipients(updatedAnnouncement).catch((err) =>
+        console.error("Announcement notification broadcast error:", err)
+      );
+    }
+
     return res.status(200).json({
       success: true,
       message: "Announcement updated successfully.",
@@ -604,6 +677,12 @@ const updateAnnouncementStatus = async (req, res) => {
       status === "Scheduled" ? scheduledAt : null;
 
     await announcement.save();
+
+    if (status === "Published") {
+      notifyAnnouncementRecipients(announcement).catch((err) =>
+        console.error("Announcement notification broadcast error:", err)
+      );
+    }
 
     return res.status(200).json({
       success: true,

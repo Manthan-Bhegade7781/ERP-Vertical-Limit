@@ -11,6 +11,7 @@ const {
   recordPayment,
   getPaymentHistory,
   getMyFeeRecords,
+  payStudentFee,
 } = require("../controllers/fee.controller");
 
 const { protect } = require("../middleware/auth.middleware");
@@ -23,6 +24,13 @@ router.get(
   "/my",
   authorizeRoles("student"),
   getMyFeeRecords
+);
+
+// Student: pay their own fee.
+router.post(
+  "/my/pay",
+  authorizeRoles("student"),
+  payStudentFee
 );
 
 // Super Admin only: create a fee record.

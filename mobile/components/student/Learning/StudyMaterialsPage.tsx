@@ -1,22 +1,36 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+
+import { API_BASE_URL } from '../../../config/api';
+import { getToken } from '../../../services/auth';
+import { fetchAssignments, AssignmentRecord } from '../../../services/assignments';
+import { getMyClasses, StudentClassesData } from '../../../services/classes';
+import LearningTabNav, { LearningTabKey } from './LearningTabNav';
 
 type StudyMaterialsPageProps = {
   onContentScroll?: (event: any) => void;
+  onNavigate?: (page: LearningTabKey) => void;
 };
 
 type MaterialType =
+  | 'All'
   | 'PDF'
   | 'Document'
-  | 'Video'
-  | 'Link';
+  | 'Worksheet'
+  | 'Revision'
+  | 'Homework';
 
 type StudyMaterial = {
   id: string;
@@ -29,121 +43,192 @@ type StudyMaterial = {
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
   background: string;
+  attachment?: {
+    fileName?: string;
+    filePath?: string;
+    mimeType?: string;
+    fileSize?: number;
+  };
+  description?: string;
 };
-
-const MATERIALS: StudyMaterial[] = [
-  {
-    id: 'physics-newton-laws',
-    title: "Newton's Laws of Motion",
-    subject: 'Physics',
-    teacher: 'Priya Sharma',
-    type: 'PDF',
-    size: '2.4 MB',
-    date: '16 Sep 2026',
-    icon: 'document-text-outline',
-    color: '#E4515D',
-    background: '#FFE9EA',
-  },
-  {
-    id: 'math-quadratic',
-    title: 'Quadratic Equations',
-    subject: 'Mathematics',
-    teacher: 'Rahul Sir',
-    type: 'PDF',
-    size: '1.8 MB',
-    date: '15 Sep 2026',
-    icon: 'document-text-outline',
-    color: '#E4515D',
-    background: '#FFE9EA',
-  },
-  {
-    id: 'chemistry-structure',
-    title: 'Chemical Structure Notes',
-    subject: 'Chemistry',
-    teacher: 'Anjali Ma’am',
-    type: 'Document',
-    size: '850 KB',
-    date: '14 Sep 2026',
-    icon: 'document-outline',
-    color: '#1670E8',
-    background: '#E6F0FF',
-  },
-  {
-    id: 'physics-video',
-    title: 'Motion Graphs Explained',
-    subject: 'Physics',
-    teacher: 'Priya Sharma',
-    type: 'Video',
-    date: '13 Sep 2026',
-    icon: 'play-circle-outline',
-    color: '#6630D7',
-    background: '#EEE7FF',
-  },
-  {
-    id: 'math-formulas',
-    title: 'Important Mathematics Formulas',
-    subject: 'Mathematics',
-    teacher: 'Rahul Sir',
-    type: 'PDF',
-    size: '1.1 MB',
-    date: '12 Sep 2026',
-    icon: 'document-text-outline',
-    color: '#E4515D',
-    background: '#FFE9EA',
-  },
-  {
-    id: 'chemistry-reference',
-    title: 'Periodic Table Reference',
-    subject: 'Chemistry',
-    teacher: 'Anjali Ma’am',
-    type: 'Link',
-    date: '11 Sep 2026',
-    icon: 'link-outline',
-    color: '#22A55A',
-    background: '#E3F7EB',
-  },
-];
 
 export default function StudyMaterialsPage({
   onContentScroll,
+  onNavigate,
 }: StudyMaterialsPageProps) {
-  const [selectedSubject, setSelectedSubject] =
-    useState('All');
+  const [selectedSubject, setSelectedSubject] = useState('All');
+  const [selectedType, setSelectedType] = useState('All');
+  const [classesData, setClassesData] = useState<StudentClassesData | null>(null);
+  const [materialsList, setMaterialsList] = useState<StudyMaterial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const [selectedType, setSelectedType] =
-    useState('All');
+  const loadData = useCallback(async () => {
+    try {
+      const [assignments, classes] = await Promise.all([
+        fetchAssignments().catch(() => []),
+        getMyClasses().catch(() => null),
+      ]);
+
+      if (classes) setClassesData(classes);
+
+      const mapped: StudyMaterial[] = assignments.map((item) => {
+        const subName =
+          typeof item.subjectId === 'object' && item.subjectId?.name
+            ? item.subjectId.name
+            : 'General';
+
+        const teacherName =
+          typeof item.batchId === 'object' && (item as any).createdBy?.fullName
+            ? (item as any).createdBy.fullName
+            : 'Faculty';
+
+        const isPdf =
+          Boolean(item.attachment?.fileName) ||
+          item.assignmentType === 'worksheet' ||
+          item.assignmentType === 'homework';
+
+        let formattedSize: string | undefined;
+        if (item.attachment?.fileSize) {
+          const kb = item.attachment.fileSize / 1024;
+          formattedSize =
+            kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.round(kb)} KB`;
+        } else if (item.attachment?.fileName) {
+          formattedSize = 'PDF Document';
+        }
+
+        const dateStr = item.assignedDate
+          ? new Date(item.assignedDate).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })
+          : 'Recent';
+
+        return {
+          id: item._id,
+          title: item.assignmentTitle,
+          subject: subName,
+          teacher: teacherName,
+          type: item.attachment?.fileName ? 'PDF' : 'Document',
+          size: formattedSize,
+          date: dateStr,
+          icon: isPdf ? 'document-text-outline' : 'document-outline',
+          color: isPdf ? '#E4515D' : '#1670E8',
+          background: isPdf ? '#FFE9EA' : '#E6F0FF',
+          attachment: item.attachment,
+          description: item.description || item.instructions,
+        };
+      });
+
+      setMaterialsList(mapped);
+    } catch (err) {
+      console.error('Failed to load study materials:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+  };
+
+  const handleOpenMaterial = async (material: StudyMaterial) => {
+    if (!material.attachment?.fileName) {
+      Alert.alert(
+        material.title,
+        material.description ||
+          'This resource has no downloadable file attached.',
+      );
+      return;
+    }
+
+    try {
+      setDownloadingId(material.id);
+      const token = await getToken();
+      const url = `${API_BASE_URL}/assignments/${material.id}/attachment`;
+      const localUri = `${FileSystem.documentDirectory}${material.attachment.fileName}`;
+
+      const res = await FileSystem.downloadAsync(url, localUri, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 200) {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(res.uri, {
+            mimeType: material.attachment.mimeType || 'application/pdf',
+            dialogTitle: material.attachment.fileName,
+          });
+        } else {
+          Alert.alert('Downloaded', `File saved to ${res.uri}`);
+        }
+      } else {
+        Alert.alert('Download Failed', 'Could not download attachment.');
+      }
+    } catch (err: any) {
+      console.error('Download error:', err);
+      Alert.alert('Error', err?.message || 'Could not download resource.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const availableSubjects = useMemo(() => {
+    const list = ['All'];
+    if (classesData?.currentBatch?.subjects) {
+      classesData.currentBatch.subjects.forEach((s) => {
+        if (s.name && !list.includes(s.name)) {
+          list.push(s.name);
+        }
+      });
+    }
+    return list;
+  }, [classesData]);
 
   const filteredMaterials = useMemo(() => {
-    return MATERIALS.filter(material => {
+    return materialsList.filter((material) => {
       const subjectMatch =
         selectedSubject === 'All' ||
-        material.subject === selectedSubject;
+        material.subject.toLowerCase() === selectedSubject.toLowerCase();
 
       const typeMatch =
         selectedType === 'All' ||
-        material.type === selectedType;
+        material.type.toLowerCase() === selectedType.toLowerCase();
 
       return subjectMatch && typeMatch;
     });
-  }, [selectedSubject, selectedType]);
+  }, [selectedSubject, selectedType, materialsList]);
 
   return (
     <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={
-          styles.contentContainer
-        }
+        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#6630D7']}
+            tintColor="#6630D7"
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.title}>
-              Study Materials
-            </Text>
+            <Text style={styles.title}>Study Materials</Text>
 
             <Text style={styles.subtitle}>
               Notes and resources shared by your teachers
@@ -151,31 +236,46 @@ export default function StudyMaterialsPage({
           </View>
 
           <View style={styles.headerIcon}>
-            <Ionicons
-              name="library-outline"
-              size={24}
-              color="#6630D7"
-            />
+            <Ionicons name="library-outline" size={24} color="#6630D7" />
           </View>
         </View>
+
+        {/* Learning Navigation Tabs */}
+        <View style={{ paddingHorizontal: 16 }}>
+          <LearningTabNav
+            activeTab="studyMaterials"
+            onNavigate={onNavigate}
+          />
+        </View>
+
+        {/* Loading */}
+        {loading && (
+          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#6630D7" />
+            <Text
+              style={{
+                fontFamily: 'PoppinsRegular',
+                fontSize: 10,
+                color: '#888',
+                marginTop: 6,
+              }}
+            >
+              Loading resources...
+            </Text>
+          </View>
+        )}
 
         {/* Quick Summary */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryIcon}>
-            <Ionicons
-              name="folder-open-outline"
-              size={22}
-              color="#6630D7"
-            />
+            <Ionicons name="folder-open-outline" size={22} color="#6630D7" />
           </View>
 
           <View style={styles.summaryContent}>
-            <Text style={styles.summaryTitle}>
-              Learning Library
-            </Text>
+            <Text style={styles.summaryTitle}>Learning Library</Text>
 
             <Text style={styles.summaryText}>
-              {MATERIALS.length} resources available
+              {materialsList.length} resources available
             </Text>
           </View>
 
@@ -184,51 +284,35 @@ export default function StudyMaterialsPage({
               {filteredMaterials.length}
             </Text>
 
-            <Text style={styles.resourceCountLabel}>
-              Showing
-            </Text>
+            <Text style={styles.resourceCountLabel}>Showing</Text>
           </View>
         </View>
 
         {/* Subject Filter */}
         <View style={styles.filterSection}>
-          <Text style={styles.filterTitle}>
-            Subject
-          </Text>
+          <Text style={styles.filterTitle}>Subject</Text>
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={
-              styles.filterContainer
-            }
+            contentContainerStyle={styles.filterContainer}
           >
-            {[
-              'All',
-              'Physics',
-              'Mathematics',
-              'Chemistry',
-            ].map(subject => {
-              const selected =
-                selectedSubject === subject;
+            {availableSubjects.map((subject) => {
+              const selected = selectedSubject === subject;
 
               return (
                 <Pressable
                   key={subject}
                   style={[
                     styles.filterButton,
-                    selected &&
-                      styles.selectedFilter,
+                    selected && styles.selectedFilter,
                   ]}
-                  onPress={() =>
-                    setSelectedSubject(subject)
-                  }
+                  onPress={() => setSelectedSubject(subject)}
                 >
                   <Text
                     style={[
                       styles.filterText,
-                      selected &&
-                        styles.selectedFilterText,
+                      selected && styles.selectedFilterText,
                     ]}
                   >
                     {subject}
@@ -241,44 +325,29 @@ export default function StudyMaterialsPage({
 
         {/* Type Filter */}
         <View style={styles.filterSection}>
-          <Text style={styles.filterTitle}>
-            Material Type
-          </Text>
+          <Text style={styles.filterTitle}>Material Type</Text>
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={
-              styles.filterContainer
-            }
+            contentContainerStyle={styles.filterContainer}
           >
-            {[
-              'All',
-              'PDF',
-              'Document',
-              'Video',
-              'Link',
-            ].map(type => {
-              const selected =
-                selectedType === type;
+            {['All', 'PDF', 'Document'].map((type) => {
+              const selected = selectedType === type;
 
               return (
                 <Pressable
                   key={type}
                   style={[
                     styles.filterButton,
-                    selected &&
-                      styles.selectedFilter,
+                    selected && styles.selectedFilter,
                   ]}
-                  onPress={() =>
-                    setSelectedType(type)
-                  }
+                  onPress={() => setSelectedType(type)}
                 >
                   <Text
                     style={[
                       styles.filterText,
-                      selected &&
-                        styles.selectedFilterText,
+                      selected && styles.selectedFilterText,
                     ]}
                   >
                     {type}
@@ -293,107 +362,94 @@ export default function StudyMaterialsPage({
         <View style={styles.materialSection}>
           <View style={styles.sectionHeader}>
             <View>
-              <Text style={styles.sectionTitle}>
-                Available Materials
-              </Text>
+              <Text style={styles.sectionTitle}>Available Materials</Text>
 
               <Text style={styles.sectionSubtitle}>
-                Select a resource to open it
+                Select a resource to open or download
               </Text>
             </View>
 
-            <Text style={styles.resultCount}>
-              {filteredMaterials.length}
-            </Text>
+            <Text style={styles.resultCount}>{filteredMaterials.length}</Text>
           </View>
 
-          {filteredMaterials.map(
-            (material, index) => (
-              <Pressable
-                key={material.id}
-                style={({ pressed }) => [
-                  styles.materialCard,
-                  index !==
-                    filteredMaterials.length - 1 &&
-                    styles.materialBorder,
-                  pressed && styles.pressed,
+          {filteredMaterials.map((material, index) => (
+            <Pressable
+              key={material.id}
+              style={({ pressed }) => [
+                styles.materialCard,
+                index !== filteredMaterials.length - 1 && styles.materialBorder,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => handleOpenMaterial(material)}
+              disabled={downloadingId === material.id}
+            >
+              <View
+                style={[
+                  styles.materialIcon,
+                  {
+                    backgroundColor: material.background,
+                  },
                 ]}
-                onPress={() => {
-                  // File/link opening will be connected
-                  // when backend storage is integrated.
-                }}
               >
-                <View
-                  style={[
-                    styles.materialIcon,
-                    {
-                      backgroundColor:
-                        material.background,
-                    },
-                  ]}
-                >
+                {downloadingId === material.id ? (
+                  <ActivityIndicator size="small" color={material.color} />
+                ) : (
                   <Ionicons
                     name={material.icon}
                     size={21}
                     color={material.color}
                   />
-                </View>
+                )}
+              </View>
 
-                <View style={styles.materialContent}>
-                  <Text
-                    style={styles.materialTitle}
-                    numberOfLines={2}
-                  >
-                    {material.title}
-                  </Text>
+              <View style={styles.materialContent}>
+                <Text style={styles.materialTitle} numberOfLines={2}>
+                  {material.title}
+                </Text>
 
-                  <Text style={styles.materialSubject}>
-                    {material.subject} •{' '}
-                    {material.teacher}
-                  </Text>
+                <Text style={styles.materialSubject}>
+                  {material.subject} • {material.teacher}
+                </Text>
 
-                  <View style={styles.metaRow}>
-                    <View style={styles.typeBadge}>
-                      <Text
-                        style={[
-                          styles.typeBadgeText,
-                          {
-                            color: material.color,
-                          },
-                        ]}
-                      >
-                        {material.type}
-                      </Text>
-                    </View>
-
-                    {material.size && (
-                      <>
-                        <View
-                          style={styles.metaDot}
-                        />
-
-                        <Text style={styles.metaText}>
-                          {material.size}
-                        </Text>
-                      </>
-                    )}
-
-                    <View style={styles.metaDot} />
-
-                    <Text style={styles.metaText}>
-                      {material.date}
+                <View style={styles.metaRow}>
+                  <View style={styles.typeBadge}>
+                    <Text
+                      style={[
+                        styles.typeBadgeText,
+                        {
+                          color: material.color,
+                        },
+                      ]}
+                    >
+                      {material.type}
                     </Text>
                   </View>
-                </View>
 
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color="#A0A0AA"
-                />
-              </Pressable>
-            ),
-          )}
+                  {material.size && (
+                    <>
+                      <View style={styles.metaDot} />
+
+                      <Text style={styles.metaText}>{material.size}</Text>
+                    </>
+                  )}
+
+                  <View style={styles.metaDot} />
+
+                  <Text style={styles.metaText}>{material.date}</Text>
+                </View>
+              </View>
+
+              <Ionicons
+                name={
+                  material.attachment?.fileName
+                    ? 'download-outline'
+                    : 'chevron-forward'
+                }
+                size={18}
+                color={material.attachment?.fileName ? '#6630D7' : '#A0A0AA'}
+              />
+            </Pressable>
+          ))}
 
           {filteredMaterials.length === 0 && (
             <View style={styles.emptyState}>
@@ -405,38 +461,14 @@ export default function StudyMaterialsPage({
                 />
               </View>
 
-              <Text style={styles.emptyTitle}>
-                No materials found
-              </Text>
+              <Text style={styles.emptyTitle}>No materials found</Text>
 
               <Text style={styles.emptyText}>
-                Try changing your subject or material
-                type filter.
+                No study materials or worksheets have been shared for your batch
+                yet.
               </Text>
             </View>
           )}
-        </View>
-
-        {/* Recently Added */}
-        <View style={styles.recentCard}>
-          <View style={styles.recentIcon}>
-            <Ionicons
-              name="sparkles-outline"
-              size={20}
-              color="#6630D7"
-            />
-          </View>
-
-          <View style={styles.recentContent}>
-            <Text style={styles.recentTitle}>
-              Recently Added
-            </Text>
-
-            <Text style={styles.recentText}>
-              New learning resources appear here when
-              your teachers upload them.
-            </Text>
-          </View>
         </View>
 
         <View style={styles.bottomSpace} />

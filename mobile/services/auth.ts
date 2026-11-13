@@ -14,6 +14,9 @@ export type AuthUser = {
   roles: string[];
   branchId?: string | null;
   status: string;
+  studentId?: string;
+  standard?: string;
+  batchName?: string;
 };
 
 type LoginResponse = {
@@ -39,6 +42,11 @@ type UpdateProfileResponse = {
   data?: {
     user: AuthUser;
   };
+};
+
+export type ChangePasswordResponse = {
+  success: boolean;
+  message: string;
 };
 
 /**
@@ -189,4 +197,153 @@ export const updateCurrentUser = async (
 // Logout
 export const logout = async (): Promise<void> => {
   await tokenStorage.remove();
+};
+
+// Change Password
+export const changePassword = async (
+  currentPassword: string,
+  newPassword: string
+): Promise<ChangePasswordResponse> => {
+  const token = await getToken();
+
+  if (!token) {
+    return {
+      success: false,
+      message: 'Authentication required',
+    };
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/auth/change-password`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+      }),
+    }
+  );
+
+  const result: ChangePasswordResponse = await response.json();
+  return result;
+};
+
+export type ForgotPasswordResponse = {
+  success: boolean;
+  message: string;
+  debugOtp?: string;
+};
+
+export type VerifyOtpResponse = {
+  success: boolean;
+  message: string;
+};
+
+export type ResetPasswordResponse = {
+  success: boolean;
+  message: string;
+};
+
+// Request password reset OTP
+export const requestPasswordResetOtp = async (
+  email: string
+): Promise<ForgotPasswordResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        success: false,
+        message: result?.message || 'Failed to send OTP code.',
+      };
+    }
+
+    return result;
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error?.message || 'Network error while requesting OTP.',
+    };
+  }
+};
+
+// Verify OTP
+export const verifyPasswordResetOtp = async (
+  email: string,
+  otp: string
+): Promise<VerifyOtpResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        success: false,
+        message: result?.message || 'Invalid or expired OTP code.',
+      };
+    }
+
+    return result;
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error?.message || 'Network error while verifying OTP.',
+    };
+  }
+};
+
+// Reset password with verified OTP
+export const resetPasswordWithOtp = async (
+  email: string,
+  otp: string,
+  newPassword: string
+): Promise<ResetPasswordResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+        newPassword,
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        success: false,
+        message: result?.message || 'Failed to reset password.',
+      };
+    }
+
+    return result;
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error?.message || 'Network error while resetting password.',
+    };
+  }
 };

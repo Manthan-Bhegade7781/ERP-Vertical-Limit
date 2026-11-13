@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -9,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { changePassword } from '@/services/auth';
 
 type ChangePasswordPageProps = {
   onContentScroll?: (event: any) => void;
@@ -22,6 +24,7 @@ export default function ChangePasswordPage({
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -45,29 +48,48 @@ export default function ChangePasswordPage({
     passwordValid &&
     passwordsMatch;
 
-  const handleChangePassword = () => {
-    if (!isFormValid) {
+  const handleChangePassword = async () => {
+    if (!isFormValid || submitting) {
       return;
     }
 
-    Alert.alert(
-      'Password Updated',
-      'Your password has been changed successfully.',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            setCurrentPassword('');
-            setNewPassword('');
-            setConfirmPassword('');
+    try {
+      setSubmitting(true);
+      const res = await changePassword(currentPassword, newPassword);
 
-            if (onBack) {
-              onBack();
-            }
-          },
-        },
-      ],
-    );
+      if (res.success) {
+        Alert.alert(
+          'Password Updated',
+          res.message || 'Your password has been changed successfully.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setCurrentPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+
+                if (onBack) {
+                  onBack();
+                }
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert(
+          'Update Failed',
+          res.message || 'Failed to update password. Please check your current password.',
+        );
+      }
+    } catch (err: any) {
+      Alert.alert(
+        'Error',
+        err.message || 'An unexpected error occurred. Please try again.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderPasswordInput = (
@@ -122,17 +144,6 @@ export default function ChangePasswordPage({
         onScroll={onContentScroll}
         scrollEventThrottle={16}
       >
-        <Pressable
-          style={styles.backButton}
-          onPress={onBack}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={21}
-            color="#6630D7"
-          />
-          <Text style={styles.backText}>Back to Profile</Text>
-        </Pressable>
 
         <View style={styles.headerCard}>
           <View style={styles.iconCircle}>
@@ -236,20 +247,26 @@ export default function ChangePasswordPage({
           <Pressable
             style={[
               styles.updateButton,
-              !isFormValid && styles.updateButtonDisabled,
+              (!isFormValid || submitting) && styles.updateButtonDisabled,
             ]}
-            disabled={!isFormValid}
+            disabled={!isFormValid || submitting}
             onPress={handleChangePassword}
           >
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={19}
-              color="#FFFFFF"
-            />
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={19}
+                  color="#FFFFFF"
+                />
 
-            <Text style={styles.updateButtonText}>
-              Update Password
-            </Text>
+                <Text style={styles.updateButtonText}>
+                  Update Password
+                </Text>
+              </>
+            )}
           </Pressable>
         </View>
 

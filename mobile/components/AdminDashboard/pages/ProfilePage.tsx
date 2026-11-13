@@ -374,6 +374,38 @@ export default function ProfilePage() {
                 />
               </Pressable>
 
+              {/* CHANGE PASSWORD */}
+              <Pressable
+                style={styles.accountOption}
+                onPress={() => {
+                  router.push({
+                    pathname: '/(admin)/explore',
+                    params: { feature: 'Change Password' },
+                  });
+                }}
+              >
+                <View style={styles.optionIcon}>
+                  <MaterialCommunityIcons
+                    name="shield-lock-outline"
+                    size={20}
+                    color="#7040D5"
+                  />
+                </View>
+
+                <View style={styles.optionTextContainer}>
+                  <Text style={styles.optionTitle}>Change Password</Text>
+                  <Text style={styles.optionSubtitle}>
+                    Update your account password
+                  </Text>
+                </View>
+
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={20}
+                  color="#9AA2B1"
+                />
+              </Pressable>
+
               {/* LOGOUT */}
               <Pressable
                 style={styles.accountOption}

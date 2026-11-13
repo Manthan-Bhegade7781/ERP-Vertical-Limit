@@ -372,16 +372,28 @@ const getTimetable = async (req, res) => {
     }
 
     // Student: filter by the student's enrolled batch.
-    // This assumes the authenticated user has batchId.
-    // Adjust this lookup if enrollment is stored in another model.
     if (hasRole(req.user, "student")) {
-      const studentBatchId = req.user.batchId;
+      let studentBatchId = req.user.batchId;
 
       if (!studentBatchId) {
-        return res.status(403).json({
-          success: false,
-          message:
-            "Student batch enrollment must be connected before timetable access",
+        const Student = require("../models/Student");
+        const student = await Student.findOne({ userId: getUserId(req.user) });
+        if (student) {
+          studentBatchId = student.batchId;
+        }
+      }
+
+      if (!studentBatchId) {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          summary: {
+            totalClasses: 0,
+            lectures: 0,
+            labs: 0,
+            exams: 0,
+          },
+          data: [],
         });
       }
 

@@ -4,6 +4,8 @@ const Examination = require("../models/examination.model");
 const Batch = require("../models/Batch");
 const Subject = require("../models/Subject");
 const BatchSubject = require("../models/BatchSubject");
+const Student = require("../models/Student");
+const ExaminationResult = require("../models/examinationResult.model");
 
 const parseExaminationDate = (value) => {
   if (!value) return null;
@@ -213,7 +215,18 @@ const getExaminations = async (req, res) => {
     const { batchId, subjectId, standard, status, search } = req.query;
     const filter = {};
 
-    if (batchId) {
+    // If requester is a student, scope to the student's assigned batch
+    if (req.user?.roles?.includes("student")) {
+      const student = await Student.findOne({ userId: req.user._id });
+      if (!student || !student.batchId) {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          data: [],
+        });
+      }
+      filter.batchId = student.batchId;
+    } else if (batchId) {
       if (!mongoose.isValidObjectId(batchId)) {
         return res.status(400).json({
           success: false,
@@ -254,12 +267,43 @@ const getExaminations = async (req, res) => {
     let examinations = await Examination.find(filter)
       .populate("batchId", "name code standard academicYear branchId")
       .populate("subjectId", "name code standard type")
-      .sort({ examinationDate: 1, startTime: 1 });
+      .sort({ examinationDate: 1, startTime: 1 })
+      .lean();
 
     if (standard) {
       examinations = examinations.filter(
         (exam) => exam.batchId?.standard === standard
       );
+    }
+
+    // Attach teacher name from active BatchSubject relation
+    const batchIds = examinations.map((e) => e.batchId?._id || e.batchId).filter(Boolean);
+    const subjectIds = examinations.map((e) => e.subjectId?._id || e.subjectId).filter(Boolean);
+    if (batchIds.length > 0 && subjectIds.length > 0) {
+      const batchSubjects = await BatchSubject.find({
+        batchId: { $in: batchIds },
+        subjectId: { $in: subjectIds },
+        status: "active",
+      }).populate("teacherId", "fullName email mobileNumber");
+
+      const teacherMap = new Map();
+      for (const bs of batchSubjects) {
+        const bKey = (bs.batchId?._id || bs.batchId)?.toString();
+        const sKey = (bs.subjectId?._id || bs.subjectId)?.toString();
+        if (bs.teacherId?.fullName) {
+          teacherMap.set(`${bKey}_${sKey}`, bs.teacherId.fullName);
+        }
+      }
+
+      examinations = examinations.map((exam) => {
+        const bId = (exam.batchId?._id || exam.batchId)?.toString();
+        const sId = (exam.subjectId?._id || exam.subjectId)?.toString();
+        const teacherName = teacherMap.get(`${bId}_${sId}`) || "Assigned Teacher";
+        return {
+          ...exam,
+          teacher: teacherName,
+        };
+      });
     }
 
     return res.status(200).json({
@@ -579,6 +623,130 @@ const rescheduleExamination = async (req, res) => {
   }
 };
 
+// =====================================================
+// STUDENT RESULTS & SUBMISSIONS
+// =====================================================
+
+// GET /api/examinations/my/results
+const getStudentResults = async (req, res) => {
+  try {
+    const student = await Student.findOne({ userId: req.user._id });
+    if (!student) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+      });
+    }
+
+    const results = await ExaminationResult.find({
+      studentId: student._id,
+    })
+      .sort({ date: -1, createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: results.length,
+      data: results,
+    });
+  } catch (error) {
+    console.error("Get student results error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch student test results.",
+    });
+  }
+};
+
+// POST /api/examinations/my/submit
+const submitTestResult = async (req, res) => {
+  try {
+    const student = await Student.findOne({ userId: req.user._id });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student record not found for logged in user.",
+      });
+    }
+
+    const {
+      examinationId,
+      testName,
+      subject,
+      teacher,
+      marksObtained,
+      totalMarks,
+      correctAnswers,
+      totalQuestions,
+      feedback,
+    } = req.body;
+
+    if (!testName || !subject || totalMarks === undefined || marksObtained === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required test submission details.",
+      });
+    }
+
+    const parsedTotal = Number(totalMarks);
+    const parsedObtained = Number(marksObtained);
+
+    if (!Number.isFinite(parsedTotal) || parsedTotal <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Total marks must be a positive number.",
+      });
+    }
+
+    const percentage = Math.round((parsedObtained / parsedTotal) * 100);
+    const status = percentage >= 40 ? "passed" : "failed";
+
+    let calculatedFeedback = feedback;
+    if (!calculatedFeedback) {
+      if (percentage >= 90) {
+        calculatedFeedback = "Outstanding performance! You have a great grasp of this topic.";
+      } else if (percentage >= 75) {
+        calculatedFeedback = "Good performance. Review the few questions you missed to achieve perfection.";
+      } else if (percentage >= 60) {
+        calculatedFeedback = "Fair attempt. Focus on revising fundamental concepts and practice regularly.";
+      } else {
+        calculatedFeedback = "Needs improvement. Please review lecture notes and seek help from your teacher.";
+      }
+    }
+
+    const newResult = await ExaminationResult.create({
+      examinationId: mongoose.isValidObjectId(examinationId) ? examinationId : undefined,
+      studentId: student._id,
+      userId: req.user._id,
+      batchId: student.batchId,
+      testName: testName.trim(),
+      subject: subject.trim(),
+      teacher: teacher?.trim() || "Subject Teacher",
+      marksObtained: parsedObtained,
+      totalMarks: parsedTotal,
+      percentage,
+      correctAnswers: Number(correctAnswers || 0),
+      totalQuestions: Number(totalQuestions || 0),
+      feedback: calculatedFeedback,
+      status,
+      date: new Date(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Test result recorded successfully.",
+      data: newResult,
+    });
+  } catch (error) {
+    console.error("Submit test result error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to record test result.",
+    });
+  }
+};
+
 module.exports = {
   createExamination,
   getExaminations,
@@ -586,4 +754,6 @@ module.exports = {
   updateExamination,
   cancelExamination,
   rescheduleExamination,
+  getStudentResults,
+  submitTestResult,
 };

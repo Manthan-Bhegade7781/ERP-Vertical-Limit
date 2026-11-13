@@ -29,13 +29,26 @@ const submitFeedback = async (req, res) => {
       });
     }
 
+    let branchId = req.user.branchId || null;
+    if (!branchId) {
+      try {
+        const Student = require("../models/Student");
+        const student = await Student.findOne({ userId: req.user._id }).populate("batchId");
+        if (student?.batchId?.branchId) {
+          branchId = student.batchId.branchId;
+        }
+      } catch (lookupErr) {
+        // Fallback
+      }
+    }
+
     const feedback = await Feedback.create({
       studentId: req.user._id,
-      branchId: req.user.branchId || null,
-      subject,
+      branchId,
+      subject: subject.trim(),
       category,
       rating: numericRating,
-      comments,
+      comments: comments.trim(),
     });
 
     return res.status(201).json({
@@ -193,9 +206,30 @@ const deleteFeedback = async (req, res) => {
   }
 };
 
+const getMyFeedback = async (req, res) => {
+  try {
+    const feedbacks = await Feedback.find({ studentId: req.user._id })
+      .populate("branchId", "branchName name")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: feedbacks.length,
+      data: feedbacks,
+    });
+  } catch (error) {
+    console.error("Get my feedback error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch your feedback history",
+    });
+  }
+};
+
 module.exports = {
   submitFeedback,
   getFeedback,
+  getMyFeedback,
   updateFeedbackStatus,
   deleteFeedback,
 };

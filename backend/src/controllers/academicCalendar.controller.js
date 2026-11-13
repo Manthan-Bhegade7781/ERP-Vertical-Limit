@@ -77,20 +77,30 @@ const getAcademicCalendarEvents = async (req, res) => {
         }
       }
     } else {
-      const userBranchId = getBranchId(req.user);
+      let userBranchId = getBranchId(req.user);
 
-      if (!userBranchId) {
-        return res.status(403).json({
-          success: false,
-          message: "No branch is assigned to your account",
-        });
+      if (!userBranchId && req.user.roles?.includes("student")) {
+        try {
+          const Student = require("../models/Student");
+          const student = await Student.findOne({ userId: req.user._id }).populate("batchId");
+          if (student?.batchId?.branchId) {
+            userBranchId = student.batchId.branchId.toString();
+          }
+        } catch (lookupErr) {
+          // Graceful fallback
+        }
       }
 
-      // Admins can see their own branch events and global events.
-      filter.$or = [
-        { branchId: userBranchId },
-        { branchId: null },
-      ];
+      if (userBranchId) {
+        // Users can see their own branch events and global events.
+        filter.$or = [
+          { branchId: userBranchId },
+          { branchId: null },
+        ];
+      } else {
+        // Fallback to global events
+        filter.branchId = null;
+      }
     }
 
     // Filter by category

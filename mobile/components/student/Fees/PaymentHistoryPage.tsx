@@ -1,17 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 
-type PaymentHistoryPageProps = {
-  onContentScroll?: (event: any) => void;
-  onReceiptPress?: (payment: Payment) => void;
-};
+import { getMyFees, StudentFeesSummary } from '../../../services/fees';
 
 type Payment = {
   id: string;
@@ -24,91 +23,121 @@ type Payment = {
   transactionId: string;
 };
 
-const payments: Payment[] = [
-  {
-    id: 'payment-1',
-    receiptNumber: 'VL-2026-00124',
-    date: '10 Sep 2026',
-    title: 'Development Fee',
-    amount: 6000,
-    method: 'UPI',
-    status: 'Paid',
-    transactionId: 'TXN84920173',
-  },
-  {
-    id: 'payment-2',
-    receiptNumber: 'VL-2026-00098',
-    date: '10 Jun 2026',
-    title: 'Tuition Fee',
-    amount: 30000,
-    method: 'Debit Card',
-    status: 'Paid',
-    transactionId: 'TXN73281642',
-  },
-  {
-    id: 'payment-3',
-    receiptNumber: 'VL-2026-00099',
-    date: '10 Jun 2026',
-    title: 'Transport Fee',
-    amount: 6000,
-    method: 'UPI',
-    status: 'Paid',
-    transactionId: 'TXN73281751',
-  },
-  {
-    id: 'payment-4',
-    receiptNumber: 'VL-2026-00072',
-    date: '12 Apr 2026',
-    title: 'Activity Fee',
-    amount: 3000,
-    method: 'Net Banking',
-    status: 'Paid',
-    transactionId: 'TXN60182931',
-  },
-];
+type PaymentHistoryPageProps = {
+  payments?: Payment[];
+  loading?: boolean;
+  onRefresh?: () => void;
+  onContentScroll?: (event: any) => void;
+  onReceiptPress?: (payment: Payment) => void;
+};
 
 const filters = ['All', 'UPI', 'Debit Card', 'Net Banking'];
 
 export default function PaymentHistoryPage({
+  payments: initialPayments,
+  loading: initialLoading,
+  onRefresh: parentRefresh,
   onContentScroll,
   onReceiptPress,
 }: PaymentHistoryPageProps) {
-  const [selectedFilter, setSelectedFilter] =
-    useState('All');
+  const [feesData, setFeesData] = useState<StudentFeesSummary | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState('All');
+
+  const fetchFees = useCallback(async () => {
+    try {
+      const res = await getMyFees();
+      setFeesData(res);
+    } catch (err) {
+      console.error('Failed to load payment history:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialPayments === undefined) {
+      void fetchFees();
+    }
+  }, [initialPayments, fetchFees]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (initialPayments === undefined) {
+        void fetchFees();
+      }
+    }, [initialPayments, fetchFees]),
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (parentRefresh) {
+      parentRefresh();
+    }
+    await fetchFees();
+  };
+
+  const paymentsList: Payment[] = useMemo(() => {
+    if (initialPayments !== undefined) {
+      return initialPayments;
+    }
+    if (feesData && Array.isArray(feesData.payments)) {
+      return feesData.payments.map((p, idx) => ({
+        id: p._id || p.id || `payment-${idx}`,
+        receiptNumber: p.receiptNumber || `VL-REC-${idx}`,
+        date: p.paymentDate
+          ? new Date(p.paymentDate).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })
+          : 'Recent',
+        title: p.feeType ? `${p.feeType} Fee` : 'Fee Payment',
+        amount: Number(p.amount || 0),
+        method: p.method || 'UPI',
+        status: 'Paid' as const,
+        transactionId: p.reference || p.receiptNumber || `TXN${idx}`,
+      }));
+    }
+    return [];
+  }, [initialPayments, feesData]);
 
   const filteredPayments = useMemo(() => {
     if (selectedFilter === 'All') {
-      return payments;
+      return paymentsList;
     }
 
-    return payments.filter(
-      (payment) => payment.method === selectedFilter,
+    return paymentsList.filter(
+      (payment) =>
+        payment.method.toLowerCase() === selectedFilter.toLowerCase() ||
+        (selectedFilter === 'Debit Card' &&
+          payment.method.toLowerCase().includes('card')),
     );
-  }, [selectedFilter]);
+  }, [selectedFilter, paymentsList]);
 
-  const totalPaid = payments.reduce(
-    (sum, payment) => sum + payment.amount,
-    0,
-  );
+  const totalPaid = useMemo(() => {
+    return paymentsList.reduce(
+      (sum, payment) => sum + payment.amount,
+      0,
+    );
+  }, [paymentsList]);
 
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString('en-IN')}`;
   };
 
   const getPaymentIcon = (method: string) => {
-    switch (method) {
-      case 'UPI':
-        return 'phone-portrait-outline';
-
-      case 'Debit Card':
-        return 'card-outline';
-
-      case 'Net Banking':
-        return 'globe-outline';
-
-      default:
-        return 'card-outline';
+    const lower = method.toLowerCase();
+    if (lower.includes('upi')) {
+      return 'phone-portrait-outline';
     }
+    if (lower.includes('card')) {
+      return 'card-outline';
+    }
+    if (lower.includes('bank') || lower.includes('net')) {
+      return 'globe-outline';
+    }
+    return 'card-outline';
   };
 
   return (
@@ -118,6 +147,14 @@ export default function PaymentHistoryPage({
         contentContainerStyle={styles.content}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing || Boolean(initialLoading)}
+            onRefresh={handleRefresh}
+            colors={['#6630D7']}
+            tintColor="#6630D7"
+          />
+        }
       >
         {/* Header */}
         <View style={styles.headerRow}>
@@ -152,7 +189,7 @@ export default function PaymentHistoryPage({
             </Text>
 
             <Text style={styles.totalSubtitle}>
-              {payments.length} successful payments
+              {paymentsList.length} successful payments
             </Text>
           </View>
 
@@ -184,8 +221,8 @@ export default function PaymentHistoryPage({
             </View>
 
             <Text style={styles.summaryValue}>
-              {payments.filter(
-                (payment) => payment.status === 'Paid',
+              {paymentsList.filter(
+                (payment: Payment) => payment.status === 'Paid',
               ).length}
             </Text>
 
@@ -422,55 +459,59 @@ export default function PaymentHistoryPage({
         )}
 
         {/* Payment Timeline */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Payment Timeline
-          </Text>
+        {paymentsList.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Payment Timeline
+              </Text>
 
-          <Ionicons
-            name="time-outline"
-            size={19}
-            color="#6630D7"
-          />
-        </View>
-
-        <View style={styles.timelineCard}>
-          {payments.slice(0, 3).map((payment, index) => (
-            <View
-              key={`timeline-${payment.id}`}
-              style={styles.timelineItem}
-            >
-              <View style={styles.timelineLeft}>
-                <View style={styles.timelineDot}>
-                  <Ionicons
-                    name="checkmark"
-                    size={11}
-                    color="#fff"
-                  />
-                </View>
-
-                {index <
-                  Math.min(payments.length, 3) - 1 && (
-                  <View style={styles.timelineLine} />
-                )}
-              </View>
-
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineTitle}>
-                  {payment.title}
-                </Text>
-
-                <Text style={styles.timelineDate}>
-                  {payment.date} • {payment.method}
-                </Text>
-
-                <Text style={styles.timelineAmount}>
-                  {formatCurrency(payment.amount)}
-                </Text>
-              </View>
+              <Ionicons
+                name="time-outline"
+                size={19}
+                color="#6630D7"
+              />
             </View>
-          ))}
-        </View>
+
+            <View style={styles.timelineCard}>
+              {paymentsList.slice(0, 3).map((payment: Payment, index: number) => (
+                <View
+                  key={`timeline-${payment.id}`}
+                  style={styles.timelineItem}
+                >
+                  <View style={styles.timelineLeft}>
+                    <View style={styles.timelineDot}>
+                      <Ionicons
+                        name="checkmark"
+                        size={11}
+                        color="#fff"
+                      />
+                    </View>
+
+                    {index <
+                      Math.min(paymentsList.length, 3) - 1 && (
+                      <View style={styles.timelineLine} />
+                    )}
+                  </View>
+
+                  <View style={styles.timelineContent}>
+                    <Text style={styles.timelineTitle}>
+                      {payment.title}
+                    </Text>
+
+                    <Text style={styles.timelineDate}>
+                      {payment.date} • {payment.method}
+                    </Text>
+
+                    <Text style={styles.timelineAmount}>
+                      {formatCurrency(payment.amount)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* Information */}
         <View style={styles.infoCard}>

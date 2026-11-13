@@ -8,12 +8,18 @@ const {
   updateExamination,
   cancelExamination,
   rescheduleExamination,
+  getStudentResults,
+  submitTestResult,
 } = require("../controllers/examination.controller");
 
 const { protect } = require("../middleware/auth.middleware");
 const { authorizeRoles } = require("../middleware/role.middleware");
 
 router.use(protect);
+
+// Student routes (must come before /:id)
+router.get("/my/results", getStudentResults);
+router.post("/my/submit", submitTestResult);
 
 // Create examination
 router.post(

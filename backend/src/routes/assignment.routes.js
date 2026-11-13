@@ -24,7 +24,7 @@ router.use(protect);
 // Keep this route before GET /:id.
 router.get(
   "/:id/attachment",
-  authorizeRoles("super_admin", "admin", "teacher"),
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
   downloadAssignmentAttachment
 );
 
@@ -39,14 +39,14 @@ router.post(
 // Get all assignments accessible to the logged-in user.
 router.get(
   "/",
-  authorizeRoles("super_admin", "admin", "teacher"),
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
   getAssignments
 );
 
 // Get one assignment.
 router.get(
   "/:id",
-  authorizeRoles("super_admin", "admin", "teacher"),
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
   getAssignmentById
 );
 

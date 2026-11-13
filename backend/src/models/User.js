@@ -63,11 +63,40 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+
+    resetPasswordOtp: {
+      type: String,
+      default: null,
+    },
+
+    resetPasswordOtpExpires: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+// Global security transform: never expose passwordHash or OTP tokens
+userSchema.set("toJSON", {
+  transform: (doc, ret) => {
+    delete ret.passwordHash;
+    delete ret.resetPasswordOtp;
+    delete ret.resetPasswordOtpExpires;
+    return ret;
+  },
+});
+
+userSchema.set("toObject", {
+  transform: (doc, ret) => {
+    delete ret.passwordHash;
+    delete ret.resetPasswordOtp;
+    delete ret.resetPasswordOtpExpires;
+    return ret;
+  },
+});
 
 const User = mongoose.model("User", userSchema);
 

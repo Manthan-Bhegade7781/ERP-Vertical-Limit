@@ -1,14 +1,21 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+
+import { getMyFees, StudentFeesSummary } from '../../../services/fees';
 
 type FeeOverviewPageProps = {
+  data?: StudentFeesSummary | null;
+  loading?: boolean;
+  onRefresh?: () => void;
   onContentScroll?: (event: any) => void;
   onPaymentHistoryPress?: () => void;
   onPayFeesPress?: () => void;
@@ -23,62 +30,115 @@ type FeeItem = {
   dueDate: string;
 };
 
-const feeItems: FeeItem[] = [
-  {
-    id: 'fee-1',
-    title: 'Tuition Fee',
-    amount: 30000,
-    paid: 30000,
-    status: 'Paid',
-    dueDate: '10 Jun 2026',
-  },
-  {
-    id: 'fee-2',
-    title: 'Development Fee',
-    amount: 8000,
-    paid: 6000,
-    status: 'Partial',
-    dueDate: '10 Sep 2026',
-  },
-  {
-    id: 'fee-3',
-    title: 'Activity Fee',
-    amount: 5000,
-    paid: 3000,
-    status: 'Partial',
-    dueDate: '25 Sep 2026',
-  },
-  {
-    id: 'fee-4',
-    title: 'Transport Fee',
-    amount: 6000,
-    paid: 6000,
-    status: 'Paid',
-    dueDate: '10 Jun 2026',
-  },
-];
-
 export default function FeeOverviewPage({
+  data: initialData,
+  loading: initialLoading,
+  onRefresh: parentRefresh,
   onContentScroll,
   onPaymentHistoryPress,
   onPayFeesPress,
 }: FeeOverviewPageProps) {
-  const totalFees = feeItems.reduce(
-    (sum, item) => sum + item.amount,
-    0,
+  const [feesData, setFeesData] = useState<StudentFeesSummary | null>(
+    initialData ?? null,
+  );
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchFees = useCallback(async () => {
+    try {
+      const res = await getMyFees();
+      setFeesData(res);
+    } catch (err) {
+      console.error('Failed to load student fees:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialData !== undefined) {
+      setFeesData(initialData);
+    } else {
+      void fetchFees();
+    }
+  }, [initialData, fetchFees]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchFees();
+    }, [fetchFees]),
   );
 
-  const paidFees = feeItems.reduce(
-    (sum, item) => sum + item.paid,
-    0,
-  );
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (parentRefresh) {
+      parentRefresh();
+    }
+    await fetchFees();
+  };
 
-  const pendingFees = totalFees - paidFees;
+  const feeItems: FeeItem[] = useMemo(() => {
+    if (feesData && Array.isArray(feesData.records)) {
+      return feesData.records.map((r) => {
+        let status: FeeItem['status'] = 'Pending';
+        if (
+          r.status === 'Paid' ||
+          Number(r.paidAmount || 0) >= Number(r.totalAmount || 0)
+        ) {
+          status = 'Paid';
+        } else if (Number(r.paidAmount || 0) > 0) {
+          status = 'Partial';
+        }
+
+        const formattedDate = r.dueDate
+          ? new Date(r.dueDate).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })
+          : 'Pending';
+
+        return {
+          id: r._id,
+          title: r.feeType.toLowerCase().includes('fee')
+            ? r.feeType
+            : `${r.feeType} Fee`,
+          amount: Number(r.totalAmount || 0),
+          paid: Number(r.paidAmount || 0),
+          status,
+          dueDate: formattedDate,
+        };
+      });
+    }
+    return [];
+  }, [feesData]);
+
+  const totalFees = feesData?.totalFees ?? 0;
+  const paidFees = feesData?.paidFees ?? 0;
+  const pendingFees = feesData?.pendingFees ?? 0;
 
   const paidPercentage =
-    totalFees > 0
-      ? Math.round((paidFees / totalFees) * 100)
-      : 0;
+    totalFees > 0 ? Math.round((paidFees / totalFees) * 100) : 0;
+
+  const nextDueDate = useMemo(() => {
+    if (feesData && feesData.records && feesData.records.length > 0) {
+      const pendingRecords = feesData.records.filter(
+        (r) => Number(r.paidAmount || 0) < Number(r.totalAmount || 0),
+      );
+      if (pendingRecords.length > 0) {
+        const sorted = [...pendingRecords].sort(
+          (a, b) =>
+            new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+        );
+        return new Date(sorted[0].dueDate).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
+      }
+      return 'All Cleared';
+    }
+    return 'No Dues';
+  }, [feesData]);
 
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString('en-IN')}`;
@@ -117,6 +177,14 @@ export default function FeeOverviewPage({
         contentContainerStyle={styles.content}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing || Boolean(initialLoading)}
+            onRefresh={handleRefresh}
+            colors={['#6630D7']}
+            tintColor="#6630D7"
+          />
+        }
       >
         {/* Header */}
         <View style={styles.headerRow}>
@@ -258,7 +326,7 @@ export default function FeeOverviewPage({
             </Text>
 
             <Text style={styles.dueDateValue}>
-              25 Sep 2026
+              {nextDueDate}
             </Text>
 
             <Text style={styles.dueDateAmount}>
@@ -266,9 +334,19 @@ export default function FeeOverviewPage({
             </Text>
           </View>
 
-          <View style={styles.dueBadge}>
-            <Text style={styles.dueBadgeText}>
-              Due Soon
+          <View
+            style={[
+              styles.dueBadge,
+              pendingFees === 0 && { backgroundColor: '#EAFBF1' },
+            ]}
+          >
+            <Text
+              style={[
+                styles.dueBadgeText,
+                pendingFees === 0 && { color: '#16A34A' },
+              ]}
+            >
+              {pendingFees === 0 ? 'All Clear' : 'Due Soon'}
             </Text>
           </View>
         </View>
@@ -317,7 +395,22 @@ export default function FeeOverviewPage({
           </Text>
         </View>
 
-        {feeItems.map((item) => {
+        {feeItems.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={34}
+                color="#16A34A"
+              />
+            </View>
+            <Text style={styles.emptyTitle}>No Fee Records</Text>
+            <Text style={styles.emptySubtitle}>
+              You currently have no fee records assigned to your account.
+            </Text>
+          </View>
+        ) : (
+          feeItems.map((item) => {
           const remaining =
             item.amount - item.paid;
 
@@ -436,7 +529,7 @@ export default function FeeOverviewPage({
               )}
             </View>
           );
-        })}
+        }))}
 
         {/* Payment Information */}
         <View style={styles.infoCard}>
@@ -929,5 +1022,41 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#777',
     marginLeft: 5,
+  },
+
+  emptyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#ECEAF3',
+  },
+
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#EAFBF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+
+  emptyTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 16,
+    color: '#1F1C2E',
+    marginBottom: 4,
+  },
+
+  emptySubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#777',
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });

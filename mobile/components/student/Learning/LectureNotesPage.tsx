@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,8 +10,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useAuth } from '../../../context/AuthContext';
+import { getMyClasses, StudentClassesData } from '../../../services/classes';
+import { getTimetable, TimetableEntry } from '../../../services/timetable';
+import LearningTabNav, { LearningTabKey } from './LearningTabNav';
+
 type LectureNotesPageProps = {
   onContentScroll?: (event: any) => void;
+  onNavigate?: (page: LearningTabKey) => void;
 };
 
 type LectureNote = {
@@ -24,105 +32,127 @@ type LectureNote = {
   materialType: 'PDF' | 'Notes' | 'Video' | 'None';
 };
 
-const LECTURE_NOTES: LectureNote[] = [
-  {
-    id: 'lecture-001',
-    subject: 'Physics',
-    topic: "Newton's Laws of Motion",
-    description:
-      'Discussed Newton’s three laws of motion with examples and numerical problems.',
-    teacher: 'Priya Sharma',
-    batch: '10th Standard A',
-    date: '16 Sep 2026',
-    time: '10:00 AM',
-    materialType: 'PDF',
-  },
-  {
-    id: 'lecture-002',
-    subject: 'Mathematics',
-    topic: 'Quadratic Equations',
-    description:
-      'Covered quadratic equations, roots, discriminant and methods for solving equations.',
-    teacher: 'Rahul Sir',
-    batch: '10th Standard A',
-    date: '15 Sep 2026',
-    time: '02:00 PM',
-    materialType: 'Notes',
-  },
-  {
-    id: 'lecture-003',
-    subject: 'Chemistry',
-    topic: 'Chemical Reactions',
-    description:
-      'Introduction to chemical reactions, balancing equations and different types of reactions.',
-    teacher: 'Anjali Ma’am',
-    batch: '10th Standard A',
-    date: '14 Sep 2026',
-    time: '12:00 PM',
-    materialType: 'PDF',
-  },
-  {
-    id: 'lecture-004',
-    subject: 'Physics',
-    topic: 'Motion Graphs',
-    description:
-      'Explained distance-time and velocity-time graphs with practical examples.',
-    teacher: 'Priya Sharma',
-    batch: '10th Standard A',
-    date: '13 Sep 2026',
-    time: '10:00 AM',
-    materialType: 'Video',
-  },
-  {
-    id: 'lecture-005',
-    subject: 'Mathematics',
-    topic: 'Polynomials',
-    description:
-      'Explained polynomial identities and factorisation techniques.',
-    teacher: 'Rahul Sir',
-    batch: '10th Standard A',
-    date: '12 Sep 2026',
-    time: '02:00 PM',
-    materialType: 'Notes',
-  },
-];
-
-const SUBJECTS = [
-  'All',
-  'Physics',
-  'Mathematics',
-  'Chemistry',
-];
-
 export default function LectureNotesPage({
   onContentScroll,
+  onNavigate,
 }: LectureNotesPageProps) {
-  const [selectedSubject, setSelectedSubject] =
-    useState('All');
+  const { user } = useAuth();
+  const [selectedSubject, setSelectedSubject] = useState('All');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [classesData, setClassesData] = useState<StudentClassesData | null>(null);
+  const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [expandedId, setExpandedId] =
-    useState<string | null>(null);
+  const loadData = useCallback(async () => {
+    try {
+      const [classesRes, timetableRes] = await Promise.all([
+        getMyClasses().catch(() => null),
+        getTimetable().catch(() => null),
+      ]);
+
+      if (classesRes) setClassesData(classesRes);
+      if (timetableRes?.data) setTimetableEntries(timetableRes.data);
+    } catch (err) {
+      console.error('Failed to load lecture notes data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+  };
+
+  const currentBatchName =
+    classesData?.currentBatch?.name || user?.batchName || 'My Batch';
+
+  const availableSubjects = useMemo(() => {
+    const list = ['All'];
+    if (classesData?.currentBatch?.subjects) {
+      classesData.currentBatch.subjects.forEach((s) => {
+        if (s.name && !list.includes(s.name)) {
+          list.push(s.name);
+        }
+      });
+    }
+    return list;
+  }, [classesData]);
+
+  const lectures: LectureNote[] = useMemo(() => {
+    if (!timetableEntries || timetableEntries.length === 0) {
+      return [];
+    }
+
+    return timetableEntries
+      .filter((entry: TimetableEntry) => !entry.type || entry.type === 'lecture')
+      .map((entry: TimetableEntry) => {
+        const subName =
+          entry.batchSubjectId?.subjectId?.name || 'Lecture';
+        const teacherName =
+          entry.batchSubjectId?.teacherId?.fullName || 'Assigned Instructor';
+        const bName =
+          entry.batchSubjectId?.batchId?.name || currentBatchName;
+        const dStr = entry.scheduledDate
+          ? new Date(entry.scheduledDate).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })
+          : 'Scheduled';
+        const timeStr =
+          entry.startTime && entry.endTime
+            ? `${entry.startTime} - ${entry.endTime}`
+            : entry.startTime || 'Time not specified';
+
+        return {
+          id: entry._id,
+          subject: subName,
+          topic: entry.room
+            ? `${subName} Class • Room ${entry.room}`
+            : `${subName} Class`,
+          description: `Lecture session for ${subName} covering current syllabus topics. Conducted by ${teacherName}.`,
+          teacher: teacherName,
+          batch: bName,
+          date: dStr,
+          time: timeStr,
+          materialType: 'Notes' as const,
+        };
+      });
+  }, [timetableEntries, currentBatchName]);
 
   const filteredNotes = useMemo(() => {
     if (selectedSubject === 'All') {
-      return LECTURE_NOTES;
+      return lectures;
     }
 
-    return LECTURE_NOTES.filter(
-      note => note.subject === selectedSubject,
+    return lectures.filter(
+      (note) => note.subject.toLowerCase() === selectedSubject.toLowerCase(),
     );
-  }, [selectedSubject]);
+  }, [selectedSubject, lectures]);
 
   return (
     <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={
-          styles.contentContainer
-        }
+        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#6630D7']}
+            tintColor="#6630D7"
+          />
+        }
       >
         {/* ================================= */}
         {/* Header */}
@@ -130,9 +160,7 @@ export default function LectureNotesPage({
 
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.title}>
-              Lecture Notes
-            </Text>
+            <Text style={styles.title}>Lecture Notes</Text>
 
             <Text style={styles.subtitle}>
               Notes and lecture information from your teachers
@@ -140,13 +168,34 @@ export default function LectureNotesPage({
           </View>
 
           <View style={styles.headerIcon}>
-            <Ionicons
-              name="school-outline"
-              size={24}
-              color="#6630D7"
-            />
+            <Ionicons name="school-outline" size={24} color="#6630D7" />
           </View>
         </View>
+
+        {/* Learning Navigation Tabs */}
+        <View style={{ paddingHorizontal: 16 }}>
+          <LearningTabNav
+            activeTab="lectureNotes"
+            onNavigate={onNavigate}
+          />
+        </View>
+
+        {/* Loading */}
+        {loading && (
+          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#6630D7" />
+            <Text
+              style={{
+                fontFamily: 'PoppinsRegular',
+                fontSize: 10,
+                color: '#888',
+                marginTop: 6,
+              }}
+            >
+              Loading lectures...
+            </Text>
+          </View>
+        )}
 
         {/* ================================= */}
         {/* Batch Card */}
@@ -154,31 +203,19 @@ export default function LectureNotesPage({
 
         <View style={styles.batchCard}>
           <View style={styles.batchIcon}>
-            <Ionicons
-              name="people-outline"
-              size={21}
-              color="#6630D7"
-            />
+            <Ionicons name="people-outline" size={21} color="#6630D7" />
           </View>
 
           <View style={styles.batchContent}>
-            <Text style={styles.batchLabel}>
-              YOUR BATCH
-            </Text>
+            <Text style={styles.batchLabel}>YOUR BATCH</Text>
 
-            <Text style={styles.batchName}>
-              10th Standard A
-            </Text>
+            <Text style={styles.batchName}>{currentBatchName}</Text>
           </View>
 
           <View style={styles.lectureCount}>
-            <Text style={styles.lectureCountNumber}>
-              {filteredNotes.length}
-            </Text>
+            <Text style={styles.lectureCountNumber}>{filteredNotes.length}</Text>
 
-            <Text style={styles.lectureCountLabel}>
-              Lectures
-            </Text>
+            <Text style={styles.lectureCountLabel}>Lectures</Text>
           </View>
         </View>
 
@@ -187,38 +224,29 @@ export default function LectureNotesPage({
         {/* ================================= */}
 
         <View style={styles.filterSection}>
-          <Text style={styles.filterTitle}>
-            Filter by Subject
-          </Text>
+          <Text style={styles.filterTitle}>Filter by Subject</Text>
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={
-              styles.filterContainer
-            }
+            contentContainerStyle={styles.filterContainer}
           >
-            {SUBJECTS.map(subject => {
-              const isSelected =
-                selectedSubject === subject;
+            {availableSubjects.map((subject) => {
+              const isSelected = selectedSubject === subject;
 
               return (
                 <Pressable
                   key={subject}
                   style={[
                     styles.filterButton,
-                    isSelected &&
-                      styles.selectedFilter,
+                    isSelected && styles.selectedFilter,
                   ]}
-                  onPress={() =>
-                    setSelectedSubject(subject)
-                  }
+                  onPress={() => setSelectedSubject(subject)}
                 >
                   <Text
                     style={[
                       styles.filterText,
-                      isSelected &&
-                        styles.selectedFilterText,
+                      isSelected && styles.selectedFilterText,
                     ]}
                   >
                     {subject}

@@ -10,11 +10,13 @@ import {
 
 import AuthInput from './AuthInput';
 import { AuthScreen } from './AuthScreen';
+import ForgotPasswordModal from './ForgotPasswordModal';
 import { useAuth } from '@/context/AuthContext';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [forgotModalVisible, setForgotModalVisible] = useState(false);
   const { login } = useAuth();
 
   const handleLogin = async () => {
@@ -52,6 +54,30 @@ export function LoginForm() {
       return;
     }
 
+    const roles = result.data?.user.roles ?? [];
+
+    const dashboardRoutes: Record<string, '/(super_admin)' | '/admin' | '/(tabs)' | '/(student)'> = {
+      super_admin: '/(super_admin)',
+      admin: '/admin',
+      teacher: '/(tabs)',
+      student: '/(student)',
+    };
+
+    const supportedRoles = Object.keys(dashboardRoutes);
+    const assignedRoles = roles.filter((role) =>
+      supportedRoles.includes(role)
+    );
+
+    if (assignedRoles.length !== 1) {
+      Alert.alert(
+        'Access denied',
+        'Your account must have exactly one supported dashboard role.'
+      );
+      return;
+    }
+
+    const destination = dashboardRoutes[assignedRoles[0]];
+
     Alert.alert(
       'Login successful',
       `Welcome back, ${result.data?.user.fullName || 'User'}!`,
@@ -59,43 +85,7 @@ export function LoginForm() {
         {
           text: 'Continue',
           onPress: () => {
-            const roles = result.data?.user.roles ?? [];
-
-const dashboardRoutes: Record<string, '/(super_admin)' | '/admin' | '/(tabs)' | '/(student)'> = {
-  super_admin: '/(super_admin)',
-  admin: '/admin',
-  teacher: '/(tabs)',
-  student: '/(student)',
-};
-
-const supportedRoles = Object.keys(dashboardRoutes);
-const assignedRoles = roles.filter((role) =>
-  supportedRoles.includes(role)
-);
-
-if (assignedRoles.length !== 1) {
-  Alert.alert(
-    'Access denied',
-    'Your account must have exactly one supported dashboard role.'
-  );
-  return;
-}
-
-Alert.alert(
-  'Login successful',
-  `Welcome back, ${result.data?.user.fullName || 'User'}!`,
-  [
-    {
-      text: 'Continue',
-      onPress: () => {
-        const destination = dashboardRoutes[assignedRoles[0]];
-
-        router.replace(destination);
-      },
-    },
-  ]
-);
-
+            router.replace(destination);
           },
         },
       ]
@@ -160,12 +150,7 @@ Alert.alert(
       <TouchableOpacity
         style={styles.forgotButton}
         activeOpacity={0.7}
-        onPress={() => {
-          Alert.alert(
-            'Forgot Password',
-            'Password reset functionality will be added here.'
-          );
-        }}
+        onPress={() => setForgotModalVisible(true)}
       >
         <Text style={styles.forgotText}>
           Forgot Password?
@@ -218,6 +203,17 @@ Alert.alert(
           </Text>
         </TouchableOpacity>
       </View>
+
+      <ForgotPasswordModal
+        visible={forgotModalVisible}
+        onClose={() => setForgotModalVisible(false)}
+        initialEmail={email}
+        onResetSuccess={(resetEmail) => {
+          setEmail(resetEmail);
+          setPassword('');
+          setForgotModalVisible(false);
+        }}
+      />
     </AuthScreen>
   );
 }

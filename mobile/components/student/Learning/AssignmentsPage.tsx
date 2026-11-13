@@ -1,15 +1,26 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+
+import { API_BASE_URL } from '../../../config/api';
+import { getToken } from '../../../services/auth';
+import { fetchAssignments, AssignmentRecord } from '../../../services/assignments';
+import LearningTabNav, { LearningTabKey } from './LearningTabNav';
 
 type AssignmentsPageProps = {
   onContentScroll?: (event: any) => void;
+  onNavigate?: (page: LearningTabKey) => void;
 };
 
 type Assignment = {
@@ -18,51 +29,18 @@ type Assignment = {
   subject: string;
   description: string;
   dueDate: string;
+  assignedDate?: string;
   status: 'Pending' | 'Submitted' | 'Graded';
   marks?: string;
   feedback?: string;
+  assignmentType?: string;
+  attachment?: {
+    fileName?: string;
+    filePath?: string;
+    mimeType?: string;
+    fileSize?: number;
+  };
 };
-
-const assignments: Assignment[] = [
-  {
-    id: 'assignment-1',
-    title: 'Newton\'s Laws Assignment',
-    subject: 'Physics',
-    description:
-      'Solve the given problems based on Newton\'s three laws of motion.',
-    dueDate: '18 Sep 2026',
-    status: 'Pending',
-  },
-  {
-    id: 'assignment-2',
-    title: 'Quadratic Equations',
-    subject: 'Mathematics',
-    description:
-      'Complete the worksheet covering quadratic equations and their solutions.',
-    dueDate: '20 Sep 2026',
-    status: 'Pending',
-  },
-  {
-    id: 'assignment-3',
-    title: 'Chemical Reactions',
-    subject: 'Chemistry',
-    description:
-      'Prepare notes on different types of chemical reactions.',
-    dueDate: '12 Sep 2026',
-    status: 'Submitted',
-  },
-  {
-    id: 'assignment-4',
-    title: 'Motion Graphs',
-    subject: 'Physics',
-    description:
-      'Answer the questions related to distance-time and velocity-time graphs.',
-    dueDate: '08 Sep 2026',
-    status: 'Graded',
-    marks: '18/20',
-    feedback: 'Good work. Review graph interpretation once more.',
-  },
-];
 
 const filters = [
   'All',
@@ -73,30 +51,139 @@ const filters = [
 
 export default function AssignmentsPage({
   onContentScroll,
+  onNavigate,
 }: AssignmentsPageProps) {
-  const [selectedFilter, setSelectedFilter] =
-    useState('All');
+  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [assignmentsList, setAssignmentsList] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const loadAssignments = useCallback(async () => {
+    try {
+      const records = await fetchAssignments();
+      const mapped: Assignment[] = records.map((item) => {
+        const subName =
+          typeof item.subjectId === 'object' && item.subjectId?.name
+            ? item.subjectId.name
+            : 'Subject';
+
+        const due = item.submissionDate
+          ? new Date(item.submissionDate).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })
+          : 'No due date';
+
+        const assigned = item.assignedDate
+          ? new Date(item.assignedDate).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })
+          : undefined;
+
+        return {
+          id: item._id,
+          title: item.assignmentTitle,
+          subject: subName,
+          description:
+            item.description ||
+            item.instructions ||
+            'Review the assignment instructions and solve all required questions.',
+          dueDate: due,
+          assignedDate: assigned,
+          status: 'Pending' as const,
+          marks: item.totalMarks ? `${item.totalMarks} Marks` : undefined,
+          assignmentType: item.assignmentType,
+          attachment: item.attachment,
+        };
+      });
+
+      setAssignmentsList(mapped);
+    } catch (err) {
+      console.error('Failed to load assignments:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAssignments();
+  }, [loadAssignments]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadAssignments();
+  };
+
+  const handleDownloadAttachment = async (assignment: Assignment) => {
+    if (!assignment.attachment?.fileName) {
+      Alert.alert('Notice', 'No attachment file available for this assignment.');
+      return;
+    }
+
+    try {
+      setDownloadingId(assignment.id);
+      const token = await getToken();
+      const url = `${API_BASE_URL}/assignments/${encodeURIComponent(assignment.id)}/attachment`;
+      const rawName = assignment.attachment.fileName || 'assignment.pdf';
+      const cleanName = rawName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || '';
+      const localUri = `${baseDir}${cleanName.endsWith('.pdf') ? cleanName : `${cleanName}.pdf`}`;
+
+      const downloadResult = await FileSystem.downloadAsync(url, localUri, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (downloadResult.status >= 200 && downloadResult.status < 300) {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(downloadResult.uri, {
+            mimeType: assignment.attachment.mimeType || 'application/pdf',
+            dialogTitle: assignment.attachment.fileName,
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          Alert.alert(
+            'Download Complete',
+            `Attachment saved to: ${downloadResult.uri}`,
+          );
+        }
+      } else {
+        Alert.alert('Download Failed', `Could not download attachment file (status ${downloadResult.status}).`);
+      }
+    } catch (error: any) {
+      console.error('Attachment download error:', error);
+      Alert.alert(
+        'Download Error',
+        error?.message || 'Failed to download attachment.',
+      );
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const filteredAssignments = useMemo(() => {
     if (selectedFilter === 'All') {
-      return assignments;
+      return assignmentsList;
     }
 
-    return assignments.filter(
-      (assignment) =>
-        assignment.status === selectedFilter,
+    return assignmentsList.filter(
+      (assignment) => assignment.status === selectedFilter,
     );
-  }, [selectedFilter]);
+  }, [selectedFilter, assignmentsList]);
 
-  const pendingCount = assignments.filter(
+  const pendingCount = assignmentsList.filter(
     (assignment) => assignment.status === 'Pending',
   ).length;
 
-  const submittedCount = assignments.filter(
+  const submittedCount = assignmentsList.filter(
     (assignment) => assignment.status === 'Submitted',
   ).length;
 
-  const gradedCount = assignments.filter(
+  const gradedCount = assignmentsList.filter(
     (assignment) => assignment.status === 'Graded',
   ).length;
 
@@ -161,6 +248,14 @@ export default function AssignmentsPage({
         contentContainerStyle={styles.content}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#6630D7']}
+            tintColor="#6630D7"
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -182,6 +277,20 @@ export default function AssignmentsPage({
             />
           </View>
         </View>
+
+        {/* Learning Navigation Tabs */}
+        <LearningTabNav
+          activeTab="assignments"
+          onNavigate={onNavigate}
+        />
+
+        {/* Loading Indicator */}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#6630D7" />
+            <Text style={styles.loadingText}>Loading assignments...</Text>
+          </View>
+        )}
 
         {/* Summary */}
         <View style={styles.summaryRow}>
@@ -438,6 +547,35 @@ export default function AssignmentsPage({
                 </View>
               )}
 
+              {/* Attachment Download */}
+              {assignment.attachment?.fileName && (
+                <Pressable
+                  style={styles.attachmentButton}
+                  onPress={() => handleDownloadAttachment(assignment)}
+                  disabled={downloadingId === assignment.id}
+                >
+                  {downloadingId === assignment.id ? (
+                    <ActivityIndicator size="small" color="#6630D7" />
+                  ) : (
+                    <Ionicons
+                      name="document-attach-outline"
+                      size={15}
+                      color="#6630D7"
+                    />
+                  )}
+
+                  <Text style={styles.attachmentText} numberOfLines={1}>
+                    {assignment.attachment.fileName}
+                  </Text>
+
+                  <Ionicons
+                    name="download-outline"
+                    size={14}
+                    color="#6630D7"
+                  />
+                </Pressable>
+              )}
+
               {/* Action */}
               <Pressable
                 style={[
@@ -445,12 +583,24 @@ export default function AssignmentsPage({
                   assignment.status === 'Graded' &&
                     styles.actionButtonGraded,
                 ]}
+                onPress={() => {
+                  if (assignment.attachment?.fileName) {
+                    void handleDownloadAttachment(assignment);
+                  } else {
+                    Alert.alert(
+                      assignment.title,
+                      assignment.description,
+                    );
+                  }
+                }}
               >
                 <Ionicons
                   name={
-                    assignment.status === 'Pending'
-                      ? 'cloud-upload-outline'
-                      : 'eye-outline'
+                    assignment.attachment?.fileName
+                      ? 'download-outline'
+                      : assignment.status === 'Pending'
+                        ? 'cloud-upload-outline'
+                        : 'eye-outline'
                   }
                   size={16}
                   color={
@@ -467,9 +617,11 @@ export default function AssignmentsPage({
                       styles.actionTextGraded,
                   ]}
                 >
-                  {assignment.status === 'Pending'
-                    ? 'Submit Assignment'
-                    : 'View Assignment'}
+                  {assignment.attachment?.fileName
+                    ? 'Download Worksheet / PDF'
+                    : assignment.status === 'Pending'
+                      ? 'Submit Assignment'
+                      : 'View Assignment'}
                 </Text>
               </Pressable>
             </View>
@@ -888,5 +1040,37 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     color: '#66558A',
     marginTop: 3,
+  },
+
+  attachmentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F1FD',
+    borderWidth: 1,
+    borderColor: '#D8CAF8',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginTop: 8,
+    gap: 6,
+  },
+
+  attachmentText: {
+    flex: 1,
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9,
+    color: '#6630D7',
+  },
+
+  loadingContainer: {
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+
+  loadingText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    color: '#888',
+    marginTop: 8,
   },
 });

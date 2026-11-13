@@ -7,8 +7,10 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { StudentAttendanceRecordItem } from '../../../services/attendance';
 
 type AttendanceDetailsProps = {
+  records?: StudentAttendanceRecordItem[];
   onContentScroll?: (event: any) => void;
 };
 
@@ -80,20 +82,31 @@ const ATTENDANCE_DATA: AttendanceItem[] = [
 ];
 
 export default function AttendanceDetails({
+  records,
   onContentScroll,
 }: AttendanceDetailsProps) {
   const [selectedSubject, setSelectedSubject] =
     useState('All');
 
+  const dataSource: (AttendanceItem | StudentAttendanceRecordItem)[] =
+    records !== undefined ? records : ATTENDANCE_DATA;
+
+  const availableSubjects = useMemo(() => {
+    const subs = Array.from(
+      new Set(dataSource.map(item => item.subject).filter(Boolean)),
+    );
+    return ['All', ...subs];
+  }, [dataSource]);
+
   const filteredData = useMemo(() => {
     if (selectedSubject === 'All') {
-      return ATTENDANCE_DATA;
+      return dataSource;
     }
 
-    return ATTENDANCE_DATA.filter(
+    return dataSource.filter(
       item => item.subject === selectedSubject,
     );
-  }, [selectedSubject]);
+  }, [dataSource, selectedSubject]);
 
   const presentCount = filteredData.filter(
     item => item.status === 'Present',
@@ -224,12 +237,7 @@ export default function AttendanceDetails({
               styles.filterContainer
             }
           >
-            {[
-              'All',
-              'Physics',
-              'Mathematics',
-              'Chemistry',
-            ].map(subject => {
+            {availableSubjects.map(subject => {
               const selected =
                 selectedSubject === subject;
 

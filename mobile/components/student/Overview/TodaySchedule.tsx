@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -7,7 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-type Schedule = {
+export type Schedule = {
   time: string;
   subject: string;
   batch: string;
@@ -16,39 +17,22 @@ type Schedule = {
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
   background: string;
+  rawStartTime?: string;
+  rawEndTime?: string;
 };
 
 type TodayScheduleProps = {
   schedules?: Schedule[];
+  loading?: boolean;
   onViewTimetable?: () => void;
+  onClassPress?: (schedule: Schedule) => void;
 };
 
-const defaultSchedules: Schedule[] = [
-  {
-    time: '10:00 AM',
-    subject: 'Physics',
-    batch: '10th Standard A',
-    room: 'Room 101',
-    teacher: 'Priya Sharma',
-    icon: 'flask-outline',
-    iconColor: '#6630D7',
-    background: '#EEE7FF',
-  },
-  {
-    time: '02:00 PM',
-    subject: 'Mathematics',
-    batch: '10th Standard A',
-    room: 'Room 102',
-    teacher: 'Rahul Sir',
-    icon: 'calculator-outline',
-    iconColor: '#1670E8',
-    background: '#E6F0FF',
-  },
-];
-
 export default function TodaySchedule({
-  schedules = defaultSchedules,
+  schedules = [],
+  loading = false,
   onViewTimetable,
+  onClassPress,
 }: TodayScheduleProps) {
   return (
     <View style={styles.section}>
@@ -71,56 +55,73 @@ export default function TodaySchedule({
         </Pressable>
       </View>
 
-      {schedules.map((schedule, index) => (
-        <View
-          key={`${schedule.subject}-${schedule.time}-${index}`}
-          style={[
-            styles.scheduleItem,
-            index !== schedules.length - 1 &&
-              styles.border,
-          ]}
-        >
-          <Text style={styles.time}>
-            {schedule.time}
-          </Text>
-
-          <View
-            style={[
-              styles.iconBox,
-              {
-                backgroundColor:
-                  schedule.background,
-              },
-            ]}
-          >
-            <Ionicons
-              name={schedule.icon}
-              size={21}
-              color={schedule.iconColor}
-            />
-          </View>
-
-          <View style={styles.content}>
-            <Text style={styles.subject}>
-              {schedule.subject}
-            </Text>
-
-            <Text style={styles.batch}>
-              {schedule.batch}
-            </Text>
-
-            <Text style={styles.meta}>
-              {schedule.room} • {schedule.teacher}
-            </Text>
-          </View>
-
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color="#A2A2AE"
-          />
+      {loading ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="small" color="#6630D7" />
+          <Text style={styles.loadingText}>Loading today's schedule...</Text>
         </View>
-      ))}
+      ) : schedules.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <View style={styles.emptyIconBox}>
+            <Ionicons name="calendar-outline" size={24} color="#6630D7" />
+          </View>
+          <Text style={styles.emptyTitle}>No Classes Scheduled Today</Text>
+          <Text style={styles.emptySubtitle}>
+            Check your weekly timetable to see upcoming classes.
+          </Text>
+        </View>
+      ) : (
+        schedules.map((schedule, index) => (
+          <Pressable
+            key={`${schedule.subject}-${schedule.time}-${index}`}
+            style={({ pressed }) => [
+              styles.scheduleItem,
+              index !== schedules.length - 1 && styles.border,
+              pressed && onClassPress && styles.pressed,
+            ]}
+            onPress={() => onClassPress?.(schedule)}
+          >
+            <Text style={styles.time}>
+              {schedule.time}
+            </Text>
+
+            <View
+              style={[
+                styles.iconBox,
+                {
+                  backgroundColor: schedule.background,
+                },
+              ]}
+            >
+              <Ionicons
+                name={schedule.icon}
+                size={21}
+                color={schedule.iconColor}
+              />
+            </View>
+
+            <View style={styles.content}>
+              <Text style={styles.subject}>
+                {schedule.subject}
+              </Text>
+
+              <Text style={styles.batch}>
+                {schedule.batch}
+              </Text>
+
+              <Text style={styles.meta}>
+                {schedule.room} • {schedule.teacher}
+              </Text>
+            </View>
+
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color="#A2A2AE"
+            />
+          </Pressable>
+        ))
+      )}
     </View>
   );
 }
@@ -138,7 +139,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 6,
   },
 
   title: {
@@ -153,6 +154,49 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
   },
 
+  loadingBox: {
+    paddingVertical: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  loadingText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10.5,
+    color: '#777784',
+    marginTop: 8,
+  },
+
+  emptyCard: {
+    paddingVertical: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  emptyIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+
+  emptyTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+    color: '#171A2B',
+  },
+
+  emptySubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    color: '#858592',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+
   scheduleItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -165,7 +209,7 @@ const styles = StyleSheet.create({
   },
 
   time: {
-    width: 62,
+    width: 66,
     color: '#777784',
     fontSize: 9.5,
     fontFamily: 'PoppinsSemiBold',
@@ -202,5 +246,9 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     fontFamily: 'PoppinsRegular',
     marginTop: 1,
+  },
+
+  pressed: {
+    opacity: 0.7,
   },
 });

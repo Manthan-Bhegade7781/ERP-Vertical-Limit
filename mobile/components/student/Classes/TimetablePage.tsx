@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,6 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
+
+import { getTimetable, TimetableEntry } from '@/services/timetable';
 
 type TimetablePageProps = {
   onContentScroll?: (event: any) => void;
@@ -33,164 +38,48 @@ type DaySchedule = {
   classes: ClassItem[];
 };
 
-const WEEK_SCHEDULE: ClassItem[][] = [
-  [
-    {
-      time: '10:00 AM',
-      subject: 'Physics',
-      teacher: 'Priya Sharma',
-      room: 'Room 101',
-      icon: 'flask-outline',
-      color: '#6630D7',
-      background: '#EEE7FF',
-    },
-    {
-      time: '11:30 AM',
-      subject: 'Mathematics',
-      teacher: 'Rahul Sir',
-      room: 'Room 203',
-      icon: 'calculator-outline',
-      color: '#1670E8',
-      background: '#E6F0FF',
-    },
-    {
-      time: '02:00 PM',
-      subject: 'Chemistry',
-      teacher: 'Anjali Ma’am',
-      room: 'Room 105',
-      icon: 'beaker-outline',
-      color: '#22A55A',
-      background: '#E3F7EB',
-    },
-  ],
-  [
-    {
-      time: '09:00 AM',
-      subject: 'Mathematics',
-      teacher: 'Rahul Sir',
-      room: 'Room 203',
-      icon: 'calculator-outline',
-      color: '#1670E8',
-      background: '#E6F0FF',
-    },
-    {
-      time: '10:30 AM',
-      subject: 'Physics',
-      teacher: 'Priya Sharma',
-      room: 'Room 101',
-      icon: 'flask-outline',
-      color: '#6630D7',
-      background: '#EEE7FF',
-    },
-    {
-      time: '01:30 PM',
-      subject: 'Chemistry',
-      teacher: 'Anjali Ma’am',
-      room: 'Room 105',
-      icon: 'beaker-outline',
-      color: '#22A55A',
-      background: '#E3F7EB',
-    },
-  ],
-  [
-    {
-      time: '10:00 AM',
-      subject: 'Chemistry',
-      teacher: 'Anjali Ma’am',
-      room: 'Room 105',
-      icon: 'beaker-outline',
-      color: '#22A55A',
-      background: '#E3F7EB',
-    },
-    {
-      time: '11:30 AM',
-      subject: 'Physics',
-      teacher: 'Priya Sharma',
-      room: 'Room 101',
-      icon: 'flask-outline',
-      color: '#6630D7',
-      background: '#EEE7FF',
-    },
-    {
-      time: '03:00 PM',
-      subject: 'Mathematics',
-      teacher: 'Rahul Sir',
-      room: 'Room 203',
-      icon: 'calculator-outline',
-      color: '#1670E8',
-      background: '#E6F0FF',
-    },
-  ],
-  [
-    {
-      time: '10:00 AM',
-      subject: 'Physics',
-      teacher: 'Priya Sharma',
-      room: 'Room 101',
-      icon: 'flask-outline',
-      color: '#6630D7',
-      background: '#EEE7FF',
-    },
-    {
-      time: '12:00 PM',
-      subject: 'Mathematics',
-      teacher: 'Rahul Sir',
-      room: 'Room 203',
-      icon: 'calculator-outline',
-      color: '#1670E8',
-      background: '#E6F0FF',
-    },
-    {
-      time: '02:30 PM',
-      subject: 'Chemistry',
-      teacher: 'Anjali Ma’am',
-      room: 'Room 105',
-      icon: 'beaker-outline',
-      color: '#22A55A',
-      background: '#E3F7EB',
-    },
-  ],
-  [
-    {
-      time: '09:30 AM',
-      subject: 'Mathematics',
-      teacher: 'Rahul Sir',
-      room: 'Room 203',
-      icon: 'calculator-outline',
-      color: '#1670E8',
-      background: '#E6F0FF',
-    },
-    {
-      time: '11:00 AM',
-      subject: 'Physics',
-      teacher: 'Priya Sharma',
-      room: 'Room 101',
-      icon: 'flask-outline',
-      color: '#6630D7',
-      background: '#EEE7FF',
-    },
-  ],
-  [
-    {
-      time: '10:00 AM',
-      subject: 'Chemistry',
-      teacher: 'Anjali Ma’am',
-      room: 'Room 105',
-      icon: 'beaker-outline',
-      color: '#22A55A',
-      background: '#E3F7EB',
-    },
-    {
-      time: '11:30 AM',
-      subject: 'Mathematics',
-      teacher: 'Rahul Sir',
-      room: 'Room 203',
-      icon: 'calculator-outline',
-      color: '#1670E8',
-      background: '#E6F0FF',
-    },
-  ],
-];
+const getSubjectStyle = (name: string, index: number) => {
+  const lower = name.toLowerCase();
+  if (lower.includes('physic')) {
+    return { icon: 'flask-outline' as const, color: '#6630D7', background: '#EEE7FF' };
+  }
+  if (lower.includes('math')) {
+    return { icon: 'calculator-outline' as const, color: '#1670E8', background: '#E6F0FF' };
+  }
+  if (lower.includes('chem')) {
+    return { icon: 'beaker-outline' as const, color: '#22A55A', background: '#E3F7EB' };
+  }
+  if (lower.includes('bio')) {
+    return { icon: 'leaf-outline' as const, color: '#059669', background: '#D1FAE5' };
+  }
+  if (lower.includes('eng')) {
+    return { icon: 'book-outline' as const, color: '#F28A17', background: '#FFF0DF' };
+  }
+  if (lower.includes('computer') || lower.includes('cs') || lower.includes('it')) {
+    return { icon: 'laptop-outline' as const, color: '#7C3AED', background: '#EDE9FE' };
+  }
+
+  const defaultStyles = [
+    { icon: 'flask-outline' as const, color: '#6630D7', background: '#EEE7FF' },
+    { icon: 'calculator-outline' as const, color: '#1670E8', background: '#E6F0FF' },
+    { icon: 'beaker-outline' as const, color: '#22A55A', background: '#E3F7EB' },
+    { icon: 'book-outline' as const, color: '#F28A17', background: '#FFF0DF' },
+    { icon: 'school-outline' as const, color: '#E95386', background: '#FDECF1' },
+  ];
+  return defaultStyles[index % defaultStyles.length];
+};
+
+const formatTime = (timeStr?: string) => {
+  if (!timeStr) return '';
+  const parts = timeStr.split(':');
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (isNaN(h)) return timeStr;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  const minStr = String(isNaN(m) ? 0 : m).padStart(2, '0');
+  return `${String(hour12).padStart(2, '0')}:${minStr} ${period}`;
+};
 
 function getStartOfWeek(date: Date) {
   const result = new Date(date);
@@ -202,35 +91,6 @@ function getStartOfWeek(date: Date) {
   result.setHours(0, 0, 0, 0);
 
   return result;
-}
-
-function getWeekData(): DaySchedule[] {
-  const monday = getStartOfWeek(new Date());
-
-  const days = [
-    { day: 'Monday', shortDay: 'MON' },
-    { day: 'Tuesday', shortDay: 'TUE' },
-    { day: 'Wednesday', shortDay: 'WED' },
-    { day: 'Thursday', shortDay: 'THU' },
-    { day: 'Friday', shortDay: 'FRI' },
-    { day: 'Saturday', shortDay: 'SAT' },
-  ];
-
-  return days.map((item, index) => {
-    const date = new Date(monday);
-
-    date.setDate(monday.getDate() + index);
-
-    return {
-      day: item.day,
-      shortDay: item.shortDay,
-      date: date.getDate(),
-      month: date.toLocaleDateString('en-US', {
-        month: 'short',
-      }),
-      classes: WEEK_SCHEDULE[index],
-    };
-  });
 }
 
 function TimetableHeader({
@@ -281,7 +141,115 @@ export default function TimetablePage({
   onContentScroll,
   onBack,
 }: TimetablePageProps) {
-  const week = useMemo(() => getWeekData(), []);
+  const [timetableEntries, setTimetableEntries] =
+    useState<TimetableEntry[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchTimetable = useCallback(async () => {
+    try {
+      const monday = getStartOfWeek(new Date());
+      const saturday = new Date(monday);
+      saturday.setDate(monday.getDate() + 5);
+
+      const res = await getTimetable({
+        startDate: monday.toISOString().split('T')[0],
+        endDate: saturday.toISOString().split('T')[0],
+      });
+
+      if (res.success && Array.isArray(res.data)) {
+        setTimetableEntries(res.data);
+      } else {
+        setTimetableEntries([]);
+      }
+    } catch (err) {
+      console.error('Failed to load student timetable:', err);
+      setTimetableEntries([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchTimetable();
+  }, [fetchTimetable]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchTimetable();
+    }, [fetchTimetable]),
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchTimetable();
+  };
+
+  const week = useMemo(() => {
+    const monday = getStartOfWeek(new Date());
+    const days = [
+      { day: 'Monday', shortDay: 'MON' },
+      { day: 'Tuesday', shortDay: 'TUE' },
+      { day: 'Wednesday', shortDay: 'WED' },
+      { day: 'Thursday', shortDay: 'THU' },
+      { day: 'Friday', shortDay: 'FRI' },
+      { day: 'Saturday', shortDay: 'SAT' },
+    ];
+
+    return days.map((item, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+
+      let classes: ClassItem[] = [];
+
+      if (timetableEntries && timetableEntries.length > 0) {
+        const dayEntries = timetableEntries.filter((e) => {
+          if (!e.scheduledDate) return false;
+          const entryDate = new Date(e.scheduledDate);
+          return (
+            entryDate.getFullYear() === date.getFullYear() &&
+            entryDate.getMonth() === date.getMonth() &&
+            entryDate.getDate() === date.getDate()
+          );
+        });
+
+        dayEntries.sort((a, b) =>
+          (a.startTime || '').localeCompare(b.startTime || ''),
+        );
+
+        classes = dayEntries.map((entry, idx) => {
+          const subjectName =
+            entry.batchSubjectId?.subjectId?.name || 'Class';
+          const teacherName =
+            entry.batchSubjectId?.teacherId?.fullName ||
+            'Assigned Teacher';
+          const style = getSubjectStyle(subjectName, idx);
+          return {
+            time: formatTime(entry.startTime),
+            subject: subjectName,
+            teacher: teacherName,
+            room: entry.room || 'Room 101',
+            icon: style.icon,
+            color: style.color,
+            background: style.background,
+          };
+        });
+      } else {
+        classes = [];
+      }
+
+      return {
+        day: item.day,
+        shortDay: item.shortDay,
+        date: date.getDate(),
+        month: date.toLocaleDateString('en-US', {
+          month: 'short',
+        }),
+        classes,
+      };
+    });
+  }, [timetableEntries]);
 
   const today = new Date();
 
@@ -296,7 +264,7 @@ export default function TimetablePage({
       : 0,
   );
 
-  const selectedSchedule = week[selectedDay];
+  const selectedSchedule = week[selectedDay] || week[0];
 
   return (
     <View style={styles.container}>
@@ -308,9 +276,16 @@ export default function TimetablePage({
         showsVerticalScrollIndicator={false}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#6630D7']}
+            tintColor="#6630D7"
+          />
+        }
       >
         {/* PAGE INTRO */}
-
         <View style={styles.pageIntro}>
           <View style={styles.introText}>
             <Text style={styles.pageTitle}>
@@ -331,193 +306,216 @@ export default function TimetablePage({
           </View>
         </View>
 
-        {/* WEEK SELECTOR */}
-
-        <View style={styles.weekCard}>
-          <View style={styles.weekHeader}>
-            <Text style={styles.weekTitle}>
-              Weekly Schedule
-            </Text>
-
-            <View style={styles.weekBadge}>
-              <Text style={styles.weekBadgeText}>
-                {week[0].date} {week[0].month} -{' '}
-                {week[5].date} {week[5].month}
-              </Text>
-            </View>
+        {loading && timetableEntries === null ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6630D7" />
+            <Text style={styles.loadingText}>Loading timetable...</Text>
           </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={
-              styles.daySelectorContent
-            }
-          >
-            {week.map((day, index) => {
-              const isSelected =
-                selectedDay === index;
-
-              return (
-                <Pressable
-                  key={`${day.day}-${day.date}`}
-                  style={[
-                    styles.dayButton,
-                    isSelected &&
-                      styles.dayButtonSelected,
-                  ]}
-                  onPress={() =>
-                    setSelectedDay(index)
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.dayName,
-                      isSelected &&
-                        styles.dayNameSelected,
-                    ]}
-                  >
-                    {day.shortDay}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.dayDate,
-                      isSelected &&
-                        styles.dayDateSelected,
-                    ]}
-                  >
-                    {day.date}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.dayMonth,
-                      isSelected &&
-                        styles.dayMonthSelected,
-                    ]}
-                  >
-                    {day.month}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* SELECTED DAY */}
-
-        <View style={styles.scheduleHeader}>
-          <View>
-            <Text style={styles.selectedDayTitle}>
-              {selectedSchedule.day}
-            </Text>
-
-            <Text style={styles.selectedDaySubtitle}>
-              {selectedSchedule.date}{' '}
-              {selectedSchedule.month}{' '}
-              {new Date().getFullYear()}
-            </Text>
-          </View>
-
-          <View style={styles.classCount}>
-            <Text style={styles.classCountText}>
-              {selectedSchedule.classes.length}{' '}
-              Classes
-            </Text>
-          </View>
-        </View>
-
-        {/* CLASSES */}
-
-        {selectedSchedule.classes.map(
-          (classItem, index) => (
-            <View
-              key={`${selectedSchedule.day}-${classItem.subject}-${index}`}
-              style={styles.classCard}
-            >
-              <View style={styles.timeColumn}>
-                <Text style={styles.timeText}>
-                  {classItem.time}
+        ) : (
+          <>
+            {/* WEEK SELECTOR */}
+            <View style={styles.weekCard}>
+              <View style={styles.weekHeader}>
+                <Text style={styles.weekTitle}>
+                  Weekly Schedule
                 </Text>
 
-                {index !==
-                  selectedSchedule.classes.length - 1 && (
-                  <View style={styles.timelineLine} />
-                )}
+                <View style={styles.weekBadge}>
+                  <Text style={styles.weekBadgeText}>
+                    {week[0].date} {week[0].month} -{' '}
+                    {week[5].date} {week[5].month}
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.classDetails}>
-                <View
-                  style={[
-                    styles.subjectIcon,
-                    {
-                      backgroundColor:
-                        classItem.background,
-                    },
-                  ]}
-                >
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={
+                  styles.daySelectorContent
+                }
+              >
+                {week.map((day, index) => {
+                  const isSelected =
+                    selectedDay === index;
+
+                  return (
+                    <Pressable
+                      key={`${day.day}-${day.date}`}
+                      style={[
+                        styles.dayButton,
+                        isSelected &&
+                          styles.dayButtonSelected,
+                      ]}
+                      onPress={() =>
+                        setSelectedDay(index)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.dayName,
+                          isSelected &&
+                            styles.dayNameSelected,
+                        ]}
+                      >
+                        {day.shortDay}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.dayDate,
+                          isSelected &&
+                            styles.dayDateSelected,
+                        ]}
+                      >
+                        {day.date}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.dayMonth,
+                          isSelected &&
+                            styles.dayMonthSelected,
+                        ]}
+                      >
+                        {day.month}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* SELECTED DAY */}
+            <View style={styles.scheduleHeader}>
+              <View>
+                <Text style={styles.selectedDayTitle}>
+                  {selectedSchedule.day}
+                </Text>
+
+                <Text style={styles.selectedDaySubtitle}>
+                  {selectedSchedule.date}{' '}
+                  {selectedSchedule.month}{' '}
+                  {new Date().getFullYear()}
+                </Text>
+              </View>
+
+              <View style={styles.classCount}>
+                <Text style={styles.classCountText}>
+                  {selectedSchedule.classes.length}{' '}
+                  Classes
+                </Text>
+              </View>
+            </View>
+
+            {/* CLASSES */}
+            {selectedSchedule.classes.length === 0 ? (
+              <View style={styles.emptyStateCard}>
+                <View style={styles.emptyStateIconBox}>
                   <Ionicons
-                    name={classItem.icon}
-                    size={24}
-                    color={classItem.color}
+                    name="calendar-outline"
+                    size={30}
+                    color="#6630D7"
                   />
                 </View>
+                <Text style={styles.emptyStateTitle}>
+                  No Classes Scheduled
+                </Text>
+                <Text style={styles.emptyStateSubtitle}>
+                  There are no classes scheduled for {selectedSchedule.day}. Enjoy your day!
+                </Text>
+              </View>
+            ) : (
+              selectedSchedule.classes.map(
+                (classItem, index) => (
+                  <View
+                    key={`${selectedSchedule.day}-${classItem.subject}-${index}`}
+                    style={styles.classCard}
+                  >
+                    <View style={styles.timeColumn}>
+                      <Text style={styles.timeText}>
+                        {classItem.time}
+                      </Text>
 
-                <View style={styles.classInfo}>
-                  <Text style={styles.subjectName}>
-                    {classItem.subject}
-                  </Text>
+                      {index !==
+                        selectedSchedule.classes.length - 1 && (
+                        <View style={styles.timelineLine} />
+                      )}
+                    </View>
 
-                  <Text style={styles.teacherName}>
-                    {classItem.teacher}
-                  </Text>
+                    <View style={styles.classDetails}>
+                      <View
+                        style={[
+                          styles.subjectIcon,
+                          {
+                            backgroundColor:
+                              classItem.background,
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={classItem.icon}
+                          size={24}
+                          color={classItem.color}
+                        />
+                      </View>
 
-                  <View style={styles.roomRow}>
+                      <View style={styles.classInfo}>
+                        <Text style={styles.subjectName}>
+                          {classItem.subject}
+                        </Text>
+
+                        <Text style={styles.teacherName}>
+                          {classItem.teacher}
+                        </Text>
+
+                        <View style={styles.roomRow}>
+                          <Ionicons
+                            name="location-outline"
+                            size={14}
+                            color="#888894"
+                          />
+
+                          <Text style={styles.roomText}>
+                            {classItem.room}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
                     <Ionicons
-                      name="location-outline"
-                      size={14}
-                      color="#888894"
+                      name="chevron-forward"
+                      size={20}
+                      color="#A3A3AD"
                     />
-
-                    <Text style={styles.roomText}>
-                      {classItem.room}
-                    </Text>
                   </View>
-                </View>
+                ),
+              )
+            )}
+
+            {/* SUMMARY */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryIcon}>
+                <Ionicons
+                  name="school-outline"
+                  size={24}
+                  color="#6630D7"
+                />
               </View>
 
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color="#A3A3AD"
-              />
+              <View style={styles.summaryContent}>
+                <Text style={styles.summaryTitle}>
+                  Your Weekly Schedule
+                </Text>
+
+                <Text style={styles.summaryText}>
+                  Classes are scheduled Monday to
+                  Saturday for your current batch.
+                </Text>
+              </View>
             </View>
-          ),
+          </>
         )}
-
-        {/* SUMMARY */}
-
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryIcon}>
-            <Ionicons
-              name="school-outline"
-              size={24}
-              color="#6630D7"
-            />
-          </View>
-
-          <View style={styles.summaryContent}>
-            <Text style={styles.summaryTitle}>
-              Your Weekly Schedule
-            </Text>
-
-            <Text style={styles.summaryText}>
-              Classes are scheduled Monday to
-              Saturday for your current batch.
-            </Text>
-          </View>
-        </View>
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -539,6 +537,19 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
 
+  loadingContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  loadingText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#858592',
+    marginTop: 12,
+  },
+
   /* HEADER */
 
   header: {
@@ -556,8 +567,8 @@ const styles = StyleSheet.create({
   },
 
   backButton: {
-    width: 45,
-    height: 45,
+    width: 40,
+    height: 40,
     borderRadius: 16,
     backgroundColor: '#EEE7FF',
     alignItems: 'center',
@@ -567,7 +578,7 @@ const styles = StyleSheet.create({
 
   headerTitle: {
     fontFamily: 'PoppinsBold',
-    fontSize: 22,
+    fontSize: 16,
     color: '#171827',
     includeFontPadding: false,
   },
@@ -601,32 +612,29 @@ const styles = StyleSheet.create({
   },
 
   calendarIcon: {
-    width: 62,
-    height: 62,
-    borderRadius: 18,
-    backgroundColor: '#EEE7FF',
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 15,
   },
 
-  /* WEEK */
+  /* WEEK CARD */
 
   weekCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
     marginHorizontal: 16,
-    marginBottom: 18,
-    paddingTop: 17,
-    paddingBottom: 15,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    marginBottom: 16,
   },
 
   weekHeader: {
-    paddingHorizontal: 17,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 13,
+    marginBottom: 14,
   },
 
   weekTitle: {
@@ -638,28 +646,28 @@ const styles = StyleSheet.create({
   weekBadge: {
     backgroundColor: '#EEE7FF',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 10,
   },
 
   weekBadgeText: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 8,
+    fontFamily: 'PoppinsBold',
+    fontSize: 9,
     color: '#6630D7',
   },
 
   daySelectorContent: {
-    paddingHorizontal: 12,
+    paddingVertical: 2,
+    gap: 7,
   },
 
   dayButton: {
     width: 58,
-    height: 70,
-    borderRadius: 15,
+    height: 72,
+    borderRadius: 16,
     backgroundColor: '#F7F7FA',
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 4,
   },
 
   dayButtonSelected: {
@@ -668,8 +676,9 @@ const styles = StyleSheet.create({
 
   dayName: {
     fontFamily: 'PoppinsBold',
-    fontSize: 8,
+    fontSize: 9.5,
     color: '#858592',
+    marginBottom: 2,
   },
 
   dayNameSelected: {
@@ -678,9 +687,8 @@ const styles = StyleSheet.create({
 
   dayDate: {
     fontFamily: 'PoppinsBold',
-    fontSize: 17,
+    fontSize: 15,
     color: '#171827',
-    marginTop: 2,
   },
 
   dayDateSelected: {
@@ -689,47 +697,46 @@ const styles = StyleSheet.create({
 
   dayMonth: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 7,
+    fontSize: 8.5,
     color: '#858592',
   },
 
   dayMonthSelected: {
-    color: '#E9DDFF',
+    color: '#FFFFFF',
   },
 
-  /* SCHEDULE */
+  /* SCHEDULE HEADER */
 
   scheduleHeader: {
-    marginHorizontal: 32,
-    marginBottom: 10,
+    paddingHorizontal: 32,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 14,
   },
 
   selectedDayTitle: {
     fontFamily: 'PoppinsBold',
-    fontSize: 19,
-    color: '#111528',
+    fontSize: 18,
+    color: '#171827',
   },
 
   selectedDaySubtitle: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 9,
+    fontSize: 10.5,
     color: '#858592',
-    marginTop: 1,
   },
 
   classCount: {
     backgroundColor: '#EEE7FF',
-    borderRadius: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
+    borderRadius: 12,
   },
 
   classCountText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 8,
+    fontFamily: 'PoppinsBold',
+    fontSize: 10,
     color: '#6630D7',
   },
 
@@ -737,49 +744,43 @@ const styles = StyleSheet.create({
 
   classCard: {
     marginHorizontal: 16,
-    marginBottom: 10,
-    minHeight: 92,
+    marginBottom: 12,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 13,
+    borderRadius: 20,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
   },
 
   timeColumn: {
-    width: 72,
-    alignSelf: 'stretch',
-    justifyContent: 'flex-start',
-    paddingTop: 5,
-    position: 'relative',
+    alignItems: 'center',
+    marginRight: 14,
+    minWidth: 64,
   },
 
   timeText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9,
-    color: '#777784',
+    fontFamily: 'PoppinsBold',
+    fontSize: 9.5,
+    color: '#171827',
   },
 
   timelineLine: {
-    position: 'absolute',
-    width: 1,
-    backgroundColor: '#E7E7ED',
-    top: 27,
-    bottom: -13,
-    left: 30,
+    width: 2,
+    height: 38,
+    backgroundColor: '#EEEEF3',
+    marginTop: 6,
   },
 
   classDetails: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 0,
   },
 
   subjectIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 11,
@@ -787,7 +788,6 @@ const styles = StyleSheet.create({
 
   classInfo: {
     flex: 1,
-    minWidth: 0,
   },
 
   subjectName: {
@@ -797,23 +797,60 @@ const styles = StyleSheet.create({
   },
 
   teacherName: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 9.5,
-    color: '#777784',
-    marginTop: 2,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    color: '#858592',
+    marginTop: 1,
   },
 
   roomRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 5,
+    marginTop: 3,
   },
 
   roomText: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 8.5,
+    fontSize: 9,
     color: '#888894',
     marginLeft: 3,
+  },
+
+  /* EMPTY STATE */
+
+  emptyStateCard: {
+    marginHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+
+  emptyStateIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+
+  emptyStateTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 14,
+    color: '#171827',
+    marginBottom: 4,
+  },
+
+  emptyStateSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    color: '#858592',
+    textAlign: 'center',
+    lineHeight: 15,
   },
 
   /* SUMMARY */

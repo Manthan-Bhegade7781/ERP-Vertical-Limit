@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -19,7 +20,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { fetchAssignments, deleteAssignment as deleteAssignmentApi, type AssignmentRecord } from '@/services/assignments';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
+import { API_BASE_URL } from '@/config/api';
+import { getToken } from '@/services/auth';
+import {
+  fetchAssignments,
+  deleteAssignment as deleteAssignmentApi,
+  updateAssignment,
+  type AssignmentRecord,
+} from '@/services/assignments';
 
 type AssignmentStatus =
   | 'Active'
@@ -53,7 +63,9 @@ type Assignment = {
   instructions?: string;
   pdfUri?: string;
   pdfName?: string;
+  hasAttachment?: boolean;
   status: AssignmentStatus;
+  raw?: AssignmentRecord;
 };
 
 type StudentSubmission = {
@@ -828,6 +840,16 @@ export default function AssignmentsPage() {
   const [showEditModal, setShowEditModal] =
     useState(false);
 
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editInstructions, setEditInstructions] = useState('');
+  const [editAssignedDate, setEditAssignedDate] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editMarks, setEditMarks] = useState('');
+  const [editPdfUri, setEditPdfUri] = useState<string | null>(null);
+  const [editPdfName, setEditPdfName] = useState<string | null>(null);
+
   const [showSubmissionsModal, setShowSubmissionsModal] =
     useState(false);
 
@@ -886,7 +908,9 @@ export default function AssignmentsPage() {
       description: item.description || '',
       instructions: item.instructions || '',
       pdfName: item.attachment?.fileName || '',
+      hasAttachment: Boolean(item.attachment?.fileName || item.attachment?.filePath),
       status,
+      raw: item,
     };
   };
 
@@ -997,15 +1021,152 @@ export default function AssignmentsPage() {
     setShowViewModal(true);
   };
 
+  const normalizeDate = (val?: string) => {
+    if (!val) return undefined;
+    const trimmed = val.trim();
+    if (!trimmed) return undefined;
+    const dmyMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmyMatch) {
+      const [, d, m, y] = dmyMatch;
+      return `${y}-${m}-${d}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return trimmed;
+  };
+
+  const handlePickEditPdf = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const file = result.assets[0];
+      setEditPdfUri(file.uri);
+      setEditPdfName(file.name || 'Notes.pdf');
+    } catch (error) {
+      console.error('Pick PDF error:', error);
+      Alert.alert('PDF Selection Error', 'Unable to pick PDF file.');
+    }
+  };
+
   const openEdit = (
     assignment: Assignment
   ) => {
     setSelectedAssignment(
       assignment
     );
+    setEditTitle(assignment.title || '');
+    setEditDescription(assignment.description || '');
+    setEditInstructions(assignment.instructions || '');
+
+    const rawAssigned = assignment.raw?.assignedDate;
+    const rawDue = assignment.raw?.submissionDate;
+    setEditAssignedDate(
+      rawAssigned
+        ? String(rawAssigned).slice(0, 10)
+        : assignment.assignedDate && assignment.assignedDate !== '-'
+          ? assignment.assignedDate
+          : ''
+    );
+    setEditDueDate(
+      rawDue
+        ? String(rawDue).slice(0, 10)
+        : assignment.dueDate && assignment.dueDate !== '-'
+          ? assignment.dueDate
+          : ''
+    );
+    setEditMarks(assignment.maxMarks ? String(assignment.maxMarks) : '');
+    setEditPdfUri(null);
+    setEditPdfName(null);
 
     setShowActions(false);
     setShowEditModal(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selectedAssignment) return;
+    if (!editTitle.trim()) {
+      Alert.alert('Validation Error', 'Assignment title is required.');
+      return;
+    }
+
+    const marksNum = Number(editMarks);
+    if (!editMarks.trim() || !Number.isFinite(marksNum) || marksNum < 1) {
+      Alert.alert('Validation Error', 'Enter valid total marks (minimum 1).');
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+
+      const isMongoId =
+        typeof selectedAssignment.id === 'string' &&
+        /^[0-9a-fA-F]{24}$/.test(selectedAssignment.id);
+
+      if (!isMongoId) {
+        setAssignments((prev) =>
+          prev.map((item) =>
+            item.id === selectedAssignment.id
+              ? {
+                  ...item,
+                  title: editTitle.trim(),
+                  description: editDescription.trim(),
+                  instructions: editInstructions.trim(),
+                  maxMarks: marksNum,
+                  assignedDate: editAssignedDate.trim() || item.assignedDate,
+                  dueDate: editDueDate.trim() || item.dueDate,
+                  ...(editPdfName ? { pdfName: editPdfName, hasAttachment: true } : {}),
+                  ...(editPdfUri ? { pdfUri: editPdfUri } : {}),
+                }
+              : item
+          )
+        );
+        setShowEditModal(false);
+        Alert.alert('Updated', 'Assignment details have been updated successfully.');
+        return;
+      }
+
+      const payload: any = {
+        assignmentTitle: editTitle.trim(),
+        description: editDescription.trim(),
+        instructions: editInstructions.trim(),
+        totalMarks: marksNum,
+      };
+
+      const normalizedAssigned = normalizeDate(editAssignedDate);
+      if (normalizedAssigned) payload.assignedDate = normalizedAssigned;
+
+      const normalizedDue = normalizeDate(editDueDate);
+      if (normalizedDue) payload.submissionDate = normalizedDue;
+
+      if (editPdfUri) {
+        payload.file = {
+          uri: editPdfUri,
+          name: editPdfName || 'Notes.pdf',
+          type: 'application/pdf',
+        };
+      }
+
+      await updateAssignment(String(selectedAssignment.id), payload);
+
+      setShowEditModal(false);
+      await loadAssignments();
+      Alert.alert('Updated', 'Assignment details have been updated successfully.');
+    } catch (error: any) {
+      console.error('Update assignment error:', error);
+      Alert.alert('Update Failed', error?.message || 'Unable to update this assignment.');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const openSubmissions = (
@@ -1576,27 +1737,53 @@ export default function AssignmentsPage() {
   };
 
   const shareLocalNotesPdf = async (assignment: Assignment) => {
-    if (!assignment.pdfUri) {
-      Alert.alert('PDF Not Found', 'No notes PDF is attached to this assignment.');
-      return;
-    }
-
     try {
-      const available = await Sharing.isAvailableAsync();
-
-      if (!available) {
-        Alert.alert('Sharing Unavailable', 'PDF sharing is not available on this device.');
+      if (assignment.pdfUri && !assignment.pdfUri.startsWith('http')) {
+        const available = await Sharing.isAvailableAsync();
+        if (!available) {
+          Alert.alert('Sharing Unavailable', 'PDF sharing is not available on this device.');
+          return;
+        }
+        await Sharing.shareAsync(assignment.pdfUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `${assignment.title} - Notes PDF`,
+          UTI: 'com.adobe.pdf',
+        });
         return;
       }
 
-      await Sharing.shareAsync(assignment.pdfUri, {
-        mimeType: 'application/pdf',
-        dialogTitle: `${assignment.title} - Notes PDF`,
-        UTI: 'com.adobe.pdf',
+      if (!assignment.hasAttachment && !assignment.pdfName && !assignment.pdfUri) {
+        Alert.alert('PDF Not Found', 'No notes PDF is attached to this assignment.');
+        return;
+      }
+
+      const url = `${API_BASE_URL}/assignments/${encodeURIComponent(String(assignment.id))}/attachment`;
+      const token = await getToken();
+      const rawName = assignment.pdfName || `${assignment.code || 'assignment'}.pdf`;
+      const filename = rawName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const destination = `${FileSystem.cacheDirectory || ''}${filename.endsWith('.pdf') ? filename : `${filename}.pdf`}`;
+
+      const result = await FileSystem.downloadAsync(url, destination, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-    } catch (error) {
+
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`PDF download failed (${result.status}).`);
+      }
+
+      const available = await Sharing.isAvailableAsync();
+      if (available) {
+        await Sharing.shareAsync(result.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `${assignment.title} - Notes PDF`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('PDF Downloaded', `Saved temporarily to: ${result.uri}`);
+      }
+    } catch (error: any) {
       console.error('Local notes PDF sharing error:', error);
-      Alert.alert('PDF Error', 'Unable to open the selected notes PDF.');
+      Alert.alert('PDF Unavailable', error?.message || 'Unable to open the selected notes PDF.');
     }
   };
 
@@ -1784,7 +1971,7 @@ export default function AssignmentsPage() {
           {assignment.code}
         </Text>
 
-        {assignment.pdfUri ? (
+        {assignment.pdfUri || assignment.hasAttachment || assignment.pdfName ? (
           <View style={styles.notesPdfCard}>
             <View style={styles.notesPdfIcon}>
               <MaterialCommunityIcons
@@ -2951,157 +3138,138 @@ export default function AssignmentsPage() {
                   false
                 }
               >
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Assignment Title
-                </Text>
-
+                <Text style={styles.inputLabel}>Assignment Title *</Text>
                 <TextInput
-                  defaultValue={
-                    selectedAssignment.title
-                  }
+                  value={editTitle}
+                  onChangeText={setEditTitle}
                   style={styles.input}
+                  placeholder="Assignment title"
+                  placeholderTextColor="#A0A8B5"
                 />
 
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Course
-                </Text>
+                <View style={styles.twoInputs}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Course</Text>
+                    <View style={[styles.input, styles.readOnlyInput]}>
+                      <Text style={styles.readOnlyText} numberOfLines={1}>
+                        {selectedAssignment.course}
+                      </Text>
+                    </View>
+                  </View>
 
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Batch</Text>
+                    <View style={[styles.input, styles.readOnlyInput]}>
+                      <Text style={styles.readOnlyText} numberOfLines={1}>
+                        {selectedAssignment.batch}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <Text style={styles.inputLabel}>Description</Text>
                 <TextInput
-                  defaultValue={
-                    selectedAssignment.course
-                  }
-                  style={styles.input}
-                />
-
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Batch
-                </Text>
-
-                <TextInput
-                  defaultValue={
-                    selectedAssignment.batch
-                  }
-                  style={styles.input}
-                />
-
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Branch
-                </Text>
-
-                <TextInput
-                  defaultValue={
-                    selectedAssignment.branch
-                  }
-                  style={styles.input}
-                />
-
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Description
-                </Text>
-
-                <TextInput
-                  defaultValue={
-                    selectedAssignment.description
-                  }
+                  value={editDescription}
+                  onChangeText={setEditDescription}
                   multiline
                   textAlignVertical="top"
                   style={[
                     styles.input,
                     {
-                      minHeight: 90,
+                      minHeight: 80,
                       paddingTop: 11,
                     },
                   ]}
+                  placeholder="Description"
+                  placeholderTextColor="#A0A8B5"
                 />
 
-                <View
-                  style={styles.twoInputs}
-                >
-                  <View
-                    style={{ flex: 1 }}
-                  >
-                    <Text
-                      style={
-                        styles.inputLabel
-                      }
-                    >
-                      Assigned Date
-                    </Text>
+                <Text style={styles.inputLabel}>Instructions</Text>
+                <TextInput
+                  value={editInstructions}
+                  onChangeText={setEditInstructions}
+                  multiline
+                  textAlignVertical="top"
+                  style={[
+                    styles.input,
+                    {
+                      minHeight: 70,
+                      paddingTop: 11,
+                    },
+                  ]}
+                  placeholder="Instructions for students"
+                  placeholderTextColor="#A0A8B5"
+                />
 
+                <View style={styles.twoInputs}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Assigned Date (YYYY-MM-DD)</Text>
                     <TextInput
-                      defaultValue={
-                        selectedAssignment.assignedDate
-                      }
+                      value={editAssignedDate}
+                      onChangeText={setEditAssignedDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#A0A8B5"
                       style={styles.input}
                     />
                   </View>
 
-                  <View
-                    style={{ flex: 1 }}
-                  >
-                    <Text
-                      style={
-                        styles.inputLabel
-                      }
-                    >
-                      Due Date
-                    </Text>
-
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Due Date (YYYY-MM-DD)</Text>
                     <TextInput
-                      defaultValue={
-                        selectedAssignment.dueDate
-                      }
+                      value={editDueDate}
+                      onChangeText={setEditDueDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#A0A8B5"
                       style={styles.input}
                     />
                   </View>
                 </View>
 
-                <Text
-                  style={styles.inputLabel}
-                >
-                  Maximum Marks
-                </Text>
-
+                <Text style={styles.inputLabel}>Maximum Marks *</Text>
                 <TextInput
-                  defaultValue={String(
-                    selectedAssignment.maxMarks
-                  )}
+                  value={editMarks}
+                  onChangeText={setEditMarks}
                   keyboardType="numeric"
+                  placeholder="100"
+                  placeholderTextColor="#A0A8B5"
                   style={styles.input}
                 />
 
-                <TouchableOpacity
-                  style={
-                    styles.saveButton
-                  }
-                  onPress={() => {
-                    setShowEditModal(
-                      false
-                    );
-
-                    Alert.alert(
-                      'Updated',
-                      'Assignment details have been updated successfully.'
-                    );
-                  }}
-                >
-                  <Text
-                    style={
-                      styles.saveButtonText
-                    }
-                  >
-                    Save Changes
+                <Text style={styles.inputLabel}>Notes PDF Attachment</Text>
+                <View style={styles.attachmentEditRow}>
+                  <MaterialCommunityIcons
+                    name="file-pdf-box"
+                    size={22}
+                    color="#D84343"
+                  />
+                  <Text style={styles.attachmentEditText} numberOfLines={1}>
+                    {editPdfName || (selectedAssignment.pdfName ? selectedAssignment.pdfName : 'No PDF attached')}
                   </Text>
+                  <TouchableOpacity
+                    style={styles.pickPdfBtn}
+                    onPress={handlePickEditPdf}
+                  >
+                    <Text style={styles.pickPdfBtnText}>
+                      {editPdfName || selectedAssignment.pdfName ? 'Replace' : 'Attach PDF'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.saveButton,
+                    savingEdit && { opacity: 0.7 },
+                  ]}
+                  disabled={savingEdit}
+                  onPress={() => void saveEdit()}
+                >
+                  {savingEdit ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>
+                      Save Changes
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </ScrollView>
             )}
@@ -3822,6 +3990,49 @@ const styles = StyleSheet.create({
   twoInputs: {
     flexDirection: 'row',
     gap: 10,
+  },
+
+  readOnlyInput: {
+    backgroundColor: '#F4F5F8',
+    justifyContent: 'center',
+  },
+
+  readOnlyText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9.5,
+    color: '#687282',
+  },
+
+  attachmentEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E3E6ED',
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    minHeight: 43,
+    gap: 8,
+    backgroundColor: '#FAFBFD',
+  },
+
+  attachmentEditText: {
+    flex: 1,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    color: '#172033',
+  },
+
+  pickPdfBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#EFEAFF',
+  },
+
+  pickPdfBtnText: {
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 9,
+    color: '#7040D5',
   },
 
   saveButton: {

@@ -1,6 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,208 +11,249 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-type NotificationType =
+import {
+  fetchNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  NotificationRecord,
+} from '../../../services/notifications';
+
+export type NotificationType =
   | 'assignment'
   | 'test'
   | 'attendance'
   | 'lecture'
   | 'fees'
-  | 'announcement';
+  | 'announcement'
+  | 'message'
+  | 'meeting'
+  | 'general';
 
-type NotificationItem = {
+export type StudentNotificationItem = {
   id: string;
   type: NotificationType;
   title: string;
   message: string;
   time: string;
   unread: boolean;
+  link?: string;
+  rawDate: string;
 };
 
 type NotificationsPageProps = {
   onContentScroll?: (event: any) => void;
+  onNavigate?: (page: string) => void;
+  onUnreadCountChange?: (count: number) => void;
 };
 
-const initialNotifications: NotificationItem[] = [
-  {
-    id: 'notification-1',
-    type: 'assignment',
-    title: 'New Assignment',
-    message:
-      'Newton’s Laws Assignment has been added. Due date is 18 Sep 2026.',
-    time: '10 min ago',
-    unread: true,
-  },
-  {
-    id: 'notification-2',
-    type: 'test',
-    title: 'Upcoming Test',
-    message:
-      'Physics Unit Test is scheduled for 18 Sep 2026 at 10:00 AM.',
-    time: '1 hour ago',
-    unread: true,
-  },
-  {
-    id: 'notification-3',
-    type: 'lecture',
-    title: 'Lecture Notes Updated',
-    message:
-      'New Physics lecture notes for Newton’s Laws are available.',
-    time: '3 hours ago',
-    unread: true,
-  },
-  {
-    id: 'notification-4',
-    type: 'attendance',
-    title: 'Attendance Updated',
-    message:
-      'Your attendance has been updated for today’s Mathematics class.',
-    time: 'Today',
-    unread: false,
-  },
-  {
-    id: 'notification-5',
-    type: 'fees',
-    title: 'Fee Reminder',
-    message:
-      'Your pending fee amount is ₹2,000. Please check the Fees section.',
-    time: 'Yesterday',
-    unread: true,
-  },
-  {
-    id: 'notification-6',
-    type: 'announcement',
-    title: 'New Announcement',
-    message:
-      'The school has posted a new announcement for 10th Standard students.',
-    time: 'Yesterday',
-    unread: false,
-  },
-];
+const formatNotificationTime = (dateValue?: string): string => {
+  if (!dateValue) return 'Recently';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+};
 
-const getNotificationIcon = (
-  type: NotificationType,
-): keyof typeof Ionicons.glyphMap => {
+const resolveNotificationType = (rawType?: string, title?: string): NotificationType => {
+  const t = (rawType || '').toLowerCase();
+  const titleLower = (title || '').toLowerCase();
+
+  if (t === 'fee' || t === 'fees' || titleLower.includes('fee')) return 'fees';
+  if (t === 'attendance' || titleLower.includes('attendance')) return 'attendance';
+  if (t === 'assignment' || titleLower.includes('assignment')) return 'assignment';
+  if (
+    t === 'test' ||
+    t === 'exam' ||
+    titleLower.includes('test') ||
+    titleLower.includes('exam')
+  )
+    return 'test';
+  if (t === 'lecture' || titleLower.includes('lecture') || titleLower.includes('notes'))
+    return 'lecture';
+  if (t === 'announcement' || titleLower.includes('announcement'))
+    return 'announcement';
+  if (t === 'message' || titleLower.includes('message')) return 'message';
+  if (titleLower.includes('ptg') || titleLower.includes('meeting')) return 'meeting';
+  return 'general';
+};
+
+const getNotificationIcon = (type: NotificationType): keyof typeof Ionicons.glyphMap => {
   switch (type) {
     case 'assignment':
       return 'document-text-outline';
-
     case 'test':
       return 'clipboard-outline';
-
     case 'attendance':
       return 'checkmark-circle-outline';
-
     case 'lecture':
       return 'book-outline';
-
     case 'fees':
       return 'wallet-outline';
-
     case 'announcement':
       return 'megaphone-outline';
-
+    case 'message':
+      return 'mail-outline';
+    case 'meeting':
+      return 'calendar-outline';
     default:
       return 'notifications-outline';
   }
 };
 
-const getNotificationColor = (
-  type: NotificationType,
-) => {
+const getNotificationColor = (type: NotificationType) => {
   switch (type) {
     case 'assignment':
-      return {
-        icon: '#7C4DFF',
-        background: '#F0E9FF',
-      };
-
+      return { icon: '#7C4DFF', background: '#F0E9FF' };
     case 'test':
-      return {
-        icon: '#3976E8',
-        background: '#EAF2FF',
-      };
-
+      return { icon: '#3976E8', background: '#EAF2FF' };
     case 'attendance':
-      return {
-        icon: '#20A66A',
-        background: '#E8F8F0',
-      };
-
+      return { icon: '#20A66A', background: '#E8F8F0' };
     case 'lecture':
-      return {
-        icon: '#D58B20',
-        background: '#FFF5E4',
-      };
-
+      return { icon: '#D58B20', background: '#FFF5E4' };
     case 'fees':
-      return {
-        icon: '#E45757',
-        background: '#FFECEC',
-      };
-
+      return { icon: '#E45757', background: '#FFECEC' };
     case 'announcement':
-      return {
-        icon: '#8C4FC8',
-        background: '#F4EAFE',
-      };
-
+      return { icon: '#8C4FC8', background: '#F4EAFE' };
+    case 'message':
+      return { icon: '#2563EB', background: '#EFF6FF' };
+    case 'meeting':
+      return { icon: '#0284C7', background: '#E0F2FE' };
     default:
-      return {
-        icon: '#6630D7',
-        background: '#F0E9FF',
-      };
+      return { icon: '#6630D7', background: '#F0E9FF' };
   }
 };
 
 export default function NotificationsPage({
   onContentScroll,
+  onNavigate,
+  onUnreadCountChange,
 }: NotificationsPageProps) {
-  const [notifications, setNotifications] = useState(
-    initialNotifications,
-  );
+  const [notifications, setNotifications] = useState<StudentNotificationItem[]>([]);
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [filter, setFilter] = useState<
-    'all' | 'unread'
-  >('all');
+  const loadNotificationsData = useCallback(async () => {
+    try {
+      setError(null);
+      const result = await fetchNotifications();
+      const mapped: StudentNotificationItem[] = result.notifications.map(
+        (item: NotificationRecord) => ({
+          id: item.id,
+          type: resolveNotificationType(item.type, item.title),
+          title: item.title,
+          message: item.message,
+          time: formatNotificationTime(item.createdAt),
+          unread: !item.isRead,
+          link: item.link,
+          rawDate: item.createdAt,
+        })
+      );
+      setNotifications(mapped);
+      onUnreadCountChange?.(result.unreadCount);
+    } catch (err: any) {
+      console.error('Fetch student notifications error:', err);
+      setError(err?.message || 'Unable to load notifications.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [onUnreadCountChange]);
+
+  useEffect(() => {
+    void loadNotificationsData();
+  }, [loadNotificationsData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadNotificationsData();
+  };
 
   const unreadCount = useMemo(
-    () =>
-      notifications.filter(
-        notification => notification.unread,
-      ).length,
-    [notifications],
+    () => notifications.filter((notification) => notification.unread).length,
+    [notifications]
   );
 
   const filteredNotifications = useMemo(() => {
     if (filter === 'unread') {
-      return notifications.filter(
-        notification => notification.unread,
-      );
+      return notifications.filter((notification) => notification.unread);
     }
-
     return notifications;
   }, [filter, notifications]);
 
-  const markAsRead = (id: string) => {
-    setNotifications(current =>
-      current.map(notification =>
+  const handleMarkAsRead = async (id: string) => {
+    const target = notifications.find((n) => n.id === id);
+    if (!target || !target.unread) return;
+
+    // Optimistically update
+    setNotifications((current) =>
+      current.map((notification) =>
         notification.id === id
           ? {
               ...notification,
               unread: false,
             }
-          : notification,
-      ),
+          : notification
+      )
     );
+    const newUnread = Math.max(0, unreadCount - 1);
+    onUnreadCountChange?.(newUnread);
+
+    try {
+      await markNotificationAsRead(id);
+    } catch (err) {
+      console.error('Mark notification read error:', err);
+      void loadNotificationsData();
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(current =>
-      current.map(notification => ({
+  const handleMarkAllAsRead = async () => {
+    if (unreadCount === 0) return;
+
+    const previous = notifications;
+    setNotifications((current) =>
+      current.map((notification) => ({
         ...notification,
         unread: false,
-      })),
+      }))
     );
+    onUnreadCountChange?.(0);
+
+    try {
+      await markAllNotificationsAsRead();
+    } catch (err) {
+      console.error('Mark all read error:', err);
+      setNotifications(previous);
+      onUnreadCountChange?.(unreadCount);
+    }
+  };
+
+  const handleNotificationPress = async (notification: StudentNotificationItem) => {
+    await handleMarkAsRead(notification.id);
+
+    // Route to the appropriate screen if actionable
+    if (notification.type === 'fees') {
+      onNavigate?.('feeOverview');
+    } else if (notification.type === 'attendance') {
+      onNavigate?.('attendance');
+    } else if (notification.type === 'assignment') {
+      onNavigate?.('assignments');
+    } else if (notification.type === 'lecture') {
+      onNavigate?.('lectureNotes');
+    } else if (notification.type === 'test') {
+      onNavigate?.('upcomingTests');
+    } else if (notification.type === 'announcement') {
+      onNavigate?.('announcements');
+    } else {
+      Alert.alert(notification.title, notification.message);
+    }
   };
 
   return (
@@ -219,6 +263,14 @@ export default function NotificationsPage({
       showsVerticalScrollIndicator={false}
       onScroll={onContentScroll}
       scrollEventThrottle={16}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor="#6630D7"
+          colors={['#6630D7']}
+        />
+      }
     >
       {/* Header summary */}
       <View style={styles.summaryCard}>
@@ -231,15 +283,10 @@ export default function NotificationsPage({
         </View>
 
         <View style={styles.summaryTextContainer}>
-          <Text style={styles.summaryTitle}>
-            Notifications
-          </Text>
-
+          <Text style={styles.summaryTitle}>Notifications</Text>
           <Text style={styles.summarySubtitle}>
             {unreadCount > 0
-              ? `${unreadCount} unread notification${
-                  unreadCount > 1 ? 's' : ''
-                }`
+              ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
               : 'You are all caught up'}
           </Text>
         </View>
@@ -247,11 +294,9 @@ export default function NotificationsPage({
         {unreadCount > 0 && (
           <Pressable
             style={styles.markAllButton}
-            onPress={markAllAsRead}
+            onPress={handleMarkAllAsRead}
           >
-            <Text style={styles.markAllText}>
-              Mark all
-            </Text>
+            <Text style={styles.markAllText}>Mark all</Text>
           </Pressable>
         )}
       </View>
@@ -268,8 +313,7 @@ export default function NotificationsPage({
           <Text
             style={[
               styles.filterText,
-              filter === 'all' &&
-                styles.activeFilterText,
+              filter === 'all' && styles.activeFilterText,
             ]}
           >
             All
@@ -279,16 +323,14 @@ export default function NotificationsPage({
         <Pressable
           style={[
             styles.filterButton,
-            filter === 'unread' &&
-              styles.activeFilterButton,
+            filter === 'unread' && styles.activeFilterButton,
           ]}
           onPress={() => setFilter('unread')}
         >
           <Text
             style={[
               styles.filterText,
-              filter === 'unread' &&
-                styles.activeFilterText,
+              filter === 'unread' && styles.activeFilterText,
             ]}
           >
             Unread
@@ -296,17 +338,29 @@ export default function NotificationsPage({
 
           {unreadCount > 0 && (
             <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>
-                {unreadCount}
-              </Text>
+              <Text style={styles.filterBadgeText}>{unreadCount}</Text>
             </View>
           )}
         </Pressable>
       </View>
 
-      {/* Notifications */}
+      {/* Notifications list */}
       <View style={styles.list}>
-        {filteredNotifications.length === 0 ? (
+        {loading && notifications.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6630D7" />
+            <Text style={styles.loadingText}>Loading notifications...</Text>
+          </View>
+        ) : error && notifications.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="alert-circle-outline" size={32} color="#E45757" />
+            <Text style={styles.emptyTitle}>Could not load notifications</Text>
+            <Text style={styles.emptySubtitle}>{error}</Text>
+            <Pressable style={styles.retryButton} onPress={handleRefresh}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : filteredNotifications.length === 0 ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
               <Ionicons
@@ -315,46 +369,38 @@ export default function NotificationsPage({
                 color="#6630D7"
               />
             </View>
-
             <Text style={styles.emptyTitle}>
-              No unread notifications
+              {filter === 'unread'
+                ? 'No unread notifications'
+                : 'No notifications'}
             </Text>
-
             <Text style={styles.emptySubtitle}>
-              You’re all caught up for now.
+              {filter === 'unread'
+                ? 'You’re all caught up for now.'
+                : 'Your notifications will appear here.'}
             </Text>
           </View>
         ) : (
-          filteredNotifications.map(notification => {
-            const colors = getNotificationColor(
-              notification.type,
-            );
+          filteredNotifications.map((notification) => {
+            const colors = getNotificationColor(notification.type);
 
             return (
               <Pressable
                 key={notification.id}
                 style={[
                   styles.notificationCard,
-                  notification.unread &&
-                    styles.unreadCard,
+                  notification.unread && styles.unreadCard,
                 ]}
-                onPress={() =>
-                  markAsRead(notification.id)
-                }
+                onPress={() => handleNotificationPress(notification)}
               >
                 <View
                   style={[
                     styles.notificationIcon,
-                    {
-                      backgroundColor:
-                        colors.background,
-                    },
+                    { backgroundColor: colors.background },
                   ]}
                 >
                   <Ionicons
-                    name={getNotificationIcon(
-                      notification.type,
-                    )}
+                    name={getNotificationIcon(notification.type)}
                     size={21}
                     color={colors.icon}
                   />
@@ -363,15 +409,16 @@ export default function NotificationsPage({
                 <View style={styles.notificationContent}>
                   <View style={styles.titleRow}>
                     <Text
-                      style={styles.notificationTitle}
+                      style={[
+                        styles.notificationTitle,
+                        notification.unread && styles.unreadTitle,
+                      ]}
                       numberOfLines={1}
                     >
                       {notification.title}
                     </Text>
 
-                    {notification.unread && (
-                      <View style={styles.unreadDot} />
-                    )}
+                    {notification.unread && <View style={styles.unreadDot} />}
                   </View>
 
                   <Text
@@ -397,7 +444,7 @@ export default function NotificationsPage({
         )}
       </View>
 
-      {/* Information */}
+      {/* Information footer */}
       <View style={styles.infoCard}>
         <View style={styles.infoIcon}>
           <Ionicons
@@ -408,14 +455,10 @@ export default function NotificationsPage({
         </View>
 
         <View style={styles.infoContent}>
-          <Text style={styles.infoTitle}>
-            Stay updated
-          </Text>
-
+          <Text style={styles.infoTitle}>Stay updated</Text>
           <Text style={styles.infoText}>
-            You’ll receive notifications about assignments,
-            tests, attendance, lecture notes, fees and
-            school announcements.
+            You’ll receive real-time notifications about assignments, tests,
+            attendance, lecture notes, fees, and institution announcements.
           </Text>
         </View>
       </View>
@@ -452,122 +495,143 @@ const styles = StyleSheet.create({
   },
 
   summaryIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 13,
     backgroundColor: '#F0E9FF',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
 
   summaryTextContainer: {
     flex: 1,
-    marginLeft: 11,
   },
 
   summaryTitle: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 15,
-    color: '#211A2D',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 14,
+    color: '#1B143F',
   },
 
   summarySubtitle: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 9,
-    color: '#8A8197',
-    marginTop: 2,
+    fontSize: 10,
+    color: '#7D7694',
+    marginTop: 1,
   },
 
   markAllButton: {
-    paddingHorizontal: 8,
+    backgroundColor: '#F0E9FF',
+    paddingHorizontal: 11,
     paddingVertical: 6,
+    borderRadius: 8,
   },
 
   markAllText: {
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 9,
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9.5,
     color: '#6630D7',
   },
 
   filterRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 14,
-    marginBottom: 12,
+    marginBottom: 8,
+    gap: 8,
   },
 
   filterButton: {
-    minWidth: 72,
-    height: 34,
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#ECE6F6',
   },
 
   activeFilterButton: {
     backgroundColor: '#6630D7',
+    borderColor: '#6630D7',
   },
 
   filterText: {
     fontFamily: 'PoppinsMedium',
-    fontSize: 9,
-    color: '#766C83',
+    fontSize: 10,
+    color: '#6E6685',
   },
 
   activeFilterText: {
     color: '#FFFFFF',
-    fontFamily: 'PoppinsSemiBold',
   },
 
   filterBadge: {
-    minWidth: 16,
-    height: 16,
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    backgroundColor: '#FF4D67',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginLeft: 6,
   },
 
   filterBadgeText: {
     fontFamily: 'PoppinsBold',
-    fontSize: 7,
-    color: '#FFFFFF',
+    fontSize: 8.5,
+    color: '#6630D7',
   },
 
   list: {
-    gap: 9,
+    marginTop: 6,
   },
 
-  notificationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 17,
-    padding: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F0EDF5',
-  },
-
-  unreadCard: {
-    borderColor: '#E7DDFB',
-    backgroundColor: '#FCFAFF',
-  },
-
-  notificationIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 13,
+  loadingContainer: {
+    paddingVertical: 45,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
+  loadingText: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#7D7694',
+    marginTop: 10,
+  },
+
+  notificationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    padding: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 9,
+    shadowColor: '#000000',
+    shadowOpacity: 0.03,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#F1ECF8',
+  },
+
+  unreadCard: {
+    borderColor: '#E2D5F8',
+    backgroundColor: '#FBF9FF',
+  },
+
+  notificationIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
   notificationContent: {
     flex: 1,
-    marginHorizontal: 10,
+    marginRight: 8,
   },
 
   titleRow: {
@@ -576,10 +640,15 @@ const styles = StyleSheet.create({
   },
 
   notificationTitle: {
-    flex: 1,
-    fontFamily: 'PoppinsSemiBold',
+    fontFamily: 'PoppinsMedium',
     fontSize: 11,
-    color: '#211A2D',
+    color: '#2A244D',
+    flex: 1,
+  },
+
+  unreadTitle: {
+    fontFamily: 'PoppinsSemiBold',
+    color: '#1B143F',
   },
 
   unreadDot: {
@@ -592,79 +661,102 @@ const styles = StyleSheet.create({
 
   notificationMessage: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 9,
-    lineHeight: 14,
-    color: '#777080',
-    marginTop: 3,
+    fontSize: 9.5,
+    color: '#716B88',
+    lineHeight: 14.5,
+    marginTop: 2,
   },
 
   notificationTime: {
-    fontFamily: 'PoppinsMedium',
-    fontSize: 8,
-    color: '#A29AAE',
-    marginTop: 5,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 8.5,
+    color: '#9F98B3',
+    marginTop: 4,
   },
 
   emptyCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 35,
+    borderRadius: 16,
+    padding: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    marginVertical: 12,
   },
 
   emptyIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     backgroundColor: '#F0E9FF',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 10,
   },
 
   emptyTitle: {
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 12,
-    color: '#211A2D',
-    marginTop: 12,
+    fontSize: 12.5,
+    color: '#1B143F',
   },
 
   emptySubtitle: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 9,
-    color: '#8A8197',
+    fontSize: 10,
+    color: '#89829F',
     marginTop: 3,
+    textAlign: 'center',
+  },
+
+  retryButton: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#6630D7',
+  },
+
+  retryButtonText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10,
+    color: '#FFFFFF',
   },
 
   infoCard: {
-    marginTop: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
     padding: 13,
-    borderRadius: 16,
-    backgroundColor: '#F0E9FF',
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#ECE6F6',
   },
 
   infoIcon: {
-    width: 30,
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: '#F0E9FF',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
 
   infoContent: {
     flex: 1,
-    marginLeft: 3,
   },
 
   infoTitle: {
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 10,
-    color: '#4E269F',
+    fontSize: 11,
+    color: '#1B143F',
   },
 
   infoText: {
     fontFamily: 'PoppinsRegular',
-    fontSize: 8,
-    lineHeight: 13,
-    color: '#7059A0',
-    marginTop: 3,
+    fontSize: 9.5,
+    color: '#7D7694',
+    lineHeight: 14.5,
+    marginTop: 2,
   },
 });

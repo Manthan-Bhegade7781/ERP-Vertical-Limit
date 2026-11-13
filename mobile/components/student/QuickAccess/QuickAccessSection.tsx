@@ -12,6 +12,12 @@ type QuickAccessSectionProps = {
   onAttendancePress?: () => void;
   onLectureNotesPress?: () => void;
   onTestsPress?: () => void;
+  onAnnouncementsPress?: () => void;
+  onCalendarPress?: () => void;
+  onFeedbackPress?: () => void;
+  onPTGPress?: () => void;
+  onMessagesPress?: () => void;
+  onHelpPress?: () => void;
 };
 
 export default function QuickAccessSection({
@@ -19,6 +25,12 @@ export default function QuickAccessSection({
   onAttendancePress,
   onLectureNotesPress,
   onTestsPress,
+  onAnnouncementsPress,
+  onCalendarPress,
+  onFeedbackPress,
+  onPTGPress,
+  onMessagesPress,
+  onHelpPress,
 }: QuickAccessSectionProps) {
   return (
     <View style={styles.section}>
@@ -58,6 +70,54 @@ export default function QuickAccessSection({
           background="#FFF0DF"
           onPress={onTestsPress}
         />
+
+        <QuickAccessCard
+          icon="megaphone-outline"
+          label="Announcements"
+          color="#8B5CF6"
+          background="#F4F0FF"
+          onPress={onAnnouncementsPress}
+        />
+
+        <QuickAccessCard
+          icon="calendar-outline"
+          label="Academic Calendar"
+          color="#E11D48"
+          background="#FFE4E6"
+          onPress={onCalendarPress}
+        />
+
+        <QuickAccessCard
+          icon="chatbubbles-outline"
+          label="Feedback"
+          color="#0284C7"
+          background="#E0F2FE"
+          onPress={onFeedbackPress}
+        />
+
+        <QuickAccessCard
+          icon="people-circle-outline"
+          label="PTG Meetings"
+          color="#6630D7"
+          background="#EEE7FF"
+          onPress={onPTGPress}
+        />
+
+        <QuickAccessCard
+          icon="mail-outline"
+          label="Messages"
+          color="#0EA5E9"
+          background="#E0F2FE"
+          onPress={onMessagesPress}
+        />
+
+        <QuickAccessCard
+          icon="help-circle-outline"
+          label="Help & Support"
+          color="#059669"
+          background="#D1FAE5"
+          onPress={onHelpPress}
+        />
       </View>
     </View>
   );
@@ -67,7 +127,9 @@ const styles = StyleSheet.create({
   section: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 16,
+    padding: 9,
+    paddingLeft: 16,
+    paddingTop: 14,
     marginHorizontal: 16,
     marginBottom: 14,
   },
@@ -82,6 +144,6 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 5,
   },
 });

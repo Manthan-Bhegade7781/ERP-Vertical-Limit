@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -7,8 +10,13 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
-type FeeReceiptPayment = {
+import { useAuth } from '../../../context/AuthContext';
+import { getMyClasses } from '../../../services/classes';
+
+export type FeeReceiptPayment = {
   id?: string;
   receiptNumber?: string;
   date?: string;
@@ -17,35 +25,458 @@ type FeeReceiptPayment = {
   method?: string;
   status?: string;
   transactionId?: string;
+  studentName?: string;
+  studentId?: string;
+  standard?: string;
+  batchName?: string;
 };
 
-type FeeReceiptProps = {
+export type StudentReceiptInfo = {
+  name?: string;
+  studentId?: string;
+  standard?: string;
+  batchName?: string;
+};
+
+export type FeeReceiptProps = {
   payment?: FeeReceiptPayment | null;
+  studentInfo?: StudentReceiptInfo;
   onContentScroll?: (event: any) => void;
   onBack?: () => void;
 };
 
-const defaultPayment: FeeReceiptPayment = {
-  id: 'payment-demo',
-  receiptNumber: 'VL-2026-00124',
-  date: '10 Sep 2026',
-  title: 'Development Fee',
-  amount: 6000,
-  method: 'UPI',
-  status: 'Paid',
-  transactionId: 'TXN84920173',
+const getInitials = (name: string): string => {
+  if (!name) return 'ST';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'ST';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const generateReceiptHtml = (data: {
+  receiptNumber: string;
+  date: string;
+  title: string;
+  amount: number;
+  method: string;
+  transactionId: string;
+  status: string;
+  studentName: string;
+  studentId: string;
+  standard: string;
+  batchName?: string;
+}) => {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Fee Receipt - ${data.receiptNumber}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      color: #1f2937;
+      background-color: #ffffff;
+    }
+    .receipt-container {
+      max-width: 660px;
+      margin: 0 auto;
+      border: 2px solid #6630D7;
+      border-radius: 16px;
+      padding: 32px;
+      background: #ffffff;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #E5E7EB;
+      padding-bottom: 20px;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-badge {
+      width: 44px;
+      height: 44px;
+      background: #6630D7;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #171827;
+      margin: 0;
+      letter-spacing: -0.3px;
+    }
+    .brand-subtitle {
+      font-size: 11px;
+      color: #6B7280;
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .receipt-badge {
+      text-align: right;
+    }
+    .receipt-tag {
+      display: inline-block;
+      background: #EDE9FE;
+      color: #6630D7;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .receipt-status {
+      margin-top: 6px;
+      color: #16A34A;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .hero-amount {
+      background: #F7F5FC;
+      border: 1px dashed #6630D7;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 24px 0;
+      text-align: center;
+    }
+    .amount-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .amount-value {
+      font-size: 32px;
+      font-weight: 800;
+      color: #6630D7;
+      margin: 6px 0 2px 0;
+    }
+    .amount-status {
+      font-size: 12px;
+      color: #16A34A;
+      font-weight: 600;
+    }
+    .info-section {
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #F3F4F6;
+      padding-bottom: 6px;
+    }
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .info-table td {
+      padding: 8px 0;
+      font-size: 13px;
+      vertical-align: top;
+    }
+    .info-table .label {
+      color: #6B7280;
+      width: 40%;
+    }
+    .info-table .val {
+      color: #111827;
+      font-weight: 600;
+      text-align: right;
+      width: 60%;
+    }
+    .student-card {
+      background: #F9FAFB;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .student-details h4 {
+      margin: 0;
+      font-size: 14px;
+      color: #111827;
+    }
+    .student-details p {
+      margin: 3px 0 0 0;
+      font-size: 12px;
+      color: #6B7280;
+    }
+    .footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px dashed #D1D5DB;
+      text-align: center;
+    }
+    .footer p {
+      margin: 4px 0;
+      font-size: 11px;
+      color: #9CA3AF;
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-container">
+    <div class="header">
+      <div class="brand-logo">
+        <div class="logo-badge">VL</div>
+        <div>
+          <h1 class="brand-title">VERTICAL LIMITS</h1>
+          <div class="brand-subtitle">Coaching Portal • Fee Receipt</div>
+        </div>
+      </div>
+      <div class="receipt-badge">
+        <span class="receipt-tag">Original Copy</span>
+        <div class="receipt-status">✓ ${data.status}</div>
+      </div>
+    </div>
+
+    <div class="hero-amount">
+      <div class="amount-label">Total Amount Received</div>
+      <div class="amount-value">₹${data.amount.toLocaleString('en-IN')}</div>
+      <div class="amount-status">Payment Verified & Settled</div>
+    </div>
+
+    <div class="info-section">
+      <div class="section-title">Student Information</div>
+      <div class="student-card">
+        <div class="student-details">
+          <h4>${data.studentName}</h4>
+          <p>${data.standard}${data.batchName ? ` • ${data.batchName}` : ''}</p>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 11px; color: #6B7280;">Student ID</span>
+          <div style="font-size: 13px; font-weight: 700; color: #6630D7;">${data.studentId}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="section-title">Payment & Transaction Details</div>
+      <table class="info-table">
+        <tr>
+          <td class="label">Receipt Number</td>
+          <td class="val">${data.receiptNumber}</td>
+        </tr>
+        <tr>
+          <td class="label">Payment Date</td>
+          <td class="val">${data.date}</td>
+        </tr>
+        <tr>
+          <td class="label">Fee Particulars</td>
+          <td class="val">${data.title}</td>
+        </tr>
+        <tr>
+          <td class="label">Payment Mode</td>
+          <td class="val">${data.method}</td>
+        </tr>
+        <tr>
+          <td class="label">Transaction Reference ID</td>
+          <td class="val" style="font-family: monospace;">${data.transactionId}</td>
+        </tr>
+        <tr>
+          <td class="label">Payment Status</td>
+          <td class="val" style="color: #16A34A;">${data.status}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="footer">
+      <p><strong>Vertical Limits Coaching Institute</strong></p>
+      <p>Thank you for your payment. This is a computer-generated digital receipt and requires no physical signature.</p>
+      <p style="font-size: 9px; margin-top: 8px;">Date Generated: ${new Date().toLocaleString('en-IN')}</p>
+    </div>
+  </div>
+</body>
+</html>`;
 };
 
 export default function FeeReceipt({
   payment,
+  studentInfo,
   onContentScroll,
   onBack,
 }: FeeReceiptProps) {
-  const receipt = payment ?? defaultPayment;
+  const { user } = useAuth();
+  const [downloading, setDownloading] = useState(false);
+  const [classesBatch, setClassesBatch] = useState<{
+    standard?: string;
+    batchName?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!studentInfo?.standard && !user?.standard) {
+      getMyClasses()
+        .then((res) => {
+          if (res?.currentBatch) {
+            setClassesBatch({
+              standard: res.currentBatch.standard,
+              batchName: res.currentBatch.name,
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [studentInfo, user]);
+
+  const studentName =
+    studentInfo?.name || payment?.studentName || user?.fullName || 'Student';
+
+  const studentId =
+    studentInfo?.studentId ||
+    payment?.studentId ||
+    user?.studentId ||
+    (user?.id ? `VL-STU-${user.id.slice(-4).toUpperCase()}` : 'VL-STU-1024');
+
+  const standard =
+    studentInfo?.standard ||
+    payment?.standard ||
+    user?.standard ||
+    classesBatch?.standard ||
+    '10th Standard';
+
+  const batchName =
+    studentInfo?.batchName ||
+    payment?.batchName ||
+    user?.batchName ||
+    classesBatch?.batchName ||
+    '';
+
+  const avatarInitials = getInitials(studentName);
 
   const formatCurrency = (amount: number = 0) => {
     return `₹${amount.toLocaleString('en-IN')}`;
   };
+
+  const handleDownloadReceipt = async () => {
+    if (downloading || !payment) return;
+    try {
+      setDownloading(true);
+
+      const html = generateReceiptHtml({
+        receiptNumber:
+          payment.receiptNumber ||
+          `VL-REC-${Date.now().toString().slice(-6)}`,
+        date:
+          payment.date ||
+          new Date().toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          }),
+        title: payment.title || 'Fee Payment',
+        amount: Number(payment.amount || 0),
+        method: payment.method || 'Online',
+        transactionId: payment.transactionId || `TXN${Date.now()}`,
+        status: payment.status || 'Payment Successful',
+        studentName,
+        studentId,
+        standard,
+        batchName,
+      });
+
+      if (Platform.OS === 'web') {
+        await Print.printAsync({ html });
+      } else {
+        const file = await Print.printToFileAsync({ html });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(file.uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Fee_Receipt_${payment.receiptNumber || 'Receipt'}.pdf`,
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          Alert.alert(
+            'Receipt PDF Created',
+            `Receipt saved to device: ${file.uri}`
+          );
+        }
+      }
+    } catch (err: any) {
+      console.error('Download fee receipt error:', err);
+      Alert.alert(
+        'Receipt Error',
+        err?.message || 'Unable to generate receipt PDF. Please try again.'
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  if (!payment) {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          onScroll={onContentScroll}
+          scrollEventThrottle={16}
+        >
+          <View
+            style={[
+              styles.receiptCard,
+              { padding: 32, alignItems: 'center', justifyContent: 'center' },
+            ]}
+          >
+            <Ionicons name="receipt-outline" size={44} color="#A3A3AD" />
+            <Text
+              style={{
+                fontFamily: 'PoppinsBold',
+                fontSize: 16,
+                color: '#171827',
+                marginTop: 12,
+              }}
+            >
+              No Receipt Selected
+            </Text>
+            <Text
+              style={{
+                fontFamily: 'PoppinsRegular',
+                fontSize: 11,
+                color: '#777',
+                textAlign: 'center',
+                marginTop: 4,
+              }}
+            >
+              Select a payment from Payment History to view its receipt.
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const receipt = payment;
 
   return (
     <View style={styles.container}>
@@ -56,36 +487,6 @@ export default function FeeReceipt({
         scrollEventThrottle={16}
       >
         {/* Header */}
-        <View style={styles.headerRow}>
-          <Pressable
-            style={styles.backButton}
-            onPress={onBack}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={21}
-              color="#333"
-            />
-          </Pressable>
-
-          <View style={styles.headerText}>
-            <Text style={styles.pageTitle}>
-              Fee Receipt
-            </Text>
-
-            <Text style={styles.pageSubtitle}>
-              Payment confirmation
-            </Text>
-          </View>
-
-          <View style={styles.headerIcon}>
-            <Ionicons
-              name="receipt-outline"
-              size={22}
-              color="#6630D7"
-            />
-          </View>
-        </View>
 
         {/* Receipt Card */}
         <View style={styles.receiptCard}>
@@ -217,21 +618,21 @@ export default function FeeReceipt({
             <View style={styles.studentRow}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
-                  AM
+                  {avatarInitials}
                 </Text>
               </View>
 
               <View style={styles.studentInfo}>
                 <Text style={styles.studentName}>
-                  Aarav Mehta
+                  {studentName}
                 </Text>
 
                 <Text style={styles.studentDetails}>
-                  10th Standard • Student
+                  {standard}{batchName ? ` • ${batchName}` : ' • Student'}
                 </Text>
 
                 <Text style={styles.studentDetails}>
-                  Student ID: VL-STU-1024
+                  Student ID: {studentId}
                 </Text>
               </View>
             </View>
@@ -280,15 +681,23 @@ export default function FeeReceipt({
             </Text>
           </Pressable>
 
-          <Pressable style={styles.primaryButton}>
-            <Ionicons
-              name="download-outline"
-              size={17}
-              color="#fff"
-            />
+          <Pressable
+            style={[styles.primaryButton, downloading && { opacity: 0.7 }]}
+            onPress={handleDownloadReceipt}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons
+                name="download-outline"
+                size={17}
+                color="#fff"
+              />
+            )}
 
             <Text style={styles.primaryButtonText}>
-              Download Receipt
+              {downloading ? 'Downloading...' : 'Download Receipt'}
             </Text>
           </Pressable>
         </View>
