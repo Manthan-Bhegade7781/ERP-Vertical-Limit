@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const User = require("../models/User");
@@ -43,6 +42,15 @@ const getUserRoles = (user) => {
 
 const isSuperAdmin = (user) =>
   getUserRoles(user).includes("super_admin");
+
+const canAccessMessages = (user) => {
+  const roles = getUserRoles(user);
+
+  return (
+    roles.includes("super_admin") ||
+    roles.includes("admin")
+  );
+};
 
 const getBranchId = (user) => {
   const branch =
@@ -100,6 +108,27 @@ const populateMessage = (query) =>
     .populate("branchId", "name");
 
 // --------------------------------------------------
+// SHARED ADMIN MAILBOX
+// --------------------------------------------------
+
+const getAdminMailboxUserIds = async () => {
+  const users = await User.find({ status: "active" })
+    .select("_id roles role")
+    .lean();
+
+  return users
+    .filter((user) => {
+      const roles = getUserRoles(user);
+
+      return (
+        roles.includes("admin") ||
+        roles.includes("super_admin")
+      );
+    })
+    .map((user) => user._id);
+};
+
+// --------------------------------------------------
 // RECIPIENT PERMISSIONS
 // --------------------------------------------------
 
@@ -118,37 +147,24 @@ const canMessageRecipient = (sender, recipient) => {
   const senderRoles = getUserRoles(sender);
   const recipientRoles = getUserRoles(recipient);
 
-  // Super Admin can contact active users across branches.
   if (senderRoles.includes("super_admin")) {
     return true;
   }
 
-  // Every supported role can contact Super Admin.
-  if (recipientRoles.includes("super_admin")) {
-    return true;
-  }
-
-  // All other communications must remain within one branch.
-  if (!sameBranch(sender, recipient)) {
-    return false;
-  }
-
-  // Branch Admin can contact users in their own branch.
-  if (senderRoles.includes("admin")) {
-    return true;
-  }
-
-  // Teachers can contact branch admins, teachers and students.
   if (senderRoles.includes("teacher")) {
-    return recipientRoles.some((role) =>
-      ["admin", "teacher", "student"].includes(role)
+    return (
+      recipientRoles.includes("super_admin") ||
+      (
+        recipientRoles.includes("admin") &&
+        sameBranch(sender, recipient)
+      )
     );
   }
 
-  // Students can contact branch admins and teachers.
-  if (senderRoles.includes("student")) {
-    return recipientRoles.some((role) =>
-      ["admin", "teacher"].includes(role)
+  if (senderRoles.includes("admin")) {
+    return (
+      recipientRoles.includes("super_admin") ||
+      sameBranch(sender, recipient)
     );
   }
 
@@ -167,7 +183,14 @@ const canMessageRecipient = (sender, recipient) => {
 const getMessages = async (req, res) => {
   try {
     const userId = getUserId(req.user);
-    const folder = String(req.query.folder || "inbox").toLowerCase();
+    const roles = getUserRoles(req.user);
+
+    const isTeacher = roles.includes("teacher");
+    const isAdminMailbox = canAccessMessages(req.user);
+
+    const folder = String(
+      req.query.folder || "inbox"
+    ).toLowerCase();
 
     if (!userId || !isValidObjectId(userId)) {
       return res.status(401).json({
@@ -176,64 +199,134 @@ const getMessages = async (req, res) => {
       });
     }
 
-    let filter = {};
+    if (!isTeacher && !isAdminMailbox) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to access messages.",
+      });
+    }
 
-    if (folder === "sent") {
-      filter.sender = userId;
-    } else if (
-      ["inbox", "unread", "archived", "important"].includes(folder)
-    ) {
+    let filter = {};
+    let visibleRecipientIds;
+
+    // ----------------------------------------------
+    // TEACHER PERSONAL INBOX
+    // ----------------------------------------------
+
+    if (isTeacher) {
+      if (!["inbox", "unread"].includes(folder)) {
+        return res.status(403).json({
+          success: false,
+          message: "Teachers can access received messages only.",
+        });
+      }
+
       const recipientFilter = {
         user: userId,
         deletedAt: null,
+        archivedAt: null,
       };
-
-      if (folder === "archived") {
-        recipientFilter.archivedAt = { $ne: null };
-      } else {
-        recipientFilter.archivedAt = null;
-      }
 
       if (folder === "unread") {
         recipientFilter.readAt = null;
       }
 
-      if (folder === "important") {
-        recipientFilter.isImportant = true;
-      }
-
       filter.recipients = {
         $elemMatch: recipientFilter,
       };
-    } else {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid folder. Use inbox, sent, unread, archived or important.",
-      });
+
+      visibleRecipientIds = new Set([
+        userId.toString(),
+      ]);
+    }
+
+    // ----------------------------------------------
+    // SHARED ADMIN / SUPER ADMIN MAILBOX
+    // ----------------------------------------------
+
+    else {
+      const mailboxIds = await getAdminMailboxUserIds();
+
+      if (
+        !mailboxIds.some(
+          (id) => id.toString() === userId.toString()
+        )
+      ) {
+        mailboxIds.push(userId);
+      }
+
+      visibleRecipientIds = new Set(
+        mailboxIds.map((id) => id.toString())
+      );
+
+      if (folder === "sent") {
+        filter.sender = {
+          $in: mailboxIds,
+        };
+      } else if (
+        [
+          "inbox",
+          "unread",
+          "archived",
+          "important",
+        ].includes(folder)
+      ) {
+        const recipientFilter = {
+          user: { $in: mailboxIds },
+          deletedAt: null,
+        };
+
+        if (folder === "archived") {
+          recipientFilter.archivedAt = { $ne: null };
+        } else {
+          recipientFilter.archivedAt = null;
+        }
+
+        if (folder === "unread") {
+          recipientFilter.readAt = null;
+        }
+
+        if (folder === "important") {
+          recipientFilter.isImportant = true;
+        }
+
+        filter.recipients = {
+          $elemMatch: recipientFilter,
+        };
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid message folder.",
+        });
+      }
     }
 
     const messages = await populateMessage(
-      Message.find(filter).sort({ createdAt: -1 })
+      Message.find(filter).sort({
+        createdAt: -1,
+      })
     );
 
     const data = messages.map((message) => {
       const item = message.toObject();
 
-      if (folder === "sent") {
-        // Sender can see recipients but not their private
-        // archive, delete or important settings.
-        item.recipients = item.recipients.map((recipient) => ({
+      item.recipients = (item.recipients || [])
+        .filter((recipient) => {
+          const recipientId =
+            recipient.user?._id || recipient.user;
+
+          return (
+            recipientId &&
+            visibleRecipientIds.has(recipientId.toString())
+          );
+        })
+        .map((recipient) => ({
           user: recipient.user,
           readAt: recipient.readAt,
+          archivedAt: recipient.archivedAt,
+          deletedAt: recipient.deletedAt,
+          isImportant: recipient.isImportant,
         }));
-      } else {
-        // Return only the current user's mailbox status.
-        item.recipients = item.recipients.filter(
-          (recipient) =>
-            recipient.user?._id?.toString() === userId.toString()
-        );
-      }
 
       return item;
     });
@@ -256,20 +349,26 @@ const getMessages = async (req, res) => {
 // --------------------------------------------------
 // CREATE MESSAGE
 // POST /api/messages
-//
-// Body:
-// {
-//   "recipientIds": ["USER_ID"],
-//   "subject": "Message subject",
-//   "body": "Message content",
-//   "category": "General",
-//   "priority": "Normal"
-// }
 // --------------------------------------------------
 
 const createMessage = async (req, res) => {
   try {
     const sender = req.user;
+    const senderRoles = getUserRoles(sender);
+
+    const canSend =
+      senderRoles.includes("super_admin") ||
+      senderRoles.includes("admin") ||
+      senderRoles.includes("teacher");
+
+    if (!canSend) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only Admin, Super Admin and Teachers can send messages.",
+      });
+    }
+
     const senderId = getUserId(sender);
 
     const {
@@ -317,8 +416,7 @@ const createMessage = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "A valid subject and message body are required. Subject limit: 200 characters; body limit: 10000 characters.",
+        message: "Valid subject and message body are required.",
       });
     }
 
@@ -339,7 +437,7 @@ const createMessage = async (req, res) => {
     const recipients = await User.find({
       _id: { $in: recipientIds },
       status: "active",
-    }).select("fullName email roles branchId status");
+    }).select("fullName email roles role branchId status");
 
     if (recipients.length !== recipientIds.length) {
       return res.status(400).json({
@@ -381,32 +479,40 @@ const createMessage = async (req, res) => {
       Message.findById(message._id)
     );
 
-    // Notify recipients
-    try {
-      await Promise.allSettled(
-        recipients.map((recipient) => {
-          const isSuperAdminRecipient =
-            Array.isArray(recipient.roles) &&
-            recipient.roles.includes("super_admin");
+    // Send notifications to recipients.
+    for (const recipient of recipients) {
+      try {
+        const recipientRoles = getUserRoles(recipient);
 
-          return createNotification({
-            recipient: recipient._id,
-            title: `New Message: ${subject.trim()}`,
-            message: `${sender.fullName || "User"}: ${
-              body.trim().length > 80
-                ? body.trim().slice(0, 80) + "..."
-                : body.trim()
-            }`,
-            type: "general",
-            icon: "email-outline",
-            link: isSuperAdminRecipient
-              ? "/(super_admin)/explore?feature=Messages"
-              : "/(admin)/explore?feature=Messages",
-          });
-        })
-      );
-    } catch (notifError) {
-      console.error("Message notification error:", notifError.message);
+        const isSuperAdminRecipient =
+          recipientRoles.includes("super_admin");
+
+        const isTeacherRecipient =
+          recipientRoles.includes("teacher");
+
+        const notificationLink = isTeacherRecipient
+          ? "/(teacher)/explore?feature=Messages"
+          : isSuperAdminRecipient
+            ? "/(super_admin)/explore?feature=Messages"
+            : "/(admin)/explore?feature=Messages";
+
+        await createNotification({
+          recipient: recipient._id,
+          title: subject.trim(),
+          message:
+            body.trim().length > 80
+              ? body.trim().slice(0, 80) + "..."
+              : body.trim(),
+          type: "general",
+          icon: "email-outline",
+          link: notificationLink,
+        });
+      } catch (notifError) {
+        console.error(
+          "Message notification error:",
+          notifError.message
+        );
+      }
     }
 
     return res.status(201).json({
@@ -433,7 +539,6 @@ const createMessage = async (req, res) => {
     });
   }
 };
-
 // --------------------------------------------------
 // GET MESSAGE BY ID
 // GET /api/messages/:id
@@ -443,11 +548,22 @@ const getMessageById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = getUserId(req.user);
+    const roles = getUserRoles(req.user);
+
+    const isTeacher = roles.includes("teacher");
+    const isAdminMailbox = canAccessMessages(req.user);
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
         message: "Invalid message ID.",
+      });
+    }
+
+    if (!userId || (!isTeacher && !isAdminMailbox)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view this message.",
       });
     }
 
@@ -460,24 +576,78 @@ const getMessageById = async (req, res) => {
       });
     }
 
-    const isSender =
-      message.sender.toString() === userId.toString();
+    let visibleRecipientIds;
+    let hasAccess = false;
 
-    const recipient = message.recipients.find(
-      (item) => item.user.toString() === userId.toString()
-    );
+    if (isTeacher) {
+      // Teacher can open only messages addressed to their account.
+      const ownRecipient = message.recipients.find(
+        (item) =>
+          item.user.toString() === userId.toString() &&
+          !item.deletedAt
+      );
 
-    if (!isSender && (!recipient || recipient.deletedAt)) {
+      hasAccess = Boolean(ownRecipient);
+
+      visibleRecipientIds = new Set([
+        userId.toString(),
+      ]);
+
+      if (ownRecipient && !ownRecipient.readAt) {
+        ownRecipient.readAt = new Date();
+        await message.save();
+      }
+    } else {
+      const mailboxIds = await getAdminMailboxUserIds();
+
+      if (
+        !mailboxIds.some(
+          (mailboxId) =>
+            mailboxId.toString() === userId.toString()
+        )
+      ) {
+        mailboxIds.push(userId);
+      }
+
+      visibleRecipientIds = new Set(
+        mailboxIds.map((mailboxId) => mailboxId.toString())
+      );
+
+      const senderIsAdminMailbox = visibleRecipientIds.has(
+        message.sender.toString()
+      );
+
+      const hasAdminRecipient = message.recipients.some(
+        (item) => {
+          const recipientId = item.user?._id || item.user;
+
+          return (
+            recipientId &&
+            visibleRecipientIds.has(recipientId.toString()) &&
+            !item.deletedAt
+          );
+        }
+      );
+
+      hasAccess = senderIsAdminMailbox || hasAdminRecipient;
+
+      const currentRecipient = message.recipients.find(
+        (item) =>
+          item.user.toString() === userId.toString() &&
+          !item.deletedAt
+      );
+
+      if (currentRecipient && !currentRecipient.readAt) {
+        currentRecipient.readAt = new Date();
+        await message.save();
+      }
+    }
+
+    if (!hasAccess) {
       return res.status(404).json({
         success: false,
         message: "Message not found or access denied.",
       });
-    }
-
-    // Opening a received message marks it as read.
-    if (recipient && !recipient.readAt) {
-      recipient.readAt = new Date();
-      await message.save();
     }
 
     const populatedMessage = await populateMessage(
@@ -486,18 +656,14 @@ const getMessageById = async (req, res) => {
 
     const data = populatedMessage.toObject();
 
-    if (isSender) {
-      // Do not expose private recipient mailbox settings.
-      data.recipients = data.recipients.map((item) => ({
-        user: item.user,
-        readAt: item.readAt,
-      }));
-    } else {
-      data.recipients = data.recipients.filter(
-        (item) =>
-          item.user?._id?.toString() === userId.toString()
+    data.recipients = (data.recipients || []).filter((item) => {
+      const recipientId = item.user?._id || item.user;
+
+      return (
+        recipientId &&
+        visibleRecipientIds.has(recipientId.toString())
       );
-    }
+    });
 
     return res.status(200).json({
       success: true,
@@ -517,14 +683,27 @@ const getMessageById = async (req, res) => {
 // REPLY TO MESSAGE
 // POST /api/messages/:id/reply
 //
-// Body: { "body": "Reply content" }
+// Teacher replies to Admin/Super Admin.
+// Admin/Super Admin replies to Teacher.
 // --------------------------------------------------
 
 const replyToMessage = async (req, res) => {
   try {
-    const { id } = req.params;
     const sender = req.user;
     const senderId = getUserId(sender);
+    const senderRoles = getUserRoles(sender);
+
+    const senderIsTeacher = senderRoles.includes("teacher");
+    const senderIsAdminMailbox = canAccessMessages(sender);
+
+    if (!senderIsTeacher && !senderIsAdminMailbox) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to reply to messages.",
+      });
+    }
+
+    const { id } = req.params;
     const { body } = req.body;
 
     if (!isValidObjectId(id)) {
@@ -550,36 +729,122 @@ const replyToMessage = async (req, res) => {
     if (!original) {
       return res.status(404).json({
         success: false,
-        message: "Message not found.",
+        message: "Original message not found.",
       });
     }
 
-    const isSender =
-      original.sender.toString() === senderId.toString();
+    const originalSender = await User.findOne({
+      _id: original.sender,
+      status: "active",
+    }).select("fullName email roles role branchId status");
 
-    const originalRecipient = original.recipients.find(
-      (item) => item.user.toString() === senderId.toString()
-    );
-
-    // Replies are for received messages only.
-    if (isSender || !originalRecipient || originalRecipient.deletedAt) {
-      return res.status(403).json({
+    if (!originalSender) {
+      return res.status(404).json({
         success: false,
-        message: "You cannot reply to this message.",
+        message: "Original sender not found or inactive.",
       });
     }
 
-    const originalSender = await User.findById(original.sender).select(
-      "fullName email roles branchId status"
-    );
+    const originalSenderRoles = getUserRoles(originalSender);
 
-    if (!originalSender || originalSender.status !== "active") {
-      return res.status(400).json({
-        success: false,
-        message: "The original sender is no longer active.",
-      });
+    const originalSenderIsTeacher =
+      originalSenderRoles.includes("teacher");
+
+    const originalSenderIsAdmin =
+      originalSenderRoles.includes("admin") ||
+      originalSenderRoles.includes("super_admin");
+
+    // ----------------------------------------------
+    // TEACHER REPLY PERMISSION
+    // ----------------------------------------------
+
+    if (senderIsTeacher) {
+      // Teacher can reply only to Admin or Super Admin.
+      if (!originalSenderIsAdmin) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Teachers can reply only to Admin or Super Admin messages.",
+        });
+      }
+
+      // Verify original message was addressed to this Teacher.
+      const teacherIsRecipient = original.recipients.some(
+        (recipient) => {
+          const recipientId =
+            recipient.user?._id || recipient.user;
+
+          return (
+            recipientId &&
+            recipientId.toString() === senderId.toString() &&
+            !recipient.deletedAt
+          );
+        }
+      );
+
+      if (!teacherIsRecipient) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You cannot reply to a message that was not addressed to you.",
+        });
+      }
     }
 
+    // ----------------------------------------------
+    // ADMIN / SUPER ADMIN REPLY PERMISSION
+    // ----------------------------------------------
+
+    if (senderIsAdminMailbox) {
+      // Admin/Super Admin replies to messages sent by Teachers.
+      if (!originalSenderIsTeacher) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Admin and Super Admin can use this reply action for Teacher messages.",
+        });
+      }
+
+      const mailboxIds = await getAdminMailboxUserIds();
+
+      const senderBelongsToMailbox = mailboxIds.some(
+        (mailboxId) =>
+          mailboxId.toString() === senderId.toString()
+      );
+
+      if (!senderBelongsToMailbox) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot reply from the shared Admin mailbox.",
+        });
+      }
+
+      // Confirm original Teacher message was sent to Admin/Super Admin.
+      const originalWasSentToAdminMailbox =
+        original.recipients.some((recipient) => {
+          const recipientId =
+            recipient.user?._id || recipient.user;
+
+          return (
+            recipientId &&
+            mailboxIds.some(
+              (mailboxId) =>
+                mailboxId.toString() === recipientId.toString()
+            ) &&
+            !recipient.deletedAt
+          );
+        });
+
+      if (!originalWasSentToAdminMailbox) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "This Teacher message was not addressed to the Admin mailbox.",
+        });
+      }
+    }
+
+    // Apply existing recipient and branch restrictions.
     if (!canMessageRecipient(sender, originalSender)) {
       return res.status(403).json({
         success: false,
@@ -591,13 +856,21 @@ const replyToMessage = async (req, res) => {
       ? original.subject
       : `Re: ${original.subject}`;
 
+    // IMPORTANT:
+    // Reply is a new message addressed directly to the original sender.
+    // Admin reply -> Teacher's personal inbox.
+    // Teacher reply -> Admin/Super Admin shared inbox.
     const reply = await Message.create({
       sender: senderId,
-      recipients: [{ user: originalSender._id }],
+      recipients: [
+        {
+          user: originalSender._id,
+        },
+      ],
       subject: replySubject,
       body: body.trim(),
-      category: original.category,
-      priority: original.priority,
+      category: original.category || "General",
+      priority: original.priority || "Normal",
       replyTo: original._id,
       branchId: getBranchId(sender) || null,
     });
@@ -606,28 +879,41 @@ const replyToMessage = async (req, res) => {
       Message.findById(reply._id)
     );
 
-    // Notify original sender of the reply
+    // ----------------------------------------------
+    // NOTIFICATION
+    // ----------------------------------------------
+
     try {
-      const isSuperAdminRecipient =
-        Array.isArray(originalSender.roles) &&
-        originalSender.roles.includes("super_admin");
+      const recipientRoles = getUserRoles(originalSender);
+
+      const recipientIsTeacher =
+        recipientRoles.includes("teacher");
+
+      const recipientIsSuperAdmin =
+        recipientRoles.includes("super_admin");
+
+      const notificationLink = recipientIsTeacher
+        ? "/(teacher)/explore?feature=Messages"
+        : recipientIsSuperAdmin
+          ? "/(super_admin)/explore?feature=Messages"
+          : "/(admin)/explore?feature=Messages";
 
       await createNotification({
         recipient: originalSender._id,
-        title: `Reply: ${original.subject}`,
-        message: `${sender.fullName || "User"}: ${
-          body.trim().length > 80
-            ? body.trim().slice(0, 80) + "..."
-            : body.trim()
-        }`,
+        title: `New Reply: ${replySubject}`,
+        message:
+          body.trim().length > 100
+            ? `${body.trim().slice(0, 100)}...`
+            : body.trim(),
         type: "general",
         icon: "email-reply-outline",
-        link: isSuperAdminRecipient
-          ? "/(super_admin)/explore?feature=Messages"
-          : "/(admin)/explore?feature=Messages",
+        link: notificationLink,
       });
-    } catch (notifError) {
-      console.error("Reply notification error:", notifError.message);
+    } catch (notificationError) {
+      console.error(
+        "Reply notification error:",
+        notificationError.message
+      );
     }
 
     return res.status(201).json({
@@ -654,22 +940,21 @@ const replyToMessage = async (req, res) => {
     });
   }
 };
-
 // --------------------------------------------------
 // UPDATE RECIPIENT MESSAGE STATUS
 // PATCH /api/messages/:id/status
-//
-// Body:
-// { "action": "read" }
-// { "action": "unread" }
-// { "action": "important" }
-// { "action": "normal" }
-// { "action": "archive" }
-// { "action": "unarchive" }
+// Admin and Super Admin only
 // --------------------------------------------------
 
 const updateMessageStatus = async (req, res) => {
   try {
+    if (!canAccessMessages(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only Admin and Super Admin can manage messages.",
+      });
+    }
+
     const { id } = req.params;
     const { action } = req.body;
     const userId = getUserId(req.user);
@@ -706,11 +991,29 @@ const updateMessageStatus = async (req, res) => {
       });
     }
 
-    const recipient = message.recipients.find(
-      (item) => item.user.toString() === userId.toString()
+    const mailboxIds = await getAdminMailboxUserIds();
+
+    const mailboxIdSet = new Set(
+      mailboxIds.map((mailboxId) => mailboxId.toString())
     );
 
-    if (!recipient || recipient.deletedAt) {
+    const recipient =
+      message.recipients.find(
+        (item) =>
+          item.user.toString() === userId.toString() &&
+          !item.deletedAt
+      ) ||
+      message.recipients.find((item) => {
+        const recipientId = item.user?._id || item.user;
+
+        return (
+          recipientId &&
+          mailboxIdSet.has(recipientId.toString()) &&
+          !item.deletedAt
+        );
+      });
+
+    if (!recipient) {
       return res.status(403).json({
         success: false,
         message: "You cannot update this message.",
@@ -765,12 +1068,20 @@ const updateMessageStatus = async (req, res) => {
 };
 
 // --------------------------------------------------
-// DELETE MESSAGE FROM CURRENT USER'S INBOX
+// DELETE MESSAGE FROM CURRENT ADMIN INBOX
 // DELETE /api/messages/:id
+// Admin and Super Admin only
 // --------------------------------------------------
 
 const deleteMessage = async (req, res) => {
   try {
+    if (!canAccessMessages(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only Admin and Super Admin can manage messages.",
+      });
+    }
+
     const { id } = req.params;
     const userId = getUserId(req.user);
 
@@ -790,19 +1101,36 @@ const deleteMessage = async (req, res) => {
       });
     }
 
-    const recipient = message.recipients.find(
-      (item) => item.user.toString() === userId.toString()
+    const mailboxIds = await getAdminMailboxUserIds();
+
+    const mailboxIdSet = new Set(
+      mailboxIds.map((mailboxId) => mailboxId.toString())
     );
 
-    if (!recipient || recipient.deletedAt) {
+    const recipient =
+      message.recipients.find(
+        (item) =>
+          item.user.toString() === userId.toString() &&
+          !item.deletedAt
+      ) ||
+      message.recipients.find((item) => {
+        const recipientId = item.user?._id || item.user;
+
+        return (
+          recipientId &&
+          mailboxIdSet.has(recipientId.toString()) &&
+          !item.deletedAt
+        );
+      });
+
+    if (!recipient) {
       return res.status(404).json({
         success: false,
         message: "Message not found in your inbox.",
       });
     }
 
-    // Soft-delete only this recipient's copy.
-    // Other recipients retain their messages.
+    // Soft-delete the selected recipient copy.
     recipient.deletedAt = new Date();
 
     await message.save();
@@ -820,6 +1148,10 @@ const deleteMessage = async (req, res) => {
     });
   }
 };
+
+// --------------------------------------------------
+// EXPORT CONTROLLERS
+// --------------------------------------------------
 
 module.exports = {
   getMessages,

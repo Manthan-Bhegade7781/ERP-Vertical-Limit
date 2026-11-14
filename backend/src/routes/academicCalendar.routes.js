@@ -12,22 +12,47 @@ const {
 const { protect } = require("../middleware/auth.middleware");
 const { authorizeRoles } = require("../middleware/role.middleware");
 
-// All Academic Calendar routes require authentication
+// All Academic Calendar routes require authentication.
 router.use(protect);
 
-// Only Super Admin and Admin can manage calendar events
-router.use(authorizeRoles("super_admin", "admin"));
+// ==========================================
+// GET: View academic calendar events
+// Allowed: Super Admin, Admin, Teacher
+// ==========================================
+router.get(
+  "/",
+  authorizeRoles("super_admin", "admin", "teacher"),
+  getAcademicCalendarEvents
+);
 
-// Get all events, with optional search and filters
-router.get("/", getAcademicCalendarEvents);
+// ==========================================
+// POST: Create academic calendar event
+// Allowed: Super Admin, Admin
+// ==========================================
+router.post(
+  "/",
+  authorizeRoles("super_admin", "admin"),
+  createAcademicCalendarEvent
+);
 
-// Create a new event
-router.post("/", createAcademicCalendarEvent);
+// ==========================================
+// PUT: Update academic calendar event
+// Allowed: Super Admin, Admin
+// ==========================================
+router.put(
+  "/:id",
+  authorizeRoles("super_admin", "admin"),
+  updateAcademicCalendarEvent
+);
 
-// Update an existing event
-router.put("/:id", updateAcademicCalendarEvent);
-
-// Soft-delete an event
-router.delete("/:id", deleteAcademicCalendarEvent);
+// ==========================================
+// DELETE: Soft-delete academic calendar event
+// Allowed: Super Admin, Admin
+// ==========================================
+router.delete(
+  "/:id",
+  authorizeRoles("super_admin", "admin"),
+  deleteAcademicCalendarEvent
+);
 
 module.exports = router;

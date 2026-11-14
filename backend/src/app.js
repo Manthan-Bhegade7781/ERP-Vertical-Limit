@@ -26,6 +26,8 @@ const academicCalendarRoutes = require("./routes/academicCalendar.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const ptgRoutes = require("./routes/ptg.routes");
 const feedbackRoutes = require("./routes/feedback.routes");
+const lectureLogRoutes = require("./routes/lectureLog.routes");
+const teacherAttendanceRoutes = require("./routes/teacherAttendance.routes");
 
 const app = express();
 
@@ -43,6 +45,7 @@ app.use("/api/batches", batchRoutes);
 app.use("/api/teachers", teacherRoutes);
 app.use("/api/student-subjects", studentSubjectRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/lecture-logs", lectureLogRoutes);
 app.use("/api/examinations", examinationRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/fees", feeRoutes);
@@ -56,6 +59,7 @@ app.use("/api/academic-calendar", academicCalendarRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/ptg", ptgRoutes);
+app.use("/api/teacher-attendance", teacherAttendanceRoutes);
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,

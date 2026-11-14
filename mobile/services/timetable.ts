@@ -1,50 +1,34 @@
+import { API_BASE_URL } from '../config/api';
+import { getToken } from './auth';
 
-import { API_BASE_URL } from '@/config/api';
-import { getToken } from '@/services/auth';
-
-export type TimetableType = 'lecture' | 'lab' | 'exam';
+export type TimetableReference =
+  | string
+  | null
+  | undefined
+  | {
+      _id?: string;
+      id?: string;
+      name?: string;
+      code?: string;
+      standard?: string;
+      fullName?: string;
+      email?: string;
+    };
 
 export type TimetableEntry = {
   _id: string;
-  batchSubjectId: {
-    _id: string;
-    batchId: {
-      _id: string;
-      name: string;
-      code: string;
-      standard?: string;
-      branchId?: string;
-    };
-    subjectId: {
-      _id: string;
-      name: string;
-      code: string;
-    };
-    teacherId: {
-      _id: string;
-      fullName: string;
-      email?: string;
-    };
-    status: 'active' | 'inactive';
-  };
-  branchId: {
-    _id: string;
-    name: string;
-    code?: string;
-  };
   scheduledDate: string;
   startTime: string;
   endTime: string;
-  room: string;
-  type: TimetableType;
-  isRemoved: boolean;
-  createdBy?: {
-    _id: string;
-    fullName: string;
-    email?: string;
+  room?: string;
+  type: 'lecture' | 'lab' | 'exam';
+
+  batchSubjectId?: {
+    _id?: string;
+    batchId?: TimetableReference;
+    subjectId?: TimetableReference;
+    teacherId?: TimetableReference;
   };
-  createdAt: string;
-  updatedAt: string;
 };
 
 export type TimetableSummary = {
@@ -62,145 +46,156 @@ type TimetableResponse = {
   data?: TimetableEntry[];
 };
 
-type SingleTimetableResponse = {
-  success: boolean;
-  message: string;
-  data?: TimetableEntry;
+export type TeacherTimetable = {
+  entries: TimetableEntry[];
+  summary: TimetableSummary;
 };
 
-type CreateTimetableInput = {
+export type CreateTimetablePayload = {
   batchSubjectId: string;
   scheduledDate: string;
   startTime: string;
   endTime: string;
   room?: string;
-  type?: TimetableType;
+  type: 'lecture' | 'lab' | 'exam';
 };
 
-type UpdateTimetableInput = Partial<CreateTimetableInput>;
+export type CreateTimetableResponse = {
+  success: boolean;
+  message?: string;
+  data?: TimetableEntry;
+};
 
-const getAuthHeaders = async () => {
+export const getTimetableReferenceName = (
+  reference: TimetableReference,
+  fallback = '',
+): string => {
+  if (reference && typeof reference === 'object') {
+    return reference.name || reference.fullName || fallback;
+  }
+
+  return fallback;
+};
+
+// CREATE TIMETABLE CLASS
+export const createTimetable = async (
+  payload: CreateTimetablePayload,
+): Promise<CreateTimetableResponse> => {
   const token = await getToken();
 
   if (!token) {
-    return null;
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/timetable`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      'Unable to connect to the server. Check your network and API URL.',
+    );
+  }
+
+  const responseText = await response.text();
+
+  let result: CreateTimetableResponse;
+
+  try {
+    result = JSON.parse(responseText);
+  } catch {
+    throw new Error('Invalid timetable response from server.');
+  }
+
+  if (response.status === 401) {
+    throw new Error('Your session has expired. Please sign in again.');
+  }
+
+  if (response.status === 403) {
+    throw new Error(
+      result.message || 'You do not have permission to create a timetable.',
+    );
+  }
+
+  if (!response.ok || result.success === false) {
+    throw new Error(
+      result.message || `Unable to create timetable: ${response.status}`,
+    );
+  }
+
+  return result;
+};
+
+// FETCH TEACHER TIMETABLE
+export const fetchTeacherTimetable = async (
+  date: string,
+): Promise<TeacherTimetable> => {
+  const token = await getToken();
+
+  if (!token) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/timetable?date=${encodeURIComponent(date)}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+  } catch {
+    throw new Error(
+      'Unable to connect to the server. Check your network and API URL.',
+    );
+  }
+
+  const responseText = await response.text();
+
+  let result: TimetableResponse;
+
+  try {
+    result = JSON.parse(responseText);
+  } catch {
+    throw new Error('Invalid timetable response from server.');
+  }
+
+  if (response.status === 401) {
+    throw new Error('Your session has expired. Please sign in again.');
+  }
+
+  if (response.status === 403) {
+    throw new Error(
+      result.message || 'You do not have permission to access this timetable.',
+    );
+  }
+
+  if (!response.ok || result.success === false) {
+    throw new Error(
+      result.message || `Timetable request failed: ${response.status}`,
+    );
   }
 
   return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
+    entries: Array.isArray(result.data) ? result.data : [],
+    summary: result.summary || {
+      totalClasses: 0,
+      lectures: 0,
+      labs: 0,
+      exams: 0,
+    },
   };
-};
-
-// Fetch timetable entries.
-// Pass date for one day, or startDate and endDate for a range.
-export const getTimetable = async (filters?: {
-  date?: string;
-  startDate?: string;
-  endDate?: string;
-}): Promise<TimetableResponse> => {
-  const headers = await getAuthHeaders();
-
-  if (!headers) {
-    return {
-      success: false,
-      message: 'Authentication required',
-    };
-  }
-
-  const params = new URLSearchParams();
-
-  if (filters?.date) {
-    params.append('date', filters.date);
-  } else {
-    if (filters?.startDate) {
-      params.append('startDate', filters.startDate);
-    }
-
-    if (filters?.endDate) {
-      params.append('endDate', filters.endDate);
-    }
-  }
-
-  const query = params.toString();
-  const url = `${API_BASE_URL}/timetable${query ? `?${query}` : ''}`;
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers,
-  });
-
-  return response.json();
-};
-
-// Create a timetable entry.
-export const createTimetable = async (
-  input: CreateTimetableInput
-): Promise<SingleTimetableResponse> => {
-  const headers = await getAuthHeaders();
-
-  if (!headers) {
-    return {
-      success: false,
-      message: 'Authentication required',
-    };
-  }
-
-  const response = await fetch(`${API_BASE_URL}/timetable`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(input),
-  });
-
-  return response.json();
-};
-
-// Update a timetable entry.
-export const updateTimetable = async (
-  id: string,
-  input: UpdateTimetableInput
-): Promise<SingleTimetableResponse> => {
-  const headers = await getAuthHeaders();
-
-  if (!headers) {
-    return {
-      success: false,
-      message: 'Authentication required',
-    };
-  }
-
-  const response = await fetch(
-    `${API_BASE_URL}/timetable/${id}`,
-    {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(input),
-    }
-  );
-
-  return response.json();
-};
-
-// Soft-delete a timetable entry.
-export const removeTimetable = async (
-  id: string
-): Promise<{ success: boolean; message: string }> => {
-  const headers = await getAuthHeaders();
-
-  if (!headers) {
-    return {
-      success: false,
-      message: 'Authentication required',
-    };
-  }
-
-  const response = await fetch(
-    `${API_BASE_URL}/timetable/${id}`,
-    {
-      method: 'DELETE',
-      headers,
-    }
-  );
-
-  return response.json();
 };

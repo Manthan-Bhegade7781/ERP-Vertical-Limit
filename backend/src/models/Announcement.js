@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const announcementSchema = new mongoose.Schema(
@@ -56,7 +55,16 @@ const announcementSchema = new mongoose.Schema(
       required: true,
     },
 
-    // null means the announcement applies to all branches.
+    // Empty array = normal audience-based announcement.
+    // Non-empty array = announcement assigned to specific teachers.
+    // Store User account IDs, NOT Teacher profile IDs.
+    targetTeachers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
@@ -91,12 +99,37 @@ const announcementSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-announcementSchema.index({ branchId: 1, status: 1 });
-announcementSchema.index({ audience: 1, status: 1 });
-announcementSchema.index({ createdBy: 1, createdAt: -1 });
-announcementSchema.index({ expiresAt: 1 });
+// Indexes
+announcementSchema.index({
+  branchId: 1,
+  status: 1,
+});
 
-module.exports = mongoose.model("Announcement", announcementSchema);
+announcementSchema.index({
+  audience: 1,
+  status: 1,
+});
+
+announcementSchema.index({
+  targetTeachers: 1,
+  status: 1,
+});
+
+announcementSchema.index({
+  createdBy: 1,
+  createdAt: -1,
+});
+
+announcementSchema.index({
+  expiresAt: 1,
+});
+
+module.exports = mongoose.model(
+  "Announcement",
+  announcementSchema
+);

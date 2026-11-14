@@ -1,17 +1,27 @@
-
 const mongoose = require("mongoose");
+
 const Examination = require("../models/examination.model");
 const Batch = require("../models/Batch");
 const Subject = require("../models/Subject");
 const BatchSubject = require("../models/BatchSubject");
 
+// ============================================================
+// COMMON HELPERS
+// ============================================================
+
 const parseExaminationDate = (value) => {
   if (!value) return null;
 
   // Supports DD/MM/YYYY from the current frontend form.
-  if (typeof value === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+  if (
+    typeof value === "string" &&
+    /^\d{2}\/\d{2}\/\d{4}$/.test(value)
+  ) {
     const [day, month, year] = value.split("/").map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
+
+    const date = new Date(
+      Date.UTC(year, month - 1, day)
+    );
 
     if (
       date.getUTCFullYear() !== year ||
@@ -25,6 +35,7 @@ const parseExaminationDate = (value) => {
   }
 
   const date = new Date(value);
+
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -58,12 +69,17 @@ const validateBatchSubject = async (batchId, subjectId) => {
     !mongoose.isValidObjectId(batchId) ||
     !mongoose.isValidObjectId(subjectId)
   ) {
-    return { valid: false, message: "Valid batchId and subjectId are required." };
+    return {
+      valid: false,
+      message: "Valid batchId and subjectId are required.",
+    };
   }
 
   const [batch, subject, assignment] = await Promise.all([
     Batch.findById(batchId),
+
     Subject.findById(subjectId),
+
     BatchSubject.findOne({
       batchId,
       subjectId,
@@ -72,17 +88,24 @@ const validateBatchSubject = async (batchId, subjectId) => {
   ]);
 
   if (!batch || batch.isRemoved) {
-    return { valid: false, message: "Batch not found or archived." };
+    return {
+      valid: false,
+      message: "Batch not found or archived.",
+    };
   }
 
   if (!subject || subject.status !== "active") {
-    return { valid: false, message: "Active subject not found." };
+    return {
+      valid: false,
+      message: "Active subject not found.",
+    };
   }
 
   if (!assignment) {
     return {
       valid: false,
-      message: "This subject is not actively assigned to the selected batch.",
+      message:
+        "This subject is not actively assigned to the selected batch.",
     };
   }
 
@@ -93,10 +116,18 @@ const validateBatchSubject = async (batchId, subjectId) => {
     };
   }
 
-  return { valid: true, batch, subject };
+  return {
+    valid: true,
+    batch,
+    subject,
+  };
 };
 
+// ============================================================
+// CREATE EXAMINATION
 // POST /api/examinations
+// ============================================================
+
 const createExamination = async (req, res) => {
   try {
     const {
@@ -131,16 +162,23 @@ const createExamination = async (req, res) => {
     }
 
     const parsedDate = parseExaminationDate(examinationDate);
+
     if (!parsedDate) {
       return res.status(400).json({
         success: false,
-        message: "Invalid examination date. Use DD/MM/YYYY or a valid date.",
+        message:
+          "Invalid examination date. Use DD/MM/YYYY or a valid date.",
       });
     }
 
-    const parsedDuration = Number(durationMinutes ?? duration);
+    const parsedDuration = Number(
+      durationMinutes ?? duration
+    );
 
-    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+    if (
+      !Number.isFinite(parsedDuration) ||
+      parsedDuration <= 0
+    ) {
       return res.status(400).json({
         success: false,
         message: "Duration must be a positive number of minutes.",
@@ -150,18 +188,24 @@ const createExamination = async (req, res) => {
     if (!validateTime(startTime)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid start time. Use a format such as 09:00 AM.",
+        message:
+          "Invalid start time. Use a format such as 09:00 AM.",
       });
     }
 
     if (!validateMarks(totalMarks, passingMarks)) {
       return res.status(400).json({
         success: false,
-        message: "Marks must be valid, and passing marks cannot exceed total marks.",
+        message:
+          "Marks must be valid, and passing marks cannot exceed total marks.",
       });
     }
 
-    const relation = await validateBatchSubject(batchId, subjectId);
+    const relation = await validateBatchSubject(
+      batchId,
+      subjectId
+    );
+
     if (!relation.valid) {
       return res.status(400).json({
         success: false,
@@ -182,9 +226,17 @@ const createExamination = async (req, res) => {
       instructions: instructions?.trim() || "",
     });
 
-    const populatedExamination = await Examination.findById(examination._id)
-      .populate("batchId", "name code standard academicYear")
-      .populate("subjectId", "name code standard type");
+    const populatedExamination = await Examination.findById(
+      examination._id
+    )
+      .populate(
+        "batchId",
+        "name code standard academicYear"
+      )
+      .populate(
+        "subjectId",
+        "name code standard type"
+      );
 
     return res.status(201).json({
       success: true,
@@ -200,6 +252,7 @@ const createExamination = async (req, res) => {
     }
 
     console.error("Create examination error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to create examination.",
@@ -207,10 +260,37 @@ const createExamination = async (req, res) => {
   }
 };
 
+// ============================================================
+// GET EXAMINATIONS
 // GET /api/examinations
+// ============================================================
+
 const getExaminations = async (req, res) => {
   try {
-    const { batchId, subjectId, standard, status, search } = req.query;
+    const {
+      batchId,
+      subjectId,
+      standard,
+      status,
+      search,
+    } = req.query;
+
+    const userRoles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [];
+
+    const isTeacher = userRoles.includes("teacher");
+    const isAdmin = userRoles.includes("admin");
+    const isSuperAdmin = userRoles.includes("super_admin");
+
+    if (!isTeacher && !isAdmin && !isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view examinations.",
+      });
+    }
+
+    // Requested filters.
     const filter = {};
 
     if (batchId) {
@@ -220,6 +300,7 @@ const getExaminations = async (req, res) => {
           message: "Invalid batchId.",
         });
       }
+
       filter.batchId = batchId;
     }
 
@@ -230,32 +311,108 @@ const getExaminations = async (req, res) => {
           message: "Invalid subjectId.",
         });
       }
+
       filter.subjectId = subjectId;
     }
 
     if (status) {
-      if (!["scheduled", "completed", "cancelled", "results_published"].includes(status)) {
+      const allowedStatuses = [
+        "scheduled",
+        "completed",
+        "cancelled",
+        "results_published",
+      ];
+
+      if (!allowedStatuses.includes(status)) {
         return res.status(400).json({
           success: false,
           message: "Invalid examination status.",
         });
       }
+
       filter.status = status;
     }
 
-    if (search?.trim()) {
-      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (typeof search === "string" && search.trim()) {
+      const escapedSearch = search
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
       filter.$or = [
-        { examinationName: { $regex: escapedSearch, $options: "i" } },
-        { examinationCode: { $regex: escapedSearch, $options: "i" } },
+        {
+          examinationName: {
+            $regex: escapedSearch,
+            $options: "i",
+          },
+        },
+        {
+          examinationCode: {
+            $regex: escapedSearch,
+            $options: "i",
+          },
+        },
       ];
     }
 
-    let examinations = await Examination.find(filter)
-      .populate("batchId", "name code standard academicYear branchId")
-      .populate("subjectId", "name code standard type")
-      .sort({ examinationDate: 1, startTime: 1 });
+    let finalFilter = filter;
 
+    // --------------------------------------------------------
+    // TEACHER-SPECIFIC ACCESS CONTROL
+    // --------------------------------------------------------
+
+    if (isTeacher && !isAdmin && !isSuperAdmin) {
+      // BatchSubject.teacherId references the authenticated
+      // User ID in the existing assignment implementation.
+      const assignedRelations = await BatchSubject.find({
+        teacherId: req.user._id,
+        status: "active",
+      }).select("batchId subjectId");
+
+      const relationConditions = assignedRelations.map(
+        (relation) => ({
+          batchId: relation.batchId,
+          subjectId: relation.subjectId,
+        })
+      );
+
+      // Teacher has no active assignments.
+      if (relationConditions.length === 0) {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          data: [],
+        });
+      }
+
+      // IMPORTANT:
+      // Combine teacher restrictions and requested filters
+      // using $and. This prevents search $or filters from
+      // overriding the teacher's access restriction.
+      finalFilter = {
+        $and: [
+          {
+            $or: relationConditions,
+          },
+          filter,
+        ],
+      };
+    }
+
+    let examinations = await Examination.find(finalFilter)
+      .populate(
+        "batchId",
+        "name code standard academicYear branchId"
+      )
+      .populate(
+        "subjectId",
+        "name code standard type"
+      )
+      .sort({
+        examinationDate: 1,
+        startTime: 1,
+      });
+
+    // Preserve the existing standard filter.
     if (standard) {
       examinations = examinations.filter(
         (exam) => exam.batchId?.standard === standard
@@ -269,14 +426,18 @@ const getExaminations = async (req, res) => {
     });
   } catch (error) {
     console.error("Get examinations error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch examinations.",
     });
   }
 };
-
+// ============================================================
+// GET EXAMINATION BY ID
 // GET /api/examinations/:id
+// ============================================================
+
 const getExaminationById = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -287,8 +448,14 @@ const getExaminationById = async (req, res) => {
     }
 
     const examination = await Examination.findById(req.params.id)
-      .populate("batchId", "name code standard academicYear branchId")
-      .populate("subjectId", "name code standard type");
+      .populate(
+        "batchId",
+        "name code standard academicYear branchId"
+      )
+      .populate(
+        "subjectId",
+        "name code standard type"
+      );
 
     if (!examination) {
       return res.status(404).json({
@@ -303,6 +470,7 @@ const getExaminationById = async (req, res) => {
     });
   } catch (error) {
     console.error("Get examination error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch examination.",
@@ -310,7 +478,11 @@ const getExaminationById = async (req, res) => {
   }
 };
 
+// ============================================================
+// UPDATE EXAMINATION
 // PUT /api/examinations/:id
+// ============================================================
+
 const updateExamination = async (req, res) => {
   try {
     const { id } = req.params;
@@ -353,8 +525,11 @@ const updateExamination = async (req, res) => {
     ];
 
     const updates = {};
+
     for (const field of allowedFields) {
-      if (req.body[field] !== undefined) updates[field] = req.body[field];
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
     }
 
     if (updates.examinationName !== undefined) {
@@ -364,7 +539,9 @@ const updateExamination = async (req, res) => {
           message: "Examination name cannot be empty.",
         });
       }
-      updates.examinationName = updates.examinationName.trim();
+
+      updates.examinationName =
+        updates.examinationName.trim();
     }
 
     if (updates.examinationCode !== undefined) {
@@ -374,13 +551,22 @@ const updateExamination = async (req, res) => {
           message: "Examination code cannot be empty.",
         });
       }
-      updates.examinationCode = updates.examinationCode.trim().toUpperCase();
+
+      updates.examinationCode =
+        updates.examinationCode.trim().toUpperCase();
     }
 
-    const nextBatchId = updates.batchId ?? existing.batchId;
-    const nextSubjectId = updates.subjectId ?? existing.subjectId;
+    const nextBatchId =
+      updates.batchId ?? existing.batchId;
 
-    const relation = await validateBatchSubject(nextBatchId, nextSubjectId);
+    const nextSubjectId =
+      updates.subjectId ?? existing.subjectId;
+
+    const relation = await validateBatchSubject(
+      nextBatchId,
+      nextSubjectId
+    );
+
     if (!relation.valid) {
       return res.status(400).json({
         success: false,
@@ -389,13 +575,17 @@ const updateExamination = async (req, res) => {
     }
 
     if (updates.examinationDate !== undefined) {
-      const parsedDate = parseExaminationDate(updates.examinationDate);
+      const parsedDate = parseExaminationDate(
+        updates.examinationDate
+      );
+
       if (!parsedDate) {
         return res.status(400).json({
           success: false,
           message: "Invalid examination date.",
         });
       }
+
       updates.examinationDate = parsedDate;
     }
 
@@ -403,40 +593,64 @@ const updateExamination = async (req, res) => {
       if (!validateTime(updates.startTime)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid start time. Use a format such as 09:00 AM.",
+          message:
+            "Invalid start time. Use a format such as 09:00 AM.",
         });
       }
-      updates.startTime = updates.startTime.trim().toUpperCase();
+
+      updates.startTime =
+        updates.startTime.trim().toUpperCase();
     }
 
-    if (updates.duration !== undefined && updates.durationMinutes === undefined) {
+    if (
+      updates.duration !== undefined &&
+      updates.durationMinutes === undefined
+    ) {
       updates.durationMinutes = updates.duration;
     }
+
     delete updates.duration;
 
-    const nextDuration = updates.durationMinutes ?? existing.durationMinutes;
-    if (!Number.isFinite(Number(nextDuration)) || Number(nextDuration) <= 0) {
+    const nextDuration =
+      updates.durationMinutes ?? existing.durationMinutes;
+
+    if (
+      !Number.isFinite(Number(nextDuration)) ||
+      Number(nextDuration) <= 0
+    ) {
       return res.status(400).json({
         success: false,
         message: "Duration must be a positive number of minutes.",
       });
     }
+
     if (updates.durationMinutes !== undefined) {
-      updates.durationMinutes = Number(updates.durationMinutes);
+      updates.durationMinutes =
+        Number(updates.durationMinutes);
     }
 
-    const nextTotal = updates.totalMarks ?? existing.totalMarks;
-    const nextPassing = updates.passingMarks ?? existing.passingMarks;
+    const nextTotal =
+      updates.totalMarks ?? existing.totalMarks;
+
+    const nextPassing =
+      updates.passingMarks ?? existing.passingMarks;
 
     if (!validateMarks(nextTotal, nextPassing)) {
       return res.status(400).json({
         success: false,
-        message: "Marks must be valid, and passing marks cannot exceed total marks.",
+        message:
+          "Marks must be valid, and passing marks cannot exceed total marks.",
       });
     }
 
-    if (updates.totalMarks !== undefined) updates.totalMarks = Number(updates.totalMarks);
-    if (updates.passingMarks !== undefined) updates.passingMarks = Number(updates.passingMarks);
+    if (updates.totalMarks !== undefined) {
+      updates.totalMarks = Number(updates.totalMarks);
+    }
+
+    if (updates.passingMarks !== undefined) {
+      updates.passingMarks = Number(updates.passingMarks);
+    }
+
     if (updates.instructions !== undefined) {
       updates.instructions = updates.instructions.trim();
     }
@@ -444,10 +658,19 @@ const updateExamination = async (req, res) => {
     const examination = await Examination.findByIdAndUpdate(
       id,
       { $set: updates },
-      { new: true, runValidators: true }
+      {
+        new: true,
+        runValidators: true,
+      }
     )
-      .populate("batchId", "name code standard academicYear branchId")
-      .populate("subjectId", "name code standard type");
+      .populate(
+        "batchId",
+        "name code standard academicYear branchId"
+      )
+      .populate(
+        "subjectId",
+        "name code standard type"
+      );
 
     return res.status(200).json({
       success: true,
@@ -463,6 +686,7 @@ const updateExamination = async (req, res) => {
     }
 
     console.error("Update examination error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to update examination.",
@@ -470,7 +694,11 @@ const updateExamination = async (req, res) => {
   }
 };
 
+// ============================================================
+// CANCEL EXAMINATION
 // PATCH /api/examinations/:id/cancel
+// ============================================================
+
 const cancelExamination = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -480,7 +708,9 @@ const cancelExamination = async (req, res) => {
       });
     }
 
-    const examination = await Examination.findById(req.params.id);
+    const examination = await Examination.findById(
+      req.params.id
+    );
 
     if (!examination) {
       return res.status(404).json({
@@ -492,11 +722,13 @@ const cancelExamination = async (req, res) => {
     if (examination.status !== "scheduled") {
       return res.status(400).json({
         success: false,
-        message: "Only scheduled examinations can be cancelled.",
+        message:
+          "Only scheduled examinations can be cancelled.",
       });
     }
 
     examination.status = "cancelled";
+
     await examination.save();
 
     return res.status(200).json({
@@ -506,6 +738,7 @@ const cancelExamination = async (req, res) => {
     });
   } catch (error) {
     console.error("Cancel examination error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to cancel examination.",
@@ -513,10 +746,11 @@ const cancelExamination = async (req, res) => {
   }
 };
 
-/**
- * PATCH /api/examinations/:id/reschedule
- * Reschedule a previously cancelled examination.
- */
+// ============================================================
+// RESCHEDULE EXAMINATION
+// PATCH /api/examinations/:id/reschedule
+// ============================================================
+
 const rescheduleExamination = async (req, res) => {
   try {
     const { id } = req.params;
@@ -540,11 +774,11 @@ const rescheduleExamination = async (req, res) => {
     if (examination.status !== "cancelled") {
       return res.status(400).json({
         success: false,
-        message: "Only cancelled examinations can be scheduled again.",
+        message:
+          "Only cancelled examinations can be scheduled again.",
       });
     }
 
-    // Confirm the batch and subject are still valid and assigned.
     const relation = await validateBatchSubject(
       examination.batchId,
       examination.subjectId
@@ -558,11 +792,18 @@ const rescheduleExamination = async (req, res) => {
     }
 
     examination.status = "scheduled";
+
     await examination.save();
 
     const updatedExamination = await Examination.findById(id)
-      .populate("batchId", "name code standard academicYear branchId")
-      .populate("subjectId", "name code standard type");
+      .populate(
+        "batchId",
+        "name code standard academicYear branchId"
+      )
+      .populate(
+        "subjectId",
+        "name code standard type"
+      );
 
     return res.status(200).json({
       success: true,
@@ -578,6 +819,10 @@ const rescheduleExamination = async (req, res) => {
     });
   }
 };
+
+// ============================================================
+// EXPORTS
+// ============================================================
 
 module.exports = {
   createExamination,

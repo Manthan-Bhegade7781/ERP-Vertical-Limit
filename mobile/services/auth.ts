@@ -1,10 +1,18 @@
-
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import { API_BASE_URL } from '@/config/api';
 
 const TOKEN_KEY = 'auth_token';
+
+export type TeacherProfile = {
+  employeeId: string;
+  specialization: string;
+  qualification: string;
+  experience: string;
+  address: string;
+  status: 'active' | 'inactive';
+};
 
 export type AuthUser = {
   id: string;
@@ -14,6 +22,7 @@ export type AuthUser = {
   roles: string[];
   branchId?: string | null;
   status: string;
+  teacher?: TeacherProfile | null;
 };
 
 type LoginResponse = {
@@ -44,11 +53,8 @@ type UpdateProfileResponse = {
 /**
  * Platform-aware token storage.
  *
- * Web: localStorage (development convenience).
+ * Web: localStorage.
  * Native: Expo SecureStore.
- *
- * For production web apps, prefer secure, HttpOnly cookies
- * configured by the backend instead of localStorage.
  */
 const tokenStorage = {
   async get(): Promise<string | null> {

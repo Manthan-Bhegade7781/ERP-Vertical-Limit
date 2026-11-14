@@ -1,12 +1,12 @@
-
 const mongoose = require("mongoose");
 const Announcement = require("../models/Announcement");
+const User = require("../models/User");
 
 // --------------------------------------------------
 // HELPERS
 // --------------------------------------------------
 
-// Validate MongoDB ObjectIds.
+// Validate MongoDB ObjectId.
 const isValidObjectId = (id) => {
   if (id === undefined || id === null || id === "") {
     return false;
@@ -15,9 +15,7 @@ const isValidObjectId = (id) => {
   return mongoose.Types.ObjectId.isValid(id.toString());
 };
 
-// Extract roles from common authentication payload formats.
-// Supports roles: ["super_admin"], role: "super_admin",
-// role: "Super Admin", role: "superAdmin", etc.
+// Extract user roles.
 const getUserRoles = (user) => {
   if (!user) return [];
 
@@ -43,7 +41,6 @@ const getUserRoles = (user) => {
     ...new Set(
       roles
         .map((item) => {
-          // Support populated role objects.
           const value =
             typeof item === "object" && item !== null
               ? item.name ??
@@ -65,17 +62,17 @@ const getUserRoles = (user) => {
   ];
 };
 
-// Determine whether the authenticated user is a Super Admin.
+// Check Super Admin.
 const isSuperAdmin = (user) =>
   getUserRoles(user).includes("super_admin");
 
-// Determine whether the user can manage announcements.
+// Check announcement management permission.
 const canManageAnnouncements = (user) =>
   getUserRoles(user).some((role) =>
     ["super_admin", "admin"].includes(role)
   );
 
-// Resolve the authenticated user's branch.
+// Get authenticated user's branch.
 const getUserBranchId = (user) => {
   const branch =
     user?.branchId ??
@@ -90,8 +87,7 @@ const getUserBranchId = (user) => {
   return branch;
 };
 
-// Super Admin can access every branch.
-// Other users must have a valid assigned branch.
+// Get branch filter.
 const getBranchFilter = (user) => {
   if (isSuperAdmin(user)) {
     return {};
@@ -106,6 +102,7 @@ const getBranchFilter = (user) => {
   return { branchId };
 };
 
+// Allowed statuses.
 const ALLOWED_STATUSES = [
   "Draft",
   "Published",
@@ -113,14 +110,76 @@ const ALLOWED_STATUSES = [
   "Expired",
 ];
 
+// Validate date.
 const isValidDate = (value) =>
   value !== undefined &&
   value !== null &&
   value !== "" &&
   !Number.isNaN(Date.parse(value));
 
-// Validate the current user's ID.
-const getUserId = (user) => user?._id ?? user?.id ?? null;
+// Get authenticated user ID.
+const getUserId = (user) =>
+  user?._id ?? user?.id ?? null;
+
+// --------------------------------------------------
+// NORMALIZE TARGET TEACHERS
+// --------------------------------------------------
+
+// targetTeachers must contain User account IDs.
+// Do not use Teacher profile IDs.
+
+const normalizeTargetTeachers = async (value) => {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    const error = new Error(
+      "targetTeachers must be an array of teacher User IDs."
+    );
+
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const ids = [
+    ...new Set(
+      value.map((id) => String(id).trim())
+    ),
+  ];
+
+  if (ids.some((id) => !isValidObjectId(id))) {
+    const error = new Error(
+      "One or more selected teacher IDs are invalid."
+    );
+
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  // Verify selected IDs belong to teacher accounts.
+  const teachers = await User.find({
+    _id: {
+      $in: ids,
+    },
+    roles: "teacher",
+  }).select("_id");
+
+  if (teachers.length !== ids.length) {
+    const error = new Error(
+      "One or more selected users are not valid teacher accounts."
+    );
+
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return ids;
+};
 
 // --------------------------------------------------
 // GET ANNOUNCEMENTS
@@ -134,23 +193,35 @@ const getAnnouncements = async (req, res) => {
 
     let filter = {};
 
+    // ----------------------------------------------
+    // BRANCH FILTERING
+    // ----------------------------------------------
+
     if (!isSuperAdmin(user)) {
       const branchId = getUserBranchId(user);
 
       if (!branchId || !isValidObjectId(branchId)) {
         return res.status(403).json({
           success: false,
-          message: "Your account is not assigned to a valid branch.",
+          message:
+            "Your account is not assigned to a valid branch.",
         });
       }
 
-      // Include announcements for the user's branch and
-      // institute-wide announcements (branchId: null).
+      // Branch announcements + institute-wide announcements.
       filter.$or = [
-        { branchId },
-        { branchId: null },
+        {
+          branchId,
+        },
+        {
+          branchId: null,
+        },
       ];
     }
+
+    // ----------------------------------------------
+    // STUDENT AND TEACHER VISIBILITY
+    // ----------------------------------------------
 
     if (!canManageAnnouncements(user)) {
       const isStudent = roles.includes("student");
@@ -159,16 +230,21 @@ const getAnnouncements = async (req, res) => {
       if (!isStudent && !isTeacher) {
         return res.status(403).json({
           success: false,
-          message: "You are not authorized to view announcements.",
+          message:
+            "You are not authorized to view announcements.",
         });
       }
 
-      // Students and teachers see published, non-expired announcements.
+      // Only published announcements that have not expired.
       filter.status = "Published";
-      filter.expiresAt = { $gt: new Date() };
+
+      filter.expiresAt = {
+        $gt: new Date(),
+      };
 
       const audiences = [];
 
+      // Student audiences.
       if (isStudent) {
         audiences.push(
           "All Users",
@@ -178,6 +254,9 @@ const getAnnouncements = async (req, res) => {
         );
       }
 
+      // Teacher audiences.
+      // OPTION A:
+      // Teachers must NOT receive All Students or Students announcements.
       if (isTeacher) {
         audiences.push(
           "All Users",
@@ -188,21 +267,128 @@ const getAnnouncements = async (req, res) => {
         );
       }
 
-      filter.audience = { $in: [...new Set(audiences)] };
+      const uniqueAudiences = [
+        ...new Set(audiences),
+      ];
+
+      const visibilityRules = [];
+
+      const userId = getUserId(user);
+
+      // --------------------------------------------
+      // TEACHER VISIBILITY
+      // --------------------------------------------
+
+      if (
+        isTeacher &&
+        userId &&
+        isValidObjectId(userId)
+      ) {
+        // Rule 1:
+        // General announcements without teacher targeting.
+        // Audience must be compatible with teachers.
+
+        visibilityRules.push({
+          $and: [
+            {
+              $or: [
+                {
+                  targetTeachers: {
+                    $size: 0,
+                  },
+                },
+                {
+                  targetTeachers: {
+                    $exists: false,
+                  },
+                },
+              ],
+            },
+            {
+              audience: {
+                $in: uniqueAudiences,
+              },
+            },
+          ],
+        });
+
+        // Rule 2:
+        // Individually targeted announcements.
+        // Both teacher ID and audience must match.
+
+        visibilityRules.push({
+          $and: [
+            {
+              targetTeachers: userId,
+            },
+            {
+              audience: {
+                $in: uniqueAudiences,
+              },
+            },
+          ],
+        });
+      } else {
+        // ------------------------------------------
+        // STUDENT VISIBILITY
+        // ------------------------------------------
+
+        visibilityRules.push({
+          $and: [
+            {
+              $or: [
+                {
+                  targetTeachers: {
+                    $size: 0,
+                  },
+                },
+                {
+                  targetTeachers: {
+                    $exists: false,
+                  },
+                },
+              ],
+            },
+            {
+              audience: {
+                $in: uniqueAudiences,
+              },
+            },
+          ],
+        });
+      }
+
+      // Preserve the existing branch $or condition.
+      filter.$and = [
+        ...(filter.$and || []),
+        {
+          $or: visibilityRules,
+        },
+      ];
     }
+
+    // ----------------------------------------------
+    // FETCH ANNOUNCEMENTS
+    // ----------------------------------------------
 
     const announcements = await Announcement.find(filter)
       .populate("createdBy", "fullName email")
       .populate("branchId", "name")
-      .sort({ createdAt: -1 });
+      .sort({
+        createdAt: -1,
+      });
 
     return res.status(200).json({
       success: true,
       count: announcements.length,
       data: announcements,
     });
+
   } catch (error) {
-    console.error("Get announcements error:", error);
+    console.error(
+      "Get announcements error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -222,25 +408,22 @@ const createAnnouncement = async (req, res) => {
     const roles = getUserRoles(user);
     const userId = getUserId(user);
 
-    // Temporary diagnostic to identify role mismatches.
-    console.log("Announcement permission check:", {
-      roles,
-      canManage: canManageAnnouncements(user),
-      hasUserId: Boolean(userId),
-    });
-
     if (!canManageAnnouncements(user)) {
       return res.status(403).json({
         success: false,
-        message: "Only admins can create announcements.",
-        receivedRoles: roles.length ? roles : ["missing"],
+        message:
+          "Only admins can create announcements.",
+        receivedRoles: roles.length
+          ? roles
+          : ["missing"],
       });
     }
 
     if (!userId || !isValidObjectId(userId)) {
       return res.status(401).json({
         success: false,
-        message: "Authenticated user ID is missing or invalid.",
+        message:
+          "Authenticated user ID is missing or invalid.",
       });
     }
 
@@ -255,8 +438,10 @@ const createAnnouncement = async (req, res) => {
       publishedAt,
       scheduledAt,
       expiresAt,
+      targetTeachers,
     } = req.body;
 
+    // Validate title and description.
     if (
       typeof title !== "string" ||
       !title.trim() ||
@@ -265,14 +450,17 @@ const createAnnouncement = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Title and description are required.",
+        message:
+          "Title and description are required.",
       });
     }
 
+    // Validate expiry.
     if (!isValidDate(expiresAt)) {
       return res.status(400).json({
         success: false,
-        message: "A valid expiry date is required.",
+        message:
+          "A valid expiry date is required.",
       });
     }
 
@@ -281,20 +469,24 @@ const createAnnouncement = async (req, res) => {
     if (!ALLOWED_STATUSES.includes(finalStatus)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid announcement status.",
+        message:
+          "Invalid announcement status.",
       });
     }
 
+    // Validate scheduled date.
     if (
       finalStatus === "Scheduled" &&
       !isValidDate(scheduledAt)
     ) {
       return res.status(400).json({
         success: false,
-        message: "A valid scheduled date is required.",
+        message:
+          "A valid scheduled date is required.",
       });
     }
 
+    // Validate publication date.
     if (
       publishedAt !== undefined &&
       publishedAt !== null &&
@@ -303,7 +495,8 @@ const createAnnouncement = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid publication date.",
+        message:
+          "Invalid publication date.",
       });
     }
 
@@ -312,14 +505,15 @@ const createAnnouncement = async (req, res) => {
     if (!branchFilter) {
       return res.status(403).json({
         success: false,
-        message: "Your account is not assigned to a valid branch.",
+        message:
+          "Your account is not assigned to a valid branch.",
       });
     }
 
     let announcementBranchId = branchId || null;
 
     if (!isSuperAdmin(user)) {
-      // An Admin cannot create announcements for another branch.
+      // Admin cannot create announcements for another branch.
       announcementBranchId = getUserBranchId(user);
     } else if (
       announcementBranchId &&
@@ -331,45 +525,73 @@ const createAnnouncement = async (req, res) => {
       });
     }
 
+    // Validate selected teacher accounts.
+    let normalizedTargetTeachers;
+
+    try {
+      normalizedTargetTeachers =
+        await normalizeTargetTeachers(targetTeachers);
+    } catch (validationError) {
+      return res.status(
+        validationError.statusCode || 400
+      ).json({
+        success: false,
+        message: validationError.message,
+      });
+    }
+
+    // Create announcement.
     const announcement = await Announcement.create({
       title: title.trim(),
       description: description.trim(),
       category,
       priority,
       audience,
+      targetTeachers: normalizedTargetTeachers,
       branchId: announcementBranchId,
       status: finalStatus,
       createdBy: userId,
+
       publishedAt:
         finalStatus === "Published"
           ? publishedAt || new Date()
           : null,
+
       scheduledAt:
         finalStatus === "Scheduled"
           ? scheduledAt
           : null,
+
       expiresAt,
     });
 
-    const populatedAnnouncement = await Announcement.findById(
-      announcement._id
-    )
-      .populate("createdBy", "fullName email")
-      .populate("branchId", "name");
+    const populatedAnnouncement =
+      await Announcement.findById(announcement._id)
+        .populate("createdBy", "fullName email")
+        .populate("branchId", "name")
+        .populate("targetTeachers", "fullName email");
 
     return res.status(201).json({
       success: true,
-      message: "Announcement created successfully.",
+      message:
+        "Announcement created successfully.",
       data: populatedAnnouncement,
     });
+
   } catch (error) {
-    console.error("Create announcement error:", error);
+    console.error(
+      "Create announcement error:",
+      error
+    );
 
     if (
+      error.statusCode ||
       error.name === "ValidationError" ||
       error.name === "CastError"
     ) {
-      return res.status(400).json({
+      return res.status(
+        error.statusCode || 400
+      ).json({
         success: false,
         message: error.message,
       });
@@ -377,7 +599,8 @@ const createAnnouncement = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Failed to create announcement.",
+      message:
+        "Failed to create announcement.",
     });
   }
 };
@@ -394,7 +617,8 @@ const updateAnnouncement = async (req, res) => {
     if (!canManageAnnouncements(user)) {
       return res.status(403).json({
         success: false,
-        message: "Only admins can update announcements.",
+        message:
+          "Only admins can update announcements.",
       });
     }
 
@@ -412,7 +636,8 @@ const updateAnnouncement = async (req, res) => {
     if (!branchFilter) {
       return res.status(403).json({
         success: false,
-        message: "Your account is not assigned to a valid branch.",
+        message:
+          "Your account is not assigned to a valid branch.",
       });
     }
 
@@ -424,8 +649,26 @@ const updateAnnouncement = async (req, res) => {
     if (!announcement) {
       return res.status(404).json({
         success: false,
-        message: "Announcement not found or access denied.",
+        message:
+          "Announcement not found or access denied.",
       });
+    }
+
+    // Update selected teachers.
+    if (req.body.targetTeachers !== undefined) {
+      try {
+        announcement.targetTeachers =
+          await normalizeTargetTeachers(
+            req.body.targetTeachers
+          );
+      } catch (validationError) {
+        return res.status(
+          validationError.statusCode || 400
+        ).json({
+          success: false,
+          message: validationError.message,
+        });
+      }
     }
 
     const editableFields = [
@@ -446,7 +689,7 @@ const updateAnnouncement = async (req, res) => {
       }
     }
 
-    // Only Super Admin can change the announcement's branch.
+    // Only Super Admin can change the branch.
     if (
       isSuperAdmin(user) &&
       req.body.branchId !== undefined
@@ -461,20 +704,27 @@ const updateAnnouncement = async (req, res) => {
         });
       }
 
-      announcement.branchId = req.body.branchId || null;
+      announcement.branchId =
+        req.body.branchId || null;
     }
 
-    if (!ALLOWED_STATUSES.includes(announcement.status)) {
+    if (
+      !ALLOWED_STATUSES.includes(
+        announcement.status
+      )
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid announcement status.",
+        message:
+          "Invalid announcement status.",
       });
     }
 
     if (!isValidDate(announcement.expiresAt)) {
       return res.status(400).json({
         success: false,
-        message: "A valid expiry date is required.",
+        message:
+          "A valid expiry date is required.",
       });
     }
 
@@ -484,7 +734,8 @@ const updateAnnouncement = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "A valid scheduled date is required.",
+        message:
+          "A valid scheduled date is required.",
       });
     }
 
@@ -502,25 +753,33 @@ const updateAnnouncement = async (req, res) => {
 
     await announcement.save();
 
-    const updatedAnnouncement = await Announcement.findById(
-      announcement._id
-    )
-      .populate("createdBy", "fullName email")
-      .populate("branchId", "name");
+    const updatedAnnouncement =
+      await Announcement.findById(announcement._id)
+        .populate("createdBy", "fullName email")
+        .populate("branchId", "name")
+        .populate("targetTeachers", "fullName email");
 
     return res.status(200).json({
       success: true,
-      message: "Announcement updated successfully.",
+      message:
+        "Announcement updated successfully.",
       data: updatedAnnouncement,
     });
+
   } catch (error) {
-    console.error("Update announcement error:", error);
+    console.error(
+      "Update announcement error:",
+      error
+    );
 
     if (
+      error.statusCode ||
       error.name === "ValidationError" ||
       error.name === "CastError"
     ) {
-      return res.status(400).json({
+      return res.status(
+        error.statusCode || 400
+      ).json({
         success: false,
         message: error.message,
       });
@@ -528,7 +787,8 @@ const updateAnnouncement = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update announcement.",
+      message:
+        "Failed to update announcement.",
     });
   }
 };
@@ -545,7 +805,8 @@ const updateAnnouncementStatus = async (req, res) => {
     if (!canManageAnnouncements(user)) {
       return res.status(403).json({
         success: false,
-        message: "Only admins can change announcement status.",
+        message:
+          "Only admins can change announcement status.",
       });
     }
 
@@ -562,7 +823,8 @@ const updateAnnouncementStatus = async (req, res) => {
     if (!ALLOWED_STATUSES.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid announcement status.",
+        message:
+          "Invalid announcement status.",
       });
     }
 
@@ -572,7 +834,8 @@ const updateAnnouncementStatus = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "A valid scheduled date is required.",
+        message:
+          "A valid scheduled date is required.",
       });
     }
 
@@ -581,7 +844,8 @@ const updateAnnouncementStatus = async (req, res) => {
     if (!branchFilter) {
       return res.status(403).json({
         success: false,
-        message: "Your account is not assigned to a valid branch.",
+        message:
+          "Your account is not assigned to a valid branch.",
       });
     }
 
@@ -593,31 +857,46 @@ const updateAnnouncementStatus = async (req, res) => {
     if (!announcement) {
       return res.status(404).json({
         success: false,
-        message: "Announcement not found or access denied.",
+        message:
+          "Announcement not found or access denied.",
       });
     }
 
     announcement.status = status;
+
     announcement.publishedAt =
-      status === "Published" ? new Date() : null;
+      status === "Published"
+        ? new Date()
+        : null;
+
     announcement.scheduledAt =
-      status === "Scheduled" ? scheduledAt : null;
+      status === "Scheduled"
+        ? scheduledAt
+        : null;
 
     await announcement.save();
 
     return res.status(200).json({
       success: true,
-      message: `Announcement ${status.toLowerCase()} successfully.`,
+      message:
+        `Announcement ${status.toLowerCase()} successfully.`,
       data: announcement,
     });
+
   } catch (error) {
-    console.error("Update announcement status error:", error);
+    console.error(
+      "Update announcement status error:",
+      error
+    );
 
     if (
+      error.statusCode ||
       error.name === "ValidationError" ||
       error.name === "CastError"
     ) {
-      return res.status(400).json({
+      return res.status(
+        error.statusCode || 400
+      ).json({
         success: false,
         message: error.message,
       });
@@ -625,7 +904,8 @@ const updateAnnouncementStatus = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update announcement status.",
+      message:
+        "Failed to update announcement status.",
     });
   }
 };
@@ -643,14 +923,16 @@ const duplicateAnnouncement = async (req, res) => {
     if (!canManageAnnouncements(user)) {
       return res.status(403).json({
         success: false,
-        message: "Only admins can duplicate announcements.",
+        message:
+          "Only admins can duplicate announcements.",
       });
     }
 
     if (!userId || !isValidObjectId(userId)) {
       return res.status(401).json({
         success: false,
-        message: "Authenticated user ID is missing or invalid.",
+        message:
+          "Authenticated user ID is missing or invalid.",
       });
     }
 
@@ -663,25 +945,40 @@ const duplicateAnnouncement = async (req, res) => {
       });
     }
 
-    let dupQuery = { _id: id };
+    let dupQuery = {
+      _id: id,
+    };
 
     if (!isSuperAdmin(user)) {
       const branchId = getUserBranchId(user);
+
       if (!branchId || !isValidObjectId(branchId)) {
         return res.status(403).json({
           success: false,
-          message: "Your account is not assigned to a valid branch.",
+          message:
+            "Your account is not assigned to a valid branch.",
         });
       }
-      dupQuery.$or = [{ branchId }, { branchId: null }];
+
+      dupQuery.$or = [
+        {
+          branchId,
+        },
+        {
+          branchId: null,
+        },
+      ];
     }
 
-    const original = await Announcement.findOne(dupQuery);
+    const original = await Announcement.findOne(
+      dupQuery
+    );
 
     if (!original) {
       return res.status(404).json({
         success: false,
-        message: "Announcement not found or access denied.",
+        message:
+          "Announcement not found or access denied.",
       });
     }
 
@@ -691,7 +988,14 @@ const duplicateAnnouncement = async (req, res) => {
       category: original.category,
       priority: original.priority,
       audience: original.audience,
-      branchId: isSuperAdmin(user) ? original.branchId : getUserBranchId(user),
+
+      // Preserve selected teachers in the draft copy.
+      targetTeachers: original.targetTeachers || [],
+
+      branchId: isSuperAdmin(user)
+        ? original.branchId
+        : getUserBranchId(user),
+
       status: "Draft",
       createdBy: userId,
       publishedAt: null,
@@ -699,25 +1003,33 @@ const duplicateAnnouncement = async (req, res) => {
       expiresAt: original.expiresAt,
     });
 
-    const populatedDuplicate = await Announcement.findById(
-      duplicate._id
-    )
-      .populate("createdBy", "fullName email")
-      .populate("branchId", "name");
+    const populatedDuplicate =
+      await Announcement.findById(duplicate._id)
+        .populate("createdBy", "fullName email")
+        .populate("branchId", "name")
+        .populate("targetTeachers", "fullName email");
 
     return res.status(201).json({
       success: true,
-      message: "Announcement duplicated as a draft.",
+      message:
+        "Announcement duplicated as a draft.",
       data: populatedDuplicate,
     });
+
   } catch (error) {
-    console.error("Duplicate announcement error:", error);
+    console.error(
+      "Duplicate announcement error:",
+      error
+    );
 
     if (
+      error.statusCode ||
       error.name === "ValidationError" ||
       error.name === "CastError"
     ) {
-      return res.status(400).json({
+      return res.status(
+        error.statusCode || 400
+      ).json({
         success: false,
         message: error.message,
       });
@@ -725,7 +1037,8 @@ const duplicateAnnouncement = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Failed to duplicate announcement.",
+      message:
+        "Failed to duplicate announcement.",
     });
   }
 };
@@ -742,7 +1055,8 @@ const deleteAnnouncement = async (req, res) => {
     if (!canManageAnnouncements(user)) {
       return res.status(403).json({
         success: false,
-        message: "Only admins can delete announcements.",
+        message:
+          "Only admins can delete announcements.",
       });
     }
 
@@ -760,32 +1074,41 @@ const deleteAnnouncement = async (req, res) => {
     if (!branchFilter) {
       return res.status(403).json({
         success: false,
-        message: "Your account is not assigned to a valid branch.",
+        message:
+          "Your account is not assigned to a valid branch.",
       });
     }
 
-    const announcement = await Announcement.findOneAndDelete({
-      _id: id,
-      ...branchFilter,
-    });
+    const announcement =
+      await Announcement.findOneAndDelete({
+        _id: id,
+        ...branchFilter,
+      });
 
     if (!announcement) {
       return res.status(404).json({
         success: false,
-        message: "Announcement not found or access denied.",
+        message:
+          "Announcement not found or access denied.",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: "Announcement deleted successfully.",
+      message:
+        "Announcement deleted successfully.",
     });
+
   } catch (error) {
-    console.error("Delete announcement error:", error);
+    console.error(
+      "Delete announcement error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to delete announcement.",
+      message:
+        "Failed to delete announcement.",
     });
   }
 };

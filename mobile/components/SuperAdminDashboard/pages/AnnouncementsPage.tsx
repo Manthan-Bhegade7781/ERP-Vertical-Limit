@@ -81,6 +81,7 @@ type AnnouncementRecord = {
   scheduledDate: string;
 
   expiryDate: string;
+  targetTeacherIds: string[];
 
 };
 
@@ -100,6 +101,7 @@ type AnnouncementApiRecord = {
   scheduledAt?: string | null;
   expiresAt?: string | null;
   createdAt?: string;
+  targetTeachers?: Array<string | { _id?: string; fullName?: string; email?: string }> | null;
 };
 
 const formatAnnouncementDate = (value?: string | null) => {
@@ -136,6 +138,11 @@ const mapAnnouncement = (item: AnnouncementApiRecord, index: number): Announceme
     typeof item.createdBy === 'string'
       ? item.createdBy
       : item.createdBy?.fullName ?? item.createdBy?.name ?? 'Institute Admin';
+  const targetTeacherIds = Array.isArray(item.targetTeachers)
+    ? item.targetTeachers
+        .map((teacher) => typeof teacher === 'string' ? teacher : teacher?._id)
+        .filter((id): id is string => Boolean(id))
+    : [];
 
   return {
     id: index + 1,
@@ -153,6 +160,7 @@ const mapAnnouncement = (item: AnnouncementApiRecord, index: number): Announceme
     publishedDate: formatAnnouncementDate(item.publishedAt),
     scheduledDate: formatAnnouncementDate(item.scheduledAt),
     expiryDate: formatAnnouncementDate(item.expiresAt),
+    targetTeacherIds,
   };
 };
 
@@ -292,6 +300,25 @@ const branches = [
 
 
 
+type TeacherOption = {
+  userId: string;
+  fullName: string;
+  email: string;
+  branchName?: string;
+};
+
+type TeacherApiRecord = {
+  _id: string;
+  userId?: {
+    _id?: string;
+    fullName?: string;
+    email?: string;
+    status?: string;
+    branchId?: { name?: string } | string | null;
+  } | null;
+  status?: string;
+};
+
 export default function AnnouncementsPage() {
 
   const insets = useSafeAreaInsets();
@@ -310,6 +337,9 @@ export default function AnnouncementsPage() {
 
   const [announcements, setAnnouncements] = useState<AnnouncementRecord[]>([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(false);
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
 
   const [search, setSearch] = useState('');
 
@@ -389,6 +419,54 @@ export default function AnnouncementsPage() {
   useEffect(() => {
     void loadAnnouncements();
   }, [loadAnnouncements]);
+
+  const loadTeachers = useCallback(async () => {
+    setLoadingTeachers(true);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Please log in again to load teachers.');
+      const response = await fetch(`${API_BASE_URL}/teachers`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || 'Unable to load teachers.');
+      }
+      const rows: TeacherApiRecord[] = Array.isArray(result.data) ? result.data : [];
+      const options = rows
+        .filter((teacher) => {
+          const profileActive = !teacher.status || teacher.status.toLowerCase() === 'active';
+          const userActive = !teacher.userId?.status || teacher.userId.status.toLowerCase() === 'active';
+          return Boolean(teacher.userId?._id) && profileActive && userActive;
+        })
+        .map((teacher) => ({
+          userId: teacher.userId!._id!,
+          fullName: teacher.userId?.fullName || 'Teacher',
+          email: teacher.userId?.email || '',
+          branchName: typeof teacher.userId?.branchId === 'object'
+            ? teacher.userId.branchId?.name
+            : undefined,
+        }));
+      setTeachers(options);
+    } catch (error) {
+      Alert.alert('Teachers Error', error instanceof Error ? error.message : 'Unable to load teachers.');
+    } finally {
+      setLoadingTeachers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTeachers();
+  }, [loadTeachers]);
+
+  const toggleTeacher = (userId: string) => {
+    setSelectedTeacherIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId],
+    );
+  };
 
   const requestAnnouncement = async (
     path: string,
@@ -523,6 +601,7 @@ export default function AnnouncementsPage() {
 
     setFormExpiryDate(announcement.expiryDate);
     setFormScheduledDate(announcement.scheduledDate);
+    setSelectedTeacherIds(announcement.targetTeacherIds);
 
     setActionModalVisible(false);
 
@@ -551,6 +630,8 @@ export default function AnnouncementsPage() {
     setFormStatus('Draft');
 
     setFormExpiryDate('');
+    setFormScheduledDate('');
+    setSelectedTeacherIds([]);
 
     setEditModalVisible(true);
 
@@ -650,6 +731,7 @@ export default function AnnouncementsPage() {
     setFormStatus('Scheduled');
     setFormExpiryDate(announcement.expiryDate);
     setFormScheduledDate('');
+    setSelectedTeacherIds(announcement.targetTeacherIds);
     setEditModalVisible(true);
     Alert.alert('Schedule Announcement', 'Enter a future date and time in the Schedule Date field, then save changes.');
   };
@@ -2196,6 +2278,44 @@ export default function AnnouncementsPage() {
               </ScrollView>
 
 
+
+              <Text style={styles.inputLabel}>Assign to Specific Teachers (Optional)</Text>
+              <Text style={styles.teacherHint}>
+                Select one or more teachers. If selected, this announcement will be visible only to those teachers (not all teachers).
+              </Text>
+              {loadingTeachers ? (
+                <Text style={styles.teacherHint}>Loading teachers...</Text>
+              ) : teachers.length === 0 ? (
+                <Text style={styles.teacherHint}>No active teachers found. Check the /api/teachers response.</Text>
+              ) : (
+                <ScrollView style={styles.teacherList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                  {teachers.map((teacher) => {
+                    const selected = selectedTeacherIds.includes(teacher.userId);
+                    return (
+                      <TouchableOpacity
+                        key={teacher.userId}
+                        style={[styles.teacherOption, selected && styles.teacherOptionSelected]}
+                        onPress={() => toggleTeacher(teacher.userId)}
+                        activeOpacity={0.75}
+                      >
+                        <MaterialCommunityIcons
+                          name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                          size={20}
+                          color={selected ? '#7040D5' : '#98A2B3'}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.teacherName}>{teacher.fullName}</Text>
+                          {!!teacher.email && <Text style={styles.teacherEmail}>{teacher.email}</Text>}
+                        </View>
+                        {!!teacher.branchName && <Text style={styles.teacherBranch}>{teacher.branchName}</Text>}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+              {selectedTeacherIds.length > 0 && (
+                <Text style={styles.teacherSelectedCount}>{selectedTeacherIds.length} teacher(s) selected</Text>
+              )}
 
               <Text style={styles.inputLabel}>Branch</Text>
 
@@ -3770,6 +3890,58 @@ const styles = StyleSheet.create({
 
     lineHeight: 14,
 
+  },
+
+
+  teacherHint: {
+    color: '#7B8496',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10.5,
+    lineHeight: 16,
+    marginTop: -5,
+    marginBottom: 9,
+  },
+  teacherList: {
+    borderWidth: 1,
+    borderColor: '#E8EAF0',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 7,
+    marginBottom: 8,
+    maxHeight: 220,
+  },
+  teacherOption: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  teacherOptionSelected: {
+    backgroundColor: '#F3EEFF',
+  },
+  teacherName: {
+    color: '#172033',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11,
+  },
+  teacherEmail: {
+    color: '#7B8496',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+  },
+  teacherBranch: {
+    color: '#7040D5',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 9,
+  },
+  teacherSelectedCount: {
+    color: '#7040D5',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 10,
+    marginBottom: 8,
   },
 
 });

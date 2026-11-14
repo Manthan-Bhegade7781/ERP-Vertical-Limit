@@ -67,192 +67,46 @@ type Subject = {
   code: string;
   standard: Standard;
   type: "Core" | "Foundation" | "Entrance";
+  status: "active" | "inactive";
 };
 
 type Teacher = {
-  id: string;
+  id: string; // User ID: batch-subjects.teacherId references User
   name: string;
   email: string;
-  branch: string;
+  branchId: string;
+  status: "active" | "inactive";
 };
 
-/* =========================================================
-   SAMPLE DATA
-========================================================= */
+type ApiSubject = {
+  _id: string;
+  name: string;
+  code: string;
+  standard: Standard;
+  type: "Core" | "Foundation" | "Entrance";
+  status: "active" | "inactive";
+};
 
-const sampleSubjects: Subject[] = [
-  {
-    id: "subject-1",
-    name: "Mathematics",
-    code: "MATH10",
-    standard: "10th",
-    type: "Core",
-  },
-  {
-    id: "subject-2",
-    name: "Science",
-    code: "SCI10",
-    standard: "10th",
-    type: "Core",
-  },
-  {
-    id: "subject-3",
-    name: "English",
-    code: "ENG10",
-    standard: "10th",
-    type: "Core",
-  },
-  {
-    id: "subject-4",
-    name: "Physics",
-    code: "PHY12",
-    standard: "12th",
-    type: "Core",
-  },
-  {
-    id: "subject-5",
-    name: "Chemistry",
-    code: "CHEM12",
-    standard: "12th",
-    type: "Core",
-  },
-  {
-    id: "subject-6",
-    name: "Mathematics",
-    code: "MATH12",
-    standard: "12th",
-    type: "Core",
-  },
+type ApiTeacher = {
+  _id: string; // Teacher profile ID
+  status: "active" | "inactive";
+  userId: string | {
+    _id: string;
+    fullName: string;
+    email: string;
+    branchId?: string | { _id: string; name?: string } | null;
+    roles?: string[];
+    status?: "active" | "inactive";
+  } | null;
+};
 
-  {
-    id: "subject-7",
-    name: "Biology",
-    code: "BIO12",
-    standard: "12th",
-    type: "Core",
-  },
-];
-
-const sampleTeachers: Teacher[] = [
-  {
-    id: "teacher-1",
-    name: "Amit Sir",
-    email: "amit@verticalclasses.com",
-    branch: "Talegaon",
-  },
-  {
-    id: "teacher-2",
-    name: "Rahul Sir",
-    email: "rahul@verticalclasses.com",
-    branch: "Talegaon",
-  },
-  {
-    id: "teacher-3",
-    name: "Priya Ma'am",
-    email: "priya@verticalclasses.com",
-    branch: "Talegaon",
-  },
-  {
-    id: "teacher-4",
-    name: "Sneha Ma'am",
-    email: "sneha@verticalclasses.com",
-    branch: "Talegaon",
-  },
-];
-
-
-const initialBatchSubjects: BatchSubject[] = [
-  {
-    id: "assignment-1",
-    batchId: "1",
-    subjectId: "subject-1",
-    subject: "Mathematics",
-    subjectCode: "MATH10",
-    teacherId: "teacher-1",
-    teacher: "Amit Sir",
-    teacherEmail: "amit@verticalclasses.com",
-    status: "active",
-  },
-  {
-    id: "assignment-2",
-    batchId: "1",
-    subjectId: "subject-2",
-    subject: "Science",
-    subjectCode: "SCI10",
-    teacherId: "teacher-2",
-    teacher: "Rahul Sir",
-    teacherEmail: "rahul@verticalclasses.com",
-    status: "active",
-  },
-  {
-    id: "assignment-3",
-    batchId: "1",
-    subjectId: "subject-3",
-    subject: "English",
-    subjectCode: "ENG10",
-    teacherId: "teacher-3",
-    teacher: "Priya Ma'am",
-    teacherEmail: "priya@verticalclasses.com",
-    status: "active",
-  },
-
-  {
-    id: "assignment-4",
-    batchId: "2",
-    subjectId: "subject-1",
-    subject: "Mathematics",
-    subjectCode: "MATH10",
-    teacherId: "teacher-1",
-    teacher: "Amit Sir",
-    teacherEmail: "amit@verticalclasses.com",
-    status: "active",
-  },
-  {
-    id: "assignment-5",
-    batchId: "2",
-    subjectId: "subject-2",
-    subject: "Science",
-    subjectCode: "SCI10",
-    teacherId: "teacher-2",
-    teacher: "Rahul Sir",
-    teacherEmail: "rahul@verticalclasses.com",
-    status: "active",
-  },
-
-  {
-    id: "assignment-6",
-    batchId: "3",
-    subjectId: "subject-4",
-    subject: "Physics",
-    subjectCode: "PHY12",
-    teacherId: "teacher-1",
-    teacher: "Amit Sir",
-    teacherEmail: "amit@verticalclasses.com",
-    status: "active",
-  },
-  {
-    id: "assignment-7",
-    batchId: "3",
-    subjectId: "subject-5",
-    subject: "Chemistry",
-    subjectCode: "CHEM12",
-    teacherId: "teacher-2",
-    teacher: "Rahul Sir",
-    teacherEmail: "rahul@verticalclasses.com",
-    status: "active",
-  },
-  {
-    id: "assignment-8",
-    batchId: "3",
-    subjectId: "subject-6",
-    subject: "Mathematics",
-    subjectCode: "MATH12",
-    teacherId: "teacher-4",
-    teacher: "Sneha Ma'am",
-    teacherEmail: "sneha@verticalclasses.com",
-    status: "active",
-  },
-];
+type ApiBatchSubject = {
+  _id: string;
+  batchId: string | { _id: string };
+  subjectId: string | ApiSubject;
+  teacherId: string | { _id: string; fullName?: string; email?: string };
+  status: "active" | "inactive";
+};
 
 /* =========================================================
    STATUS CONFIG
@@ -496,8 +350,12 @@ export default function BatchesPage() {
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [savingBatch, setSavingBatch] = useState(false);
 
-  const [batchSubjects, setBatchSubjects] =
-    useState<BatchSubject[]>(initialBatchSubjects);
+  const [batchSubjects, setBatchSubjects] = useState<BatchSubject[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [savingAssignment, setSavingAssignment] = useState(false);
 
   const [search, setSearch] = useState("");
 
@@ -678,6 +536,7 @@ export default function BatchesPage() {
   const openView = () => {
     setActionVisible(false);
     setViewVisible(true);
+    if (selectedBatch) void fetchBatchAssignments(selectedBatch.id);
   };
 
   const openEdit = () => {
@@ -786,124 +645,114 @@ export default function BatchesPage() {
   };
 
   /* =========================================================
-     SUBJECT ASSIGNMENT - SAMPLE ONLY
+     SUBJECT & TEACHER API INTEGRATION
   ========================================================= */
+
+  const fetchBatchAssignments = async (batchId: string) => {
+    setLoadingAssignments(true);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`${API_BASE_URL}/batch-subjects/batch/${batchId}`, { headers });
+      const result = await response.json();
+      if (!response.ok || result.success === false) throw new Error(result.message || "Unable to load batch assignments.");
+      const rows: ApiBatchSubject[] = result.data?.batchSubjects || [];
+      setBatchSubjects(rows.map((row) => {
+        const subject = typeof row.subjectId === "string" ? null : row.subjectId;
+        const teacher = typeof row.teacherId === "string" ? null : row.teacherId;
+        const batchIdValue = typeof row.batchId === "string" ? row.batchId : row.batchId?._id;
+        return {
+          id: row._id,
+          batchId: batchIdValue || batchId,
+          subjectId: subject?._id || (typeof row.subjectId === "string" ? row.subjectId : ""),
+          subject: subject?.name || "Subject",
+          subjectCode: subject?.code || "",
+          teacherId: teacher?._id || (typeof row.teacherId === "string" ? row.teacherId : ""),
+          teacher: teacher?.fullName || "Teacher",
+          teacherEmail: teacher?.email || "",
+          status: row.status,
+        };
+      }));
+    } catch (error) {
+      Alert.alert("Unable to load assignments", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+
+  const fetchAssignmentOptions = async () => {
+    setLoadingOptions(true);
+    try {
+      const headers = await authHeaders();
+      const [subjectResponse, teacherResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/subjects`, { headers }),
+        fetch(`${API_BASE_URL}/teachers`, { headers }),
+      ]);
+      const [subjectResult, teacherResult] = await Promise.all([
+        subjectResponse.json(), teacherResponse.json(),
+      ]);
+      if (!subjectResponse.ok || subjectResult.success === false) throw new Error(subjectResult.message || "Unable to load subjects.");
+      if (!teacherResponse.ok || teacherResult.success === false) throw new Error(teacherResult.message || "Unable to load teachers.");
+
+      const subjectRows: ApiSubject[] = subjectResult.data?.subjects || [];
+      setSubjects(subjectRows.filter((item) => item.status === "active").map((item) => ({
+        id: item._id, name: item.name, code: item.code, standard: item.standard, type: item.type, status: item.status,
+      })));
+
+      const teacherRows: ApiTeacher[] = Array.isArray(teacherResult.data)
+        ? teacherResult.data
+        : teacherResult.data?.teachers || [];
+      setTeachers(teacherRows.flatMap((item) => {
+        if (item.status !== "active" || !item.userId || typeof item.userId === "string") return [];
+        const user = item.userId;
+        const branchId = typeof user.branchId === "string" ? user.branchId : user.branchId?._id || "";
+        if (user.status !== "active" || !user.roles?.includes("teacher")) return [];
+        return [{ id: user._id, name: user.fullName, email: user.email, branchId, status: "active" as const }];
+      }));
+    } catch (error) {
+      Alert.alert("Unable to load assignment options", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
+  const getBatchSubjects = (batchId: string) => batchSubjects.filter((item) => item.batchId === batchId);
 
   const openAssignSubject = () => {
     setActionVisible(false);
     setSelectedSubjectId("");
     setSelectedTeacherId("");
     setAssignVisible(true);
+    void fetchAssignmentOptions();
   };
 
-  const assignSubject = () => {
-    if (!selectedBatch) {
+  const assignSubject = async () => {
+    if (!selectedBatch || !selectedSubjectId || !selectedTeacherId) {
+      Alert.alert("Missing information", "Please select both a subject and a teacher.");
       return;
     }
-
-    if (!selectedSubjectId) {
-      Alert.alert(
-        "Select Subject",
-        "Please select a subject.",
-      );
-      return;
-    }
-
-    if (!selectedTeacherId) {
-      Alert.alert(
-        "Select Teacher",
-        "Please select a teacher.",
-      );
-      return;
-    }
-
-    const subject = sampleSubjects.find(
-      (item) => item.id === selectedSubjectId,
-    );
-
-    const teacher = sampleTeachers.find(
-      (item) => item.id === selectedTeacherId,
-    );
-
-    if (!subject || !teacher) {
-      return;
-    }
-
-    const existingAssignment = batchSubjects.find(
-      (item) =>
-        item.batchId === selectedBatch.id &&
-        item.subjectId === subject.id,
-    );
-
-    if (existingAssignment?.status === "active") {
-      Alert.alert(
-        "Already Assigned",
-        "This subject is already assigned to this batch.",
-      );
-      return;
-    }
-
-    if (existingAssignment?.status === "inactive") {
-      setBatchSubjects((current) =>
-        current.map((item) =>
-          item.id === existingAssignment.id
-            ? {
-                ...item,
-                teacherId: teacher.id,
-                teacher: teacher.name,
-                teacherEmail: teacher.email,
-                status: "active",
-              }
-            : item,
-        ),
-      );
-
+    const subject = subjects.find((item) => item.id === selectedSubjectId);
+    const teacher = teachers.find((item) => item.id === selectedTeacherId);
+    if (!subject || !teacher) return;
+    setSavingAssignment(true);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`${API_BASE_URL}/batch-subjects`, {
+        method: "POST", headers,
+        body: JSON.stringify({ batchId: selectedBatch.id, subjectId: subject.id, teacherId: teacher.id }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) throw new Error(result.message || "Unable to assign subject.");
+      await fetchBatchAssignments(selectedBatch.id);
       setAssignVisible(false);
-
-      Alert.alert(
-        "Success",
-        `${subject.name} assigned to ${teacher.name}.`,
-      );
-
-      return;
+      Alert.alert("Success", result.message || `${subject.name} assigned to ${teacher.name}.`);
+    } catch (error) {
+      Alert.alert("Assignment failed", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setSavingAssignment(false);
     }
-
-    const newAssignment: BatchSubject = {
-      id: `sample-${Date.now()}`,
-      batchId: selectedBatch.id,
-      subjectId: subject.id,
-      subject: subject.name,
-      subjectCode: subject.code,
-      teacherId: teacher.id,
-      teacher: teacher.name,
-      teacherEmail: teacher.email,
-      status: "active",
-    };
-
-    setBatchSubjects((current) => [
-      ...current,
-      newAssignment,
-    ]);
-
-    setAssignVisible(false);
-
-    Alert.alert(
-      "Success",
-      `${subject.name} assigned to ${teacher.name}.`,
-    );
   };
 
-  const getBatchSubjects = (
-    batchId: string,
-  ) => {
-    return batchSubjects.filter(
-      (item) => item.batchId === batchId,
-    );
-  };
-
-  const openAssignmentActions = (
-    assignment: BatchSubject,
-  ) => {
+  const openAssignmentActions = (assignment: BatchSubject) => {
     setSelectedAssignment(assignment);
     setAssignmentActionVisible(true);
   };
@@ -914,39 +763,61 @@ export default function BatchesPage() {
   };
 
   const openChangeTeacher = () => {
-    if (!selectedAssignment) {
-      return;
-    }
-
+    if (!selectedAssignment) return;
     setChangeTeacherId(selectedAssignment.teacherId);
     setAssignmentActionVisible(false);
     setChangeTeacherVisible(true);
+    void fetchAssignmentOptions();
   };
 
-  const unassignAssignment = () => {
-    if (!selectedAssignment) {
+  const changeAssignedTeacher = async () => {
+    if (!selectedAssignment || !changeTeacherId) {
+      Alert.alert("Select Teacher", "Please select a teacher.");
       return;
     }
-
-    setBatchSubjects((current) =>
-      current.map((item) =>
-        item.id === selectedAssignment.id
-          ? {
-              ...item,
-              status: "inactive",
-            }
-          : item,
-      ),
-    );
-
-    setAssignmentActionVisible(false);
-    setSelectedAssignment(null);
-
-    Alert.alert(
-      "Success",
-      `${selectedAssignment.subject} has been unassigned from this batch.`,
-    );
+    const teacher = teachers.find((item) => item.id === changeTeacherId);
+    if (!teacher) return;
+    setSavingAssignment(true);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`${API_BASE_URL}/batch-subjects/${selectedAssignment.id}`, {
+        method: "PUT", headers, body: JSON.stringify({ teacherId: teacher.id }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) throw new Error(result.message || "Unable to change teacher.");
+      await fetchBatchAssignments(selectedAssignment.batchId);
+      setChangeTeacherVisible(false);
+      setSelectedAssignment(null);
+      Alert.alert("Success", result.message || `Teacher changed to ${teacher.name}.`);
+    } catch (error) {
+      Alert.alert("Change failed", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setSavingAssignment(false);
+    }
   };
+
+  const unassignAssignment = async () => {
+    if (!selectedAssignment) return;
+    const assignment = selectedAssignment;
+    setSavingAssignment(true);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`${API_BASE_URL}/batch-subjects/${assignment.id}/status`, {
+        method: "PATCH", headers, body: JSON.stringify({ status: "inactive" }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) throw new Error(result.message || "Unable to unassign subject.");
+      await fetchBatchAssignments(assignment.batchId);
+      setAssignmentActionVisible(false);
+      setSelectedAssignment(null);
+      Alert.alert("Success", result.message || `${assignment.subject} has been unassigned.`);
+    } catch (error) {
+      Alert.alert("Unassign failed", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setSavingAssignment(false);
+    }
+  };
+
 
   /* =========================================================
      SUMMARY CARD
@@ -2002,7 +1873,11 @@ export default function BatchesPage() {
 
                   </View>
 
-                  {getBatchSubjects(
+                  {loadingAssignments ? (
+                    <View style={styles.noSubjectsCard}>
+                      <Text style={styles.noSubjectsText}>Loading subject assignments...</Text>
+                    </View>
+                  ) : getBatchSubjects(
                     selectedBatch.id,
                   ).length === 0 ? (
                     <View
@@ -2370,12 +2245,8 @@ export default function BatchesPage() {
                   </Text>
 
                   <View style={styles.optionsContainer}>
-                    {sampleTeachers
-                      .filter(
-                        (teacher) =>
-                          !selectedBatch ||
-                          teacher.branch === selectedBatch.branch,
-                      )
+                    {teachers
+                      .filter((teacher) => !selectedBatch || (!teacher.branchId || teacher.branchId === selectedBatch.branchId))
                       .map((teacher) => {
                         const selected =
                           changeTeacherId === teacher.id;
@@ -2434,49 +2305,8 @@ export default function BatchesPage() {
 
                   <TouchableOpacity
                     style={styles.assignConfirmButton}
-                    onPress={() => {
-                      if (!selectedAssignment) {
-                        return;
-                      }
-
-                      if (!changeTeacherId) {
-                        Alert.alert(
-                          "Select Teacher",
-                          "Please select a teacher.",
-                        );
-                        return;
-                      }
-
-                      const teacher = sampleTeachers.find(
-                        (item) =>
-                          item.id === changeTeacherId,
-                      );
-
-                      if (!teacher) {
-                        return;
-                      }
-
-                      setBatchSubjects((current) =>
-                        current.map((item) =>
-                          item.id === selectedAssignment.id
-                            ? {
-                                ...item,
-                                teacherId: teacher.id,
-                                teacher: teacher.name,
-                                teacherEmail: teacher.email,
-                              }
-                            : item,
-                        ),
-                      );
-
-                      setChangeTeacherVisible(false);
-                      setSelectedAssignment(null);
-
-                      Alert.alert(
-                        "Success",
-                        `${selectedAssignment.subject} is now assigned to ${teacher.name}.`,
-                      );
-                    }}
+                    onPress={changeAssignedTeacher}
+                    disabled={savingAssignment}
                   >
                     <MaterialCommunityIcons
                       name="account-switch-outline"
@@ -2485,7 +2315,7 @@ export default function BatchesPage() {
                     />
 
                     <Text style={styles.assignConfirmText}>
-                      Change Teacher
+                      {savingAssignment ? "Updating..." : "Change Teacher"}
                     </Text>
                   </TouchableOpacity>
                 </ScrollView>
@@ -2722,7 +2552,7 @@ export default function BatchesPage() {
                   styles.optionsContainer
                 }
               >
-                {sampleSubjects
+                {subjects
                   .filter(
                     (subject) =>
                       !selectedBatch ||
@@ -2817,13 +2647,8 @@ export default function BatchesPage() {
                   styles.optionsContainer
                 }
               >
-                {sampleTeachers
-                  .filter(
-                    (teacher) =>
-                      !selectedBatch ||
-                      teacher.branch ===
-                        selectedBatch.branch,
-                  )
+                {teachers
+                  .filter((teacher) => !selectedBatch || (!teacher.branchId || teacher.branchId === selectedBatch.branchId))
                   .map((teacher) => {
                     const selected =
                       selectedTeacherId ===
@@ -2895,32 +2720,10 @@ export default function BatchesPage() {
                   })}
               </View>
 
-              <View
-                style={
-                  styles.sampleNotice
-                }
-              >
-                <MaterialCommunityIcons
-                  name="information-outline"
-                  size={19}
-                  color="#7040D5"
-                />
-
-                <Text
-                  style={
-                    styles.sampleNoticeText
-                  }
-                >
-                  This is sample data for the
-                  frontend. API integration will
-                  be connected after the backend
-                  modules are completed.
-                </Text>
-              </View>
-
               <TouchableOpacity
-                style={styles.assignConfirmButton}
+                style={[styles.assignConfirmButton, (savingAssignment || loadingOptions) && { opacity: 0.6 }]}
                 onPress={assignSubject}
+                disabled={savingAssignment || loadingOptions}
               >
                 <MaterialCommunityIcons
                   name="link-variant"
@@ -2933,7 +2736,7 @@ export default function BatchesPage() {
                     styles.assignConfirmText
                   }
                 >
-                  Assign Subject & Teacher
+                  {savingAssignment ? "Assigning..." : loadingOptions ? "Loading..." : "Assign Subject & Teacher"}
                 </Text>
               </TouchableOpacity>
             </ScrollView>

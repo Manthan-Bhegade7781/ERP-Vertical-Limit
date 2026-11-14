@@ -1,10 +1,12 @@
 import React from 'react';
+
 import {
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+
 import { Ionicons } from '@expo/vector-icons';
 
 type ScheduleItemProps = {
@@ -13,7 +15,9 @@ type ScheduleItemProps = {
   iconColor: string;
   time: string;
   className: string;
+  subject: string;
   room: string;
+  type: string;
   onPress?: () => void;
 };
 
@@ -23,7 +27,9 @@ export default function ScheduleItem({
   iconColor,
   time,
   className,
+  subject,
   room,
+  type,
   onPress,
 }: ScheduleItemProps) {
   return (
@@ -37,7 +43,6 @@ export default function ScheduleItem({
         pressed && styles.pressed,
       ]}
     >
-      {/* Book Icon */}
       <View
         style={[
           styles.iconBox,
@@ -48,14 +53,12 @@ export default function ScheduleItem({
       >
         <Ionicons
           name="book-outline"
-          size={32}
+          size={23}
           color={iconColor}
         />
       </View>
 
-      {/* Main Content */}
       <View style={styles.content}>
-        {/* Time + Lecture */}
         <View style={styles.topRow}>
           <Text
             style={styles.time}
@@ -67,13 +70,12 @@ export default function ScheduleItem({
           </Text>
 
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              Lecture
+            <Text style={styles.badgeText} numberOfLines={1}>
+              {type}
             </Text>
           </View>
         </View>
 
-        {/* Class Name */}
         <Text
           style={styles.className}
           numberOfLines={1}
@@ -82,31 +84,32 @@ export default function ScheduleItem({
           {className}
         </Text>
 
-        {/* Subject + Room */}
         <View style={styles.infoRow}>
           <View style={styles.subjectContainer}>
-            <Text style={styles.subjectLabel}>
+            <Text style={styles.subjectLabel} numberOfLines={1}>
               Subject:
             </Text>
 
             <Text
               style={styles.subject}
               numberOfLines={1}
+              ellipsizeMode="tail"
             >
-              Physics
+              {subject}
             </Text>
           </View>
 
           <View style={styles.roomContainer}>
             <Ionicons
               name="location-outline"
-              size={17}
+              size={14}
               color="#5B6272"
             />
 
             <Text
               style={styles.room}
               numberOfLines={1}
+              ellipsizeMode="tail"
             >
               {room}
             </Text>
@@ -119,34 +122,25 @@ export default function ScheduleItem({
 
 const styles = StyleSheet.create({
   item: {
-    minHeight: 112,
-
+    minHeight: 104,
     flexDirection: 'row',
     alignItems: 'center',
-
     backgroundColor: '#FFFFFF',
-
     borderWidth: 1,
     borderColor: '#E1E2E8',
-
     borderLeftWidth: 4,
     borderRadius: 14,
-
-    paddingVertical: 11,
-    paddingHorizontal: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 9,
   },
 
   iconBox: {
-    width: 58,
-    height: 58,
-
-    borderRadius: 14,
-
+    width: 46,
+    height: 46,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-
-    marginRight: 12,
-
+    marginRight: 9,
     flexShrink: 0,
   },
 
@@ -158,63 +152,53 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-
     width: '100%',
-
-    marginBottom: 1,
+    marginBottom: 2,
   },
 
   time: {
     flex: 1,
-
+    minWidth: 0,
     color: '#5B6272',
     fontFamily: 'PoppinsRegular',
-    fontSize: 14,
-    lineHeight: 19,
-
-    marginRight: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    marginRight: 6,
   },
 
   badge: {
-    flexShrink: 0,
-
+    flexShrink: 1,
+    maxWidth: 82,
     backgroundColor: '#F0E9FF',
-
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
   },
 
   badgeText: {
     color: '#5420D8',
-
-    fontSize: 13,
+    fontSize: 10,
     fontFamily: 'PoppinsSemiBold',
+    textTransform: 'capitalize',
   },
 
   className: {
     color: '#171A2B',
-
-    fontSize: 17,
-    lineHeight: 22,
-
+    fontSize: 14,
+    lineHeight: 19,
     fontFamily: 'PoppinsSemiBold',
-
-    marginBottom: 5,
+    marginBottom: 4,
   },
 
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-
     width: '100%',
   },
 
   subjectContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-
     flex: 1,
     minWidth: 0,
   },
@@ -222,35 +206,35 @@ const styles = StyleSheet.create({
   subjectLabel: {
     color: '#5B6272',
     fontFamily: 'PoppinsRegular',
-    fontSize: 13,
+    fontSize: 10,
+    flexShrink: 0,
   },
 
   subject: {
     color: '#5420D8',
-
-    fontSize: 13,
+    fontSize: 10,
     fontFamily: 'PoppinsSemiBold',
-
     marginLeft: 3,
-
-    flexShrink: 1,
+    flex: 1,
+    minWidth: 0,
   },
 
   roomContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-
-    flexShrink: 0,
-
-    marginLeft: 8,
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '42%',
+    marginLeft: 7,
   },
 
   room: {
+    flexShrink: 1,
+    minWidth: 0,
     color: '#5B6272',
     fontFamily: 'PoppinsRegular',
-    fontSize: 12.5,
-
-    marginLeft: 3,
+    fontSize: 10,
+    marginLeft: 2,
   },
 
   pressed: {

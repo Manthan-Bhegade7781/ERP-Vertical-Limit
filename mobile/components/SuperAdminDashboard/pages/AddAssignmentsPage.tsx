@@ -292,23 +292,32 @@ export default function AddAssignmentsPage() {
 
     try {
       setSaving(true);
-      await createAssignment({
-        assignmentTitle: assignmentTitle.trim(),
-        assignmentCode: assignmentCode.trim().toUpperCase(),
-        batchId: batch,
-        subjectId: subject,
-        assignmentType: assignmentType as "homework" | "practice_set" | "worksheet" | "project" | "revision",
-        assignedDate: assignedDate.trim(),
-        submissionDate: submissionDate.trim(),
-        totalMarks: marks,
-        description: description.trim(),
-        instructions: instructions.trim(),
-      });
+      await createAssignment(
+        {
+          assignmentTitle: assignmentTitle.trim(),
+          assignmentCode: assignmentCode.trim().toUpperCase(),
+          batchId: batch,
+          subjectId: subject,
+          assignmentType: assignmentType as "homework" | "practice_set" | "worksheet" | "project" | "revision",
+          assignedDate: assignedDate.trim(),
+          submissionDate: submissionDate.trim(),
+          totalMarks: marks,
+          description: description.trim(),
+          instructions: instructions.trim(),
+        },
+        pdfUri
+          ? {
+              uri: pdfUri,
+              name: pdfName || "assignment.pdf",
+              type: "application/pdf",
+            }
+          : undefined
+      );
 
       Alert.alert(
         "Success",
         pdfUri
-          ? "Assignment created successfully. The selected PDF was not uploaded because the current backend assignment route does not support file uploads yet."
+          ? "Assignment and original PDF uploaded successfully."
           : "Assignment created successfully.",
         [{
           text: "OK",

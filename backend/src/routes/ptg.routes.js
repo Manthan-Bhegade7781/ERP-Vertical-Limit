@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   createPTG,
   getPTGMeetings,
+  getTeacherPTGMeetings,
   getPTGStats,
   getPTGById,
   updatePTG,
@@ -15,32 +16,62 @@ const {
 const { protect } = require("../middleware/auth.middleware");
 const { authorizeRoles } = require("../middleware/role.middleware");
 
-// All PTG routes require authentication and Super Admin access.
 router.use(protect);
-router.use(authorizeRoles("super_admin","admin"));
 
-// Create a PTG meeting.
-router.post("/", createPTG);
+// Teacher: read-only PTG meetings assigned to the logged-in teacher.
+router.get(
+  "/teacher/meetings",
+  authorizeRoles("teacher"),
+  getTeacherPTGMeetings
+);
 
-// Retrieve dashboard statistics.
-router.get("/stats", getPTGStats);
+// Admin / Super Admin management routes.
+router.post(
+  "/",
+  authorizeRoles("super_admin", "admin"),
+  createPTG
+);
 
-// Retrieve students for the meeting form.
-router.get("/students", getPTGStudents);
+router.get(
+  "/stats",
+  authorizeRoles("super_admin", "admin"),
+  getPTGStats
+);
 
-// Retrieve teachers for the meeting form.
-router.get("/teachers", getPTGTeachers);
+router.get(
+  "/students",
+  authorizeRoles("super_admin", "admin"),
+  getPTGStudents
+);
 
-// Retrieve all PTG meetings.
-router.get("/", getPTGMeetings);
+router.get(
+  "/teachers",
+  authorizeRoles("super_admin", "admin"),
+  getPTGTeachers
+);
 
-// Retrieve one PTG meeting.
-router.get("/:id", getPTGById);
+router.get(
+  "/",
+  authorizeRoles("super_admin", "admin"),
+  getPTGMeetings
+);
 
-// Update a PTG meeting.
-router.put("/:id", updatePTG);
+router.get(
+  "/:id",
+  authorizeRoles("super_admin", "admin"),
+  getPTGById
+);
 
-// Delete a PTG meeting.
-router.delete("/:id", deletePTG);
+router.put(
+  "/:id",
+  authorizeRoles("super_admin", "admin"),
+  updatePTG
+);
+
+router.delete(
+  "/:id",
+  authorizeRoles("super_admin", "admin"),
+  deletePTG
+);
 
 module.exports = router;

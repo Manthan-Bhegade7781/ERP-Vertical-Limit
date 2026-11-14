@@ -80,7 +80,6 @@ const sendPTGNotifications = async ({
   try {
     const recipients = new Map();
 
-    // Add active Super Admin accounts.
     const superAdmins = await User.find({
       roles: "super_admin",
       status: "active",
@@ -90,7 +89,6 @@ const sendPTGNotifications = async ({
       recipients.set(admin._id.toString(), admin._id);
     }
 
-    // Add the teacher's user account.
     if (teacher && teacher.userId) {
       const teacherUserId = teacher.userId._id || teacher.userId;
 
@@ -102,7 +100,6 @@ const sendPTGNotifications = async ({
       }
     }
 
-    // Add the student's linked user account.
     if (student && student.userId) {
       const studentUserId = student.userId._id || student.userId;
 
@@ -114,7 +111,6 @@ const sendPTGNotifications = async ({
       }
     }
 
-    // Do not send duplicate notifications to the authenticated actor.
     if (excludeUserId && isValidId(excludeUserId)) {
       recipients.delete(excludeUserId.toString());
     }
@@ -123,7 +119,6 @@ const sendPTGNotifications = async ({
       return;
     }
 
-    // Notification errors are isolated from the main PTG operation.
     const results = await Promise.allSettled(
       Array.from(recipients.values()).map((recipient) =>
         createNotification({
@@ -215,7 +210,6 @@ const createPTG = async (req, res) => {
       });
     }
 
-    // Find and validate the student.
     const student = await Student.findById(studentId).populate({
       path: "userId",
       select: "fullName status roles",
@@ -246,7 +240,6 @@ const createPTG = async (req, res) => {
       });
     }
 
-    // Find and validate the teacher.
     const teacher = await Teacher.findById(teacherId).populate({
       path: "userId",
       select: "fullName status roles",
@@ -277,7 +270,6 @@ const createPTG = async (req, res) => {
       });
     }
 
-    // Create the PTG meeting.
     const meeting = await PTG.create({
       studentId,
       teacherId,
@@ -292,7 +284,6 @@ const createPTG = async (req, res) => {
       PTG.findById(meeting._id)
     );
 
-    // Send notifications without interrupting meeting creation.
     const studentName = student.userId.fullName;
     const teacherName = teacher.userId.fullName;
 
@@ -487,6 +478,49 @@ const getPTGMeetings = async (req, res) => {
     );
   }
 };
+// ============================================================
+// GET TEACHER'S OWN PTG MEETINGS
+// GET /api/ptg/teacher/meetings
+// ============================================================
+
+const getTeacherPTGMeetings = async (req, res) => {
+  try {
+    // req.user._id is the authenticated User ID.
+    // Teacher.userId references this User ID.
+    const teacher = await Teacher.findOne({
+      userId: req.user._id,
+      status: "active",
+    }).select("_id");
+
+    if (!teacher) {
+      return res.status(200).json({
+        success: true,
+        message: "No active teacher profile is linked to this account.",
+        count: 0,
+        data: [],
+      });
+    }
+
+    // Only retrieve meetings assigned to this teacher profile.
+    const meetings = await populatePTG(
+      PTG.find({ teacherId: teacher._id })
+        .sort({ meetingDate: 1, createdAt: -1 })
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Your PTG meetings were retrieved successfully.",
+      count: meetings.length,
+      data: meetings,
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Failed to retrieve your PTG meetings."
+    );
+  }
+};
 
 // ============================================================
 // GET PTG STATISTICS
@@ -630,6 +664,7 @@ const updatePTG = async (req, res) => {
 
     const updates = {};
 
+    // Validate student.
     if (studentId !== undefined) {
       if (!isValidId(studentId)) {
         return res.status(400).json({
@@ -659,6 +694,7 @@ const updatePTG = async (req, res) => {
       updates.studentId = studentId;
     }
 
+    // Validate teacher.
     if (teacherId !== undefined) {
       if (!isValidId(teacherId)) {
         return res.status(400).json({
@@ -688,6 +724,7 @@ const updatePTG = async (req, res) => {
       updates.teacherId = teacherId;
     }
 
+    // Validate meeting date.
     if (meetingDate !== undefined) {
       const parsedDate = new Date(meetingDate);
 
@@ -701,6 +738,7 @@ const updatePTG = async (req, res) => {
       updates.meetingDate = parsedDate;
     }
 
+    // Validate purpose.
     if (purpose !== undefined) {
       if (
         typeof purpose !== "string" ||
@@ -717,6 +755,7 @@ const updatePTG = async (req, res) => {
       updates.purpose = purpose.trim();
     }
 
+    // Validate notes.
     if (notes !== undefined) {
       if (
         typeof notes !== "string" ||
@@ -732,6 +771,7 @@ const updatePTG = async (req, res) => {
       updates.notes = notes.trim();
     }
 
+    // Validate status.
     if (status !== undefined) {
       const allowedStatuses = [
         "Scheduled",
@@ -750,19 +790,19 @@ const updatePTG = async (req, res) => {
     }
 
     const updatedMeeting = await PTG.findByIdAndUpdate(
-    id,
-    updates,
-    {
+      id,
+      updates,
+      {
         returnDocument: "after",
         runValidators: true,
-    }
+      }
     );
 
     const populatedMeeting = await populatePTG(
       PTG.findById(updatedMeeting._id)
     );
 
-    // Send notifications only when something actually changed.
+    // Check whether any field actually changed.
     const hasChanges = Object.keys(updates).some((key) => {
       const previousValue = previousMeeting[key];
       const updatedValue = updates[key];
@@ -789,67 +829,28 @@ const updatePTG = async (req, res) => {
         updatedMeeting.studentId
       ).populate({
         path: "userId",
-        select: "fullName status roles",
+        select: "fullName status",
       });
 
       const teacher = await Teacher.findById(
         updatedMeeting.teacherId
       ).populate({
         path: "userId",
-        select: "fullName status roles",
+        select: "fullName status",
       });
-
-      const studentName =
-        student?.userId?.fullName || "the student";
-
-      const teacherName =
-        teacher?.userId?.fullName || "the teacher";
-
-      const dateText = new Date(
-        updatedMeeting.meetingDate
-      ).toLocaleString("en-IN", {
-        dateStyle: "medium",
-        timeStyle: "short",
-        timeZone: "Asia/Kolkata",
-      });
-
-      let notificationTitle = "PTG Meeting Updated";
-      let notificationMessage =
-        `The PTG meeting for ${studentName} with ${teacherName} ` +
-        `has been updated. Meeting date: ${dateText}.`;
-
-      if (
-        updates.meetingDate !== undefined &&
-        new Date(previousMeeting.meetingDate).getTime() !==
-          new Date(updatedMeeting.meetingDate).getTime()
-      ) {
-        notificationTitle = "PTG Meeting Rescheduled";
-        notificationMessage =
-          `The PTG meeting for ${studentName} with ${teacherName} ` +
-          `has been rescheduled to ${dateText}.`;
-      } else if (
-        updates.status === "Completed" &&
-        previousMeeting.status !== "Completed"
-      ) {
-        notificationTitle = "PTG Meeting Completed";
-        notificationMessage =
-          `The PTG meeting for ${studentName} with ${teacherName} ` +
-          "has been marked as completed.";
-      } else if (
-        updates.status === "Pending" &&
-        previousMeeting.status !== "Pending"
-      ) {
-        notificationTitle = "PTG Meeting Status Updated";
-        notificationMessage =
-          `The PTG meeting for ${studentName} with ${teacherName} ` +
-          "has been marked as pending.";
-      }
 
       await sendPTGNotifications({
         student,
         teacher,
-        title: notificationTitle,
-        message: notificationMessage,
+        title: "PTG Meeting Updated",
+        message: `The PTG meeting scheduled for ${updatedMeeting.meetingDate.toLocaleString(
+          "en-IN",
+          {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "Asia/Kolkata",
+          }
+        )} has been updated.`,
         excludeUserId: req.user._id,
       });
     }
@@ -874,7 +875,6 @@ const updatePTG = async (req, res) => {
     );
   }
 };
-
 // ============================================================
 // DELETE PTG MEETING
 // DELETE /api/ptg/:id
@@ -900,7 +900,6 @@ const deletePTG = async (req, res) => {
       });
     }
 
-    // Load related users before deleting the record.
     const student = await Student.findById(
       meeting.studentId
     ).populate({
@@ -1036,6 +1035,7 @@ const getPTGTeachers = async (req, res) => {
 module.exports = {
   createPTG,
   getPTGMeetings,
+  getTeacherPTGMeetings,
   getPTGStats,
   getPTGById,
   updatePTG,

@@ -18,6 +18,47 @@ const { generateEmployeeId } = require("../utils/employeeId");
 const { generateToken } = require("../utils/jwt");
 
 // =====================================================
+// BUILD USER RESPONSE
+// Includes teacher profile when user has teacher role
+// =====================================================
+
+const buildUserResponse = async (user) => {
+  let teacher = null;
+
+  if (user.roles?.includes("teacher")) {
+    const teacherProfile = await Teacher.findOne({
+      userId: user._id,
+    })
+      .select(
+        "employeeId specialization qualification experience address status"
+      )
+      .lean();
+
+    if (teacherProfile) {
+      teacher = {
+        employeeId: teacherProfile.employeeId,
+        specialization: teacherProfile.specialization,
+        qualification: teacherProfile.qualification,
+        experience: teacherProfile.experience,
+        address: teacherProfile.address,
+        status: teacherProfile.status,
+      };
+    }
+  }
+
+  return {
+    id: user._id.toString(),
+    fullName: user.fullName,
+    email: user.email,
+    mobileNumber: user.mobileNumber,
+    roles: user.roles,
+    branchId: user.branchId,
+    status: user.status,
+    ...(user.roles?.includes("teacher") && { teacher }),
+  };
+};
+
+// =====================================================
 // REGISTER
 // =====================================================
 
@@ -201,7 +242,6 @@ const register = async (req, res) => {
 
     // 14. Create Student profile
     if (role === "student") {
-      // Generate a unique student ID
       const studentId = `STU-${crypto
         .randomUUID()
         .replace(/-/g, "")
@@ -250,6 +290,7 @@ const register = async (req, res) => {
         `for the ${branch.name} branch. Approval is required.`;
 
       const allAdmins = [...superAdmins, ...branchAdmins];
+
       const uniqueAdminIds = Array.from(
         new Set(allAdmins.map((a) => a._id.toString()))
       );
@@ -266,7 +307,6 @@ const register = async (req, res) => {
         )
       );
     } catch (notificationError) {
-      // Do not fail registration if notification creation fails
       console.error(
         "New registration notification error:",
         notificationError
@@ -318,7 +358,6 @@ const register = async (req, res) => {
 
     console.error("Registration error:", error);
 
-    // Handle duplicate email or generated IDs
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -403,20 +442,15 @@ const login = async (req, res) => {
     // 5. Generate JWT
     const token = generateToken(user);
 
-    // 6. Return safe user information
+    // 6. Build user response including teacher profile
+    const userResponse = await buildUserResponse(user);
+
+    // 7. Return safe user information
     return res.status(200).json({
       success: true,
       message: "Login successful",
       data: {
-        user: {
-          id: user._id,
-          fullName: user.fullName,
-          email: user.email,
-          mobileNumber: user.mobileNumber,
-          roles: user.roles,
-          branchId: user.branchId,
-          status: user.status,
-        },
+        user: userResponse,
         token,
       },
     });
@@ -436,18 +470,12 @@ const login = async (req, res) => {
 
 const getMe = async (req, res) => {
   try {
+    const userResponse = await buildUserResponse(req.user);
+
     return res.status(200).json({
       success: true,
       data: {
-        user: {
-          id: req.user._id,
-          fullName: req.user.fullName,
-          email: req.user.email,
-          mobileNumber: req.user.mobileNumber,
-          roles: req.user.roles,
-          branchId: req.user.branchId,
-          status: req.user.status,
-        },
+        user: userResponse,
       },
     });
   } catch (error) {
@@ -532,26 +560,20 @@ const updateMe = async (req, res) => {
       });
     }
 
-    // 6. Return updated profile
+    // 6. Build updated response including teacher profile
+    const userResponse = await buildUserResponse(updatedUser);
+
+    // 7. Return updated profile
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully",
       data: {
-        user: {
-          id: updatedUser._id,
-          fullName: updatedUser.fullName,
-          email: updatedUser.email,
-          mobileNumber: updatedUser.mobileNumber,
-          roles: updatedUser.roles,
-          branchId: updatedUser.branchId,
-          status: updatedUser.status,
-        },
+        user: userResponse,
       },
     });
   } catch (error) {
     console.error("Update profile error:", error);
 
-    // MongoDB duplicate email error
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,

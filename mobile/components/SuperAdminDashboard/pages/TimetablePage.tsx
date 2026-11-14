@@ -323,6 +323,16 @@ export default function TimetablePage() {
 
         if (isMounted) {
           setTimetableItems(mapped);
+
+          // If the currently selected weekday has no classes, automatically
+          // open the first weekday that actually contains a returned class.
+          // This avoids showing an empty day while the weekly API has records.
+          const selectedDayHasClasses = mapped.some(
+            (item: TimetableItem) => item.dateKey === selectedDate
+          );
+          if (!selectedDayHasClasses && mapped.length > 0) {
+            setSelectedDay(mapped[0].day);
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -340,7 +350,7 @@ export default function TimetablePage() {
     return () => {
       isMounted = false;
     };
-  }, [weekStartKey, weekEndKey]);
+  }, [weekStartKey, weekEndKey, selectedDate]);
 
   const selectedClasses = useMemo(
     () => timetableItems
@@ -351,7 +361,7 @@ export default function TimetablePage() {
 
   const totalClasses = timetableItems.length;
   const lectureCount = timetableItems.filter((item) => item.type === 'lecture').length;
-  const labCount = timetableItems.filter((item) => item.type === 'exam').length;
+  const examCount = timetableItems.filter((item) => item.type === 'exam').length;
   const workingDays = new Set(timetableItems.map((item) => item.dateKey)).size;
 
   const handlePreviousWeek = () => setWeekOffset((current) => current - 1);
@@ -786,7 +796,7 @@ export default function TimetablePage() {
 
                 <Text style={styles.summaryValue}>
 
-                  {labCount}
+                  {examCount}
 
                 </Text>
 

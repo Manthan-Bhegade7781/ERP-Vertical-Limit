@@ -7,6 +7,7 @@ const {
   updateBatch,
   removeBatch,
   getRegistrationBatches,
+  getTeacherBatches,
 } = require("../controllers/batch.controller");
 
 const { protect } = require("../middleware/auth.middleware");
@@ -14,27 +15,89 @@ const { authorizeRoles } = require("../middleware/role.middleware");
 
 const router = express.Router();
 
-// Create batch — Super Admin only (outside Admin Batches scope)
-router.post("/", protect, authorizeRoles("super_admin","admin"), createBatch);
+// ============================================================
+// CREATE BATCH
+// Super Admin and Admin
+// ============================================================
 
-// Public batches for registration. Keep before /:id.
-router.get("/registration", getRegistrationBatches);
+router.post(
+  "/",
+  protect,
+  authorizeRoles("super_admin", "admin"),
+  createBatch
+);
 
-// Authenticated users; controller scopes Admin results to their branch.
+// ============================================================
+// PUBLIC REGISTRATION BATCHES
+// Keep before /:id
+// ============================================================
+
+router.get(
+  "/registration",
+  getRegistrationBatches
+);
+
+// ============================================================
+// TEACHER'S ASSIGNED BATCHES
+// ============================================================
+
+router.get(
+  "/teacher/my-batches",
+  protect,
+  authorizeRoles("teacher"),
+  getTeacherBatches
+);
+
+// ============================================================
+// GET ALL BATCHES
+// ============================================================
+
 router.get(
   "/",
   protect,
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  authorizeRoles(
+    "super_admin",
+    "admin",
+    "teacher",
+    "student"
+  ),
   getBatches
 );
 
-// Single batch remains Super Admin-only for now.
-router.get("/:id", protect, authorizeRoles("super_admin"), getBatchById);
+// ============================================================
+// GET SINGLE BATCH
+// Super Admin only
+// ============================================================
 
-// Super Admin and Admin can update; controller enforces Admin branch scope.
-router.put("/:id", protect, authorizeRoles("super_admin", "admin"), updateBatch);
+router.get(
+  "/:id",
+  protect,
+  authorizeRoles("super_admin"),
+  getBatchById
+);
 
-// Remove batch — Super Admin only (outside Admin Batches scope)
-router.patch("/:id/remove", protect, authorizeRoles("super_admin"), removeBatch);
+// ============================================================
+// UPDATE BATCH
+// Super Admin and Admin
+// ============================================================
+
+router.put(
+  "/:id",
+  protect,
+  authorizeRoles("super_admin", "admin"),
+  updateBatch
+);
+
+// ============================================================
+// REMOVE BATCH
+// Super Admin only
+// ============================================================
+
+router.patch(
+  "/:id/remove",
+  protect,
+  authorizeRoles("super_admin"),
+  removeBatch
+);
 
 module.exports = router;
