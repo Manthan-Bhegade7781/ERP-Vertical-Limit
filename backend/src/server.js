@@ -1,11 +1,5 @@
-const dotenv = require("dotenv");
 
-const result = dotenv.config();
-
-console.log("Env file path:", process.cwd());
-console.log("Dotenv error:", result.error?.message ?? "none");
-console.log("MONGODB_URI exists:", Boolean(process.env.MONGODB_URI));
-console.log("MONGO_URI exists:", Boolean(process.env.MONGO_URI));
+require("dotenv").config();
 
 const connectDB = require("./config/database");
 const app = require("./app");
@@ -16,8 +10,14 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+    const server = app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Vertical Classes ERP server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+    });
+
+    server.on("error", (error) => {
+      console.error("Server error:", error.message);
+      process.exit(1);
     });
   } catch (error) {
     console.error("Server startup failed:", error.message);

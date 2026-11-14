@@ -69,30 +69,44 @@ const assignmentSchema = new mongoose.Schema(
       default: "",
     },
 
+    
     attachment: {
       fileName: {
         type: String,
         trim: true,
         default: "",
       },
-
       filePath: {
         type: String,
         trim: true,
         default: "",
       },
-
       mimeType: {
         type: String,
         trim: true,
         default: "",
       },
-
       fileSize: {
         type: Number,
         default: 0,
       },
+      cloudinaryPublicId: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      resourceType: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      deliveryType: {
+        type: String,
+        trim: true,
+        default: "",
+      },
     },
+
 
     branchId: {
       type: mongoose.Schema.Types.ObjectId,

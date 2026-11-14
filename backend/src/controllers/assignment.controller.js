@@ -1,6 +1,10 @@
+
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
+
+const cloudinary = require("../config/cloudinary");
 
 const Assignment = require("../models/assignment.model");
 const Batch = require("../models/Batch");
@@ -172,9 +176,15 @@ const canManageAssignment = async (user, assignment) => {
   }
 
   if (isStudent(user)) {
-    const student = await Student.findOne({ userId: user._id });
+    const student = await Student.findOne({
+      userId: user._id,
+    });
+
     if (!student || !student.batchId) return false;
-    const batchId = assignment.batchId?._id || assignment.batchId;
+
+    const batchId =
+      assignment.batchId?._id || assignment.batchId;
+
     return student.batchId.toString() === batchId.toString();
   }
 
@@ -209,26 +219,52 @@ const populateAssignment = (query) =>
     );
 
 // ============================================================
-// ATTACHMENT HELPERS
+// CLOUDINARY ATTACHMENT HELPERS
 // ============================================================
 
-const getAttachmentMetadata = (file) => {
-  if (!file) return undefined;
+const uploadAssignmentAttachment = async (file) => {
+  if (!file) return null;
+
+  if (
+    !process.env.CLOUDINARY_CLOUD_NAME ||
+    !process.env.CLOUDINARY_API_KEY ||
+    !process.env.CLOUDINARY_API_SECRET
+  ) {
+    throw new Error("Cloudinary configuration is missing.");
+  }
+
+  if (!file.buffer) {
+    throw new Error("Uploaded PDF buffer is missing.");
+  }
+
+  const fileData =
+    `data:application/pdf;base64,${file.buffer.toString("base64")}`;
+
+  const result = await cloudinary.uploader.upload(fileData, {
+    resource_type: "image",
+    type: "authenticated",
+    folder: "vertical-classes/assignments",
+    public_id: crypto.randomUUID(),
+    format: "pdf",
+    overwrite: false,
+  });
 
   return {
     fileName: path.basename(
       file.originalname || "assignment.pdf"
     ),
-
-    filePath: path.posix.join(
-      "assignments",
-      file.filename
-    ),
-
+    filePath: "",
     mimeType: "application/pdf",
     fileSize: file.size,
+    cloudinaryPublicId: result.public_id,
+    resourceType: "image",
+    deliveryType: "authenticated",
   };
 };
+
+// ============================================================
+// LEGACY LOCAL ATTACHMENT HELPERS
+// ============================================================
 
 const resolveStoredAttachment = (storedPath) => {
   if (!storedPath || typeof storedPath !== "string") {
@@ -245,10 +281,7 @@ const resolveStoredAttachment = (storedPath) => {
     return null;
   }
 
-  const resolved = path.resolve(
-    UPLOAD_DIR,
-    filename
-  );
+  const resolved = path.resolve(UPLOAD_DIR, filename);
 
   if (path.dirname(resolved) !== UPLOAD_DIR) {
     return null;
@@ -267,27 +300,64 @@ const removeAttachmentFile = async (storedPath) => {
   } catch (error) {
     if (error.code !== "ENOENT") {
       console.error(
-        "Failed to remove assignment attachment:",
+        "Failed to remove old assignment file:",
         error
       );
     }
   }
 };
 
-const removeUploadedFile = async (file) => {
-  if (!file?.path) return;
+// ============================================================
+// DELETE CLOUDINARY ATTACHMENT
+// ============================================================
+
+const removeCloudinaryAttachment = async (attachment) => {
+  if (!attachment?.cloudinaryPublicId) return;
 
   try {
-    await fs.promises.unlink(file.path);
-  } catch (error) {
-    if (error.code !== "ENOENT") {
+    const result = await cloudinary.uploader.destroy(
+      attachment.cloudinaryPublicId,
+      {
+        resource_type: attachment.resourceType || "image",
+        type: attachment.deliveryType || "authenticated",
+        invalidate: true,
+      }
+    );
+
+    if (
+      result.result !== "ok" &&
+      result.result !== "not found"
+    ) {
       console.error(
-        "Failed to remove rejected upload:",
-        error
+        "Cloudinary deletion result:",
+        result
       );
     }
+  } catch (error) {
+    console.error(
+      "Failed to remove Cloudinary assignment PDF:",
+      error
+    );
   }
 };
+
+// ============================================================
+// REMOVE STORED ATTACHMENT
+// Supports Cloudinary and old local attachments
+// ============================================================
+
+const removeStoredAttachment = async (attachment) => {
+  if (!attachment) return;
+
+  if (attachment.cloudinaryPublicId) {
+    await removeCloudinaryAttachment(attachment);
+  } else if (attachment.filePath) {
+    await removeAttachmentFile(attachment.filePath);
+  }
+};
+
+// Memory storage does not create temporary files.
+const removeUploadedFile = async () => {};
 
 // ============================================================
 // VALIDATE ASSIGNMENT TYPE
@@ -309,6 +379,7 @@ const validateAssignmentType = (type) =>
 
 const createAssignment = async (req, res) => {
   let createdAssignment;
+  let uploadedAttachment = null;
 
   try {
     const {
@@ -335,8 +406,6 @@ const createAssignment = async (req, res) => {
       !submissionDate ||
       totalMarks === undefined
     ) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message:
@@ -345,8 +414,6 @@ const createAssignment = async (req, res) => {
     }
 
     if (!validateAssignmentType(assignmentType)) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message: "Invalid assignment type.",
@@ -361,8 +428,6 @@ const createAssignment = async (req, res) => {
       !parsedAssignedDate ||
       !parsedSubmissionDate
     ) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message:
@@ -371,8 +436,6 @@ const createAssignment = async (req, res) => {
     }
 
     if (parsedSubmissionDate < parsedAssignedDate) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message:
@@ -381,8 +444,6 @@ const createAssignment = async (req, res) => {
     }
 
     if (!Number.isFinite(marks) || marks < 1) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message:
@@ -396,8 +457,6 @@ const createAssignment = async (req, res) => {
     );
 
     if (!relation.valid) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message: relation.message,
@@ -410,8 +469,6 @@ const createAssignment = async (req, res) => {
         relation.batch.branchId
       )
     ) {
-      await removeUploadedFile(req.file);
-
       return res.status(403).json({
         success: false,
         message:
@@ -428,8 +485,6 @@ const createAssignment = async (req, res) => {
       });
 
       if (!assigned) {
-        await removeUploadedFile(req.file);
-
         return res.status(403).json({
           success: false,
           message:
@@ -440,8 +495,6 @@ const createAssignment = async (req, res) => {
       !isAdmin(req.user) &&
       !isSuperAdmin(req.user)
     ) {
-      await removeUploadedFile(req.file);
-
       return res.status(403).json({
         success: false,
         message:
@@ -458,12 +511,16 @@ const createAssignment = async (req, res) => {
     });
 
     if (existing) {
-      await removeUploadedFile(req.file);
-
       return res.status(409).json({
         success: false,
         message: "Assignment code already exists.",
       });
+    }
+
+    // Upload PDF only after validating assignment data and access.
+    if (req.file) {
+      uploadedAttachment =
+        await uploadAssignmentAttachment(req.file);
     }
 
     createdAssignment = await Assignment.create({
@@ -486,7 +543,7 @@ const createAssignment = async (req, res) => {
           ? instructions.trim()
           : "",
 
-      attachment: getAttachmentMetadata(req.file),
+      attachment: uploadedAttachment || undefined,
 
       branchId: relation.batch.branchId,
       createdBy: req.user._id,
@@ -502,8 +559,8 @@ const createAssignment = async (req, res) => {
       data,
     });
   } catch (error) {
-    if (req.file && !createdAssignment) {
-      await removeUploadedFile(req.file);
+    if (uploadedAttachment && !createdAssignment) {
+      await removeCloudinaryAttachment(uploadedAttachment);
     }
 
     if (error.code === 11000) {
@@ -654,8 +711,17 @@ const getAssignments = async (req, res) => {
       delete filter.batchId;
       delete filter.subjectId;
       delete filter.$or;
-    } else if (isStudent(req.user) && !isSuperAdmin(req.user)) {
-      const student = await Student.findOne({ userId: req.user._id });
+    }
+
+    // STUDENT: only own batch assignments
+    else if (
+      isStudent(req.user) &&
+      !isSuperAdmin(req.user)
+    ) {
+      const student = await Student.findOne({
+        userId: req.user._id,
+      });
+
       if (!student || !student.batchId) {
         return res.status(200).json({
           success: true,
@@ -663,6 +729,7 @@ const getAssignments = async (req, res) => {
           data: [],
         });
       }
+
       filter.batchId = student.batchId;
     } else if (!isSuperAdmin(req.user)) {
       return res.status(403).json({
@@ -746,6 +813,7 @@ const getAssignmentById = async (req, res) => {
     });
   }
 };
+
 // ============================================================
 // UPDATE ASSIGNMENT
 // PUT /api/assignments/:id
@@ -753,13 +821,12 @@ const getAssignmentById = async (req, res) => {
 
 const updateAssignment = async (req, res) => {
   let saved = false;
+  let uploadedAttachment = null;
 
   try {
     const { id } = req.params;
 
     if (!mongoose.isValidObjectId(id)) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message: "Invalid assignment ID.",
@@ -769,20 +836,19 @@ const updateAssignment = async (req, res) => {
     const assignment = await Assignment.findById(id);
 
     if (!assignment) {
-      await removeUploadedFile(req.file);
-
       return res.status(404).json({
         success: false,
         message: "Assignment not found.",
       });
     }
 
-    if (!(await canManageAssignment(req.user, assignment))) {
-      await removeUploadedFile(req.file);
-
+    if (
+      !(await canManageAssignment(req.user, assignment))
+    ) {
       return res.status(403).json({
         success: false,
-        message: "You are not authorized to update this assignment.",
+        message:
+          "You are not authorized to update this assignment.",
       });
     }
 
@@ -812,8 +878,6 @@ const updateAssignment = async (req, res) => {
         typeof updates.assignmentTitle !== "string" ||
         !updates.assignmentTitle.trim()
       ) {
-        await removeUploadedFile(req.file);
-
         return res.status(400).json({
           success: false,
           message: "Assignment title cannot be empty.",
@@ -829,8 +893,6 @@ const updateAssignment = async (req, res) => {
         typeof updates.assignmentCode !== "string" ||
         !updates.assignmentCode.trim()
       ) {
-        await removeUploadedFile(req.file);
-
         return res.status(400).json({
           success: false,
           message: "Assignment code cannot be empty.",
@@ -847,8 +909,6 @@ const updateAssignment = async (req, res) => {
       );
 
       if (!updates.assignedDate) {
-        await removeUploadedFile(req.file);
-
         return res.status(400).json({
           success: false,
           message: "Invalid assigned date.",
@@ -862,8 +922,6 @@ const updateAssignment = async (req, res) => {
       );
 
       if (!updates.submissionDate) {
-        await removeUploadedFile(req.file);
-
         return res.status(400).json({
           success: false,
           message: "Invalid submission date.",
@@ -878,8 +936,6 @@ const updateAssignment = async (req, res) => {
       updates.submissionDate || assignment.submissionDate;
 
     if (nextSubmissionDate < nextAssignedDate) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message:
@@ -894,8 +950,6 @@ const updateAssignment = async (req, res) => {
         !Number.isFinite(updates.totalMarks) ||
         updates.totalMarks < 1
       ) {
-        await removeUploadedFile(req.file);
-
         return res.status(400).json({
           success: false,
           message: "Total marks must be a positive number.",
@@ -907,8 +961,6 @@ const updateAssignment = async (req, res) => {
       updates.assignmentType !== undefined &&
       !validateAssignmentType(updates.assignmentType)
     ) {
-      await removeUploadedFile(req.file);
-
       return res.status(400).json({
         success: false,
         message: "Invalid assignment type.",
@@ -928,8 +980,6 @@ const updateAssignment = async (req, res) => {
       );
 
       if (!relation.valid) {
-        await removeUploadedFile(req.file);
-
         return res.status(400).json({
           success: false,
           message: relation.message,
@@ -942,8 +992,6 @@ const updateAssignment = async (req, res) => {
           relation.batch.branchId
         )
       ) {
-        await removeUploadedFile(req.file);
-
         return res.status(403).json({
           success: false,
           message:
@@ -960,8 +1008,6 @@ const updateAssignment = async (req, res) => {
         });
 
         if (!assigned) {
-          await removeUploadedFile(req.file);
-
           return res.status(403).json({
             success: false,
             message:
@@ -997,8 +1043,6 @@ const updateAssignment = async (req, res) => {
       });
 
       if (duplicate) {
-        await removeUploadedFile(req.file);
-
         return res.status(409).json({
           success: false,
           message: "Assignment code already exists.",
@@ -1006,11 +1050,17 @@ const updateAssignment = async (req, res) => {
       }
     }
 
-    const previousAttachmentPath =
-      assignment.attachment?.filePath;
+    // Keep the previous attachment until the new one is saved.
+    const previousAttachment = assignment.attachment
+      ? assignment.attachment.toObject?.() || assignment.attachment
+      : null;
 
+    // Upload replacement PDF.
     if (req.file) {
-      updates.attachment = getAttachmentMetadata(req.file);
+      uploadedAttachment =
+        await uploadAssignmentAttachment(req.file);
+
+      updates.attachment = uploadedAttachment;
     }
 
     Object.assign(assignment, updates);
@@ -1020,8 +1070,9 @@ const updateAssignment = async (req, res) => {
     await assignment.save();
     saved = true;
 
-    if (req.file && previousAttachmentPath) {
-      await removeAttachmentFile(previousAttachmentPath);
+    // Remove previous attachment only after successful save.
+    if (req.file && previousAttachment) {
+      await removeStoredAttachment(previousAttachment);
     }
 
     const data = await populateAssignment(
@@ -1034,8 +1085,9 @@ const updateAssignment = async (req, res) => {
       data,
     });
   } catch (error) {
-    if (req.file && !saved) {
-      await removeUploadedFile(req.file);
+    // If database save fails, remove the newly uploaded PDF.
+    if (uploadedAttachment && !saved) {
+      await removeCloudinaryAttachment(uploadedAttachment);
     }
 
     if (error.code === 11000) {
@@ -1093,12 +1145,13 @@ const deleteAssignment = async (req, res) => {
       });
     }
 
-    const attachmentPath =
-      assignment.attachment?.filePath;
+    const attachment = assignment.attachment
+      ? assignment.attachment.toObject?.() || assignment.attachment
+      : null;
 
     await Assignment.findByIdAndDelete(id);
 
-    await removeAttachmentFile(attachmentPath);
+    await removeStoredAttachment(attachment);
 
     return res.status(200).json({
       success: true,
@@ -1139,7 +1192,7 @@ const downloadAssignmentAttachment = async (req, res) => {
       });
     }
 
-    // Check access before allowing attachment download.
+    // Verify user access before generating download URL.
     if (!(await canManageAssignment(req.user, assignment))) {
       return res.status(403).json({
         success: false,
@@ -1147,8 +1200,35 @@ const downloadAssignmentAttachment = async (req, res) => {
       });
     }
 
+    const attachment = assignment.attachment;
+
+    if (!attachment || !attachment.fileName) {
+      return res.status(404).json({
+        success: false,
+        message: "No attachment found for this assignment.",
+      });
+    }
+
+    // CLOUDINARY DOWNLOAD
+    if (attachment.cloudinaryPublicId) {
+      const downloadUrl =
+        cloudinary.utils.private_download_url(
+          attachment.cloudinaryPublicId,
+          "pdf",
+          {
+            resource_type: attachment.resourceType || "image",
+            type: attachment.deliveryType || "authenticated",
+            expires_at: Math.floor(Date.now() / 1000) + 300,
+            attachment: true,
+          }
+        );
+
+      return res.redirect(302, downloadUrl);
+    }
+
+    // LEGACY LOCAL FILE DOWNLOAD
     const filePath = resolveStoredAttachment(
-      assignment.attachment?.filePath
+      attachment.filePath
     );
 
     if (!filePath || !fs.existsSync(filePath)) {
@@ -1164,7 +1244,7 @@ const downloadAssignmentAttachment = async (req, res) => {
     return res.download(
       filePath,
       path.basename(
-        assignment.attachment.fileName || "assignment.pdf"
+        attachment.fileName || "assignment.pdf"
       )
     );
   } catch (error) {

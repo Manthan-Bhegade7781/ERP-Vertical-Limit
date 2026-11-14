@@ -1,33 +1,11 @@
+
 const multer = require("multer");
-const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
-
-const uploadDir = path.resolve(
-  process.cwd(),
-  "uploads",
-  "assignments"
-);
-
-fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-
-  filename: (req, file, cb) => {
-    cb(null, `${crypto.randomUUID()}.pdf`);
-  },
-});
 
 const fileFilter = (req, file, cb) => {
   const extension = path.extname(file.originalname).toLowerCase();
 
-  if (
-    extension !== ".pdf" ||
-    file.mimetype !== "application/pdf"
-  ) {
+  if (extension !== ".pdf" || file.mimetype !== "application/pdf") {
     return cb(new Error("Only PDF files are allowed."));
   }
 
@@ -35,7 +13,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 const uploadAssignmentPDF = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024,
@@ -43,45 +21,16 @@ const uploadAssignmentPDF = multer({
   },
 }).single("attachment");
 
-// Validate PDF signature
 const validatePDFSignature = (req, res, next) => {
   if (!req.file) return next();
 
-  const fd = fs.openSync(req.file.path, "r");
-  const buffer = Buffer.alloc(5);
+  const buffer = req.file.buffer;
 
-  try {
-    const bytesRead = fs.readSync(fd, buffer, 0, 5, 0);
-
-    if (
-      bytesRead !== 5 ||
-      buffer.toString("ascii") !== "%PDF-"
-    ) {
-      fs.unlink(req.file.path, (error) => {
-        if (error && error.code !== "ENOENT") {
-          console.error(
-            "Failed to remove invalid PDF:",
-            error
-          );
-        }
-
-        return next(
-          new Error("The uploaded file is not a valid PDF.")
-        );
-      });
-
-      return;
-    }
-
-    return next();
-  } catch (error) {
-    return next(error);
-  } finally {
-    fs.closeSync(fd);
+  if (!buffer || buffer.length < 5 || buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    return next(new Error("The uploaded file is not a valid PDF."));
   }
+
+  next();
 };
 
-module.exports = [
-  uploadAssignmentPDF,
-  validatePDFSignature,
-];
+module.exports = [uploadAssignmentPDF, validatePDFSignature];
