@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +14,9 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { createTeacher, fetchTeacherBranches } from "@/services/teachers";
+import type { TeacherBranch } from "@/services/teachers";
+import { getCurrentUser } from "@/services/auth";
 
 type SelectFieldProps = {
   label: string;
@@ -106,56 +110,135 @@ export default function AddTeacherPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
+  const [password, setPassword] = useState("");
   const [subject, setSubject] = useState("");
   const [qualification, setQualification] = useState("");
   const [experience, setExperience] = useState("");
   const [batch, setBatch] = useState("");
-  const [branch, setBranch] = useState("");
-  const [employeeId, setEmployeeId] = useState("");
   const [address, setAddress] = useState("");
+
+  const [assignedBranch, setAssignedBranch] = useState<TeacherBranch | null>(null);
+  const [isLoadingBranch, setIsLoadingBranch] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadBranch = async () => {
+      setIsLoadingBranch(true);
+      try {
+        const [storedUser, branchList] = await Promise.all([
+          getCurrentUser(),
+          fetchTeacherBranches().catch(() => [] as TeacherBranch[]),
+        ]);
+        if (!mounted) return;
+        const userBranchId = typeof storedUser?.branchId === 'object' && storedUser?.branchId
+          ? (storedUser.branchId as any)._id
+          : storedUser?.branchId;
+        const matched = branchList.find((b: TeacherBranch) => String(b._id) === String(userBranchId));
+        if (matched) {
+          setAssignedBranch(matched);
+        } else if (userBranchId) {
+          setAssignedBranch({ _id: String(userBranchId), name: 'My Branch', code: 'BR' });
+        } else if (branchList.length > 0) {
+          setAssignedBranch(branchList[0]);
+        }
+      } catch (err) {
+        console.error('Error loading branch info:', err);
+      } finally {
+        if (mounted) setIsLoadingBranch(false);
+      }
+    };
+    void loadBranch();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const resetForm = () => {
     setFullName("");
     setEmail("");
     setMobile("");
+    setPassword("");
     setSubject("");
     setQualification("");
     setExperience("");
     setBatch("");
-    setBranch("");
-    setEmployeeId("");
     setAddress("");
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
+
     if (
       !fullName.trim() ||
+      !email.trim() ||
       !mobile.trim() ||
-      !subject ||
-      !qualification ||
-      !batch ||
-      !branch
+      !password.trim() ||
+      !qualification.trim() ||
+      !experience.trim()
     ) {
       Alert.alert(
         "Required Fields",
-        "Please fill all required teacher details."
+        "Please fill all required teacher details marked with *."
       );
       return;
     }
 
-    Alert.alert(
-      "Teacher Added",
-      `${fullName.trim()} has been added successfully.`,
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            resetForm();
-            router.back();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
+      return;
+    }
+
+    if (!/^[6-9]\d{9}$/.test(mobile.trim())) {
+      Alert.alert("Invalid Mobile Number", "Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    if (password.trim().length < 6) {
+      Alert.alert("Invalid Password", "Initial password must be at least 6 characters.");
+      return;
+    }
+
+    if (!assignedBranch?._id) {
+      Alert.alert("Branch Required", "No assigned branch found for your admin account.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const created = await createTeacher({
+        fullName: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        mobileNumber: mobile.trim(),
+        password,
+        branchId: assignedBranch._id,
+        specialization: subject.trim(),
+        qualification: qualification.trim(),
+        experience: experience.trim(),
+        address: address.trim(),
+      });
+
+      Alert.alert(
+        "Teacher Added",
+        `${fullName.trim()} has been added successfully to ${assignedBranch.name}.\nEmployee ID: ${created.employeeId}`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              resetForm();
+              router.back();
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } catch (error) {
+      Alert.alert(
+        "Unable to Add Teacher",
+        error instanceof Error ? error.message : "Something went wrong. Please try again."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -294,40 +377,54 @@ export default function AddTeacherPage() {
 
             <View style={styles.twoColumn}>
               <View style={styles.column}>
-                <Text style={styles.fieldLabel}>Employee ID</Text>
+                <Text style={styles.fieldLabel}>
+                  Initial Password <Text style={styles.required}>*</Text>
+                </Text>
 
                 <View style={styles.textInputWrapper}>
                   <MaterialCommunityIcons
-                    name="card-account-details-outline"
+                    name="lock-outline"
                     size={19}
                     color="#7040D5"
                   />
                   <TextInput
-                    value={employeeId}
-                    onChangeText={setEmployeeId}
-                    placeholder="e.g. VLCC-FAC-001"
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Min 6 characters"
                     placeholderTextColor="#9AA2B1"
-                    autoCapitalize="characters"
+                    secureTextEntry
                     style={styles.textInput}
                   />
                 </View>
               </View>
 
               <View style={styles.column}>
-                <SelectField
-                  label="Branch"
-                  value={branch}
-                  placeholder="Select branch"
-                  icon="office-building-outline"
-                  options={[
-                    "Pune Branch",
-                    "Mumbai Branch",
-                    "Nashik Branch",
-                    "Nagpur Branch",
-                    "Main Branch",
-                  ]}
-                  onSelect={setBranch}
-                />
+                <Text style={styles.fieldLabel}>
+                  Branch <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={[styles.textInputWrapper, { backgroundColor: '#F0EFF9' }]}>
+                  <MaterialCommunityIcons
+                    name="office-building-outline"
+                    size={19}
+                    color="#7040D5"
+                  />
+                  <TextInput
+                    value={
+                      isLoadingBranch
+                        ? "Loading branch..."
+                        : assignedBranch
+                        ? `${assignedBranch.name}`
+                        : "Branch unavailable"
+                    }
+                    editable={false}
+                    style={[styles.textInput, { color: '#4B3F72', fontWeight: '500' }]}
+                  />
+                  <MaterialCommunityIcons
+                    name="lock-outline"
+                    size={17}
+                    color="#7040D5"
+                  />
+                </View>
               </View>
             </View>
           </View>
@@ -504,16 +601,23 @@ export default function AddTeacherPage() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.saveButton}
+              style={[styles.saveButton, isSaving && { opacity: 0.65 }]}
               activeOpacity={0.85}
               onPress={handleSave}
+              disabled={isSaving}
             >
-              <MaterialCommunityIcons
-                name="account-plus-outline"
-                size={18}
-                color="#FFFFFF"
-              />
-              <Text style={styles.saveButtonText}>Add Teacher</Text>
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons
+                    name="account-plus-outline"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.saveButtonText}>Add Teacher</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
 

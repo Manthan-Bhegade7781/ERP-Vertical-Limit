@@ -16,7 +16,7 @@ const router = express.Router();
 router.post(
   "/",
   protect,
-  authorizeRoles("super_admin"),
+  authorizeRoles("super_admin", "admin"),
   createTeacher
 );
 
@@ -35,14 +35,14 @@ router.get(
 router.put(
   "/:id",
   protect,
-  authorizeRoles("super_admin"),
+  authorizeRoles("super_admin", "admin"),
   updateTeacher
 );
 
 router.patch(
   "/:id/status",
   protect,
-  authorizeRoles("super_admin"),
+  authorizeRoles("super_admin", "admin"),
   updateTeacherStatus
 );
 

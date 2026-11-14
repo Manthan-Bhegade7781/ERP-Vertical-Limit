@@ -597,6 +597,22 @@ export type CreateTeacherAttendancePayload = {
   remarks?: string;
 };
 
+export const fetchTeacherAttendanceRecords = async (
+  filters?: { batchId?: string; subjectId?: string; date?: string },
+): Promise<TeacherAttendanceApiRecord[]> => {
+  const params = new URLSearchParams();
+  if (filters?.batchId) params.append('batchId', filters.batchId);
+  if (filters?.subjectId) params.append('subjectId', filters.subjectId);
+  if (filters?.date) params.append('date', filters.date);
+
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const result = await apiRequest<TeacherAttendanceApiRecord[]>(
+    `/teacher-attendance${query}`,
+  );
+
+  return Array.isArray(result.data) ? result.data : [];
+};
+
 export const fetchTeacherAttendanceRecord = async (
   filters: { batchId: string; subjectId: string; date: string },
 ): Promise<TeacherAttendanceApiRecord | null> => {

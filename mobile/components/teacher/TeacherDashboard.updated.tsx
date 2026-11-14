@@ -24,8 +24,6 @@ import { useAuth } from "@/context/AuthContext";
 import { updateCurrentUser } from "@/services/auth";
 
 import ChangePasswordPage from "./Profile/ChangePasswordPage";
-import NotificationSettingsPage from "./Profile/NotificationSettingsPage";
-import HelpSupportPage from "./Profile/HelpSupportPage";
 
 import MarkAttendance from "./QuickActions/MarkAttendance";
 import AddLectureLog from "./QuickActions/AddLectureLog";
@@ -40,10 +38,12 @@ import TeacherMyLeave from "./MyLeave/TeacherMyLeave";
 import TeacherPTGSchedule from "./PTG/TeacherPTGSchedule";
 import TeacherExaminations from "./Examinations/TeacherExaminations";
 import TeacherAssignments from "./Assignments/TeacherAssignments";
+import TeacherAddAssignmentPage from "./Assignments/TeacherAddAssignmentPage";
 
 // Communication pages
 import TeacherMessages from "./Messages/TeacherMessages";
 import TeacherFeedback from "./Feedback/TeacherFeedback";
+import TeacherNotificationsPage from "./Notifications/TeacherNotificationsPage";
 
 type TabName =
   | "home"
@@ -54,35 +54,23 @@ type TabName =
   | "lectureLog"
   | "reports"
   | "changePassword"
-  | "notificationSettings"
-  | "helpSupport"
   | "ptg"
   | "examinations"
   | "assignments"
+  | "addAssignment"
   | "academicCalendar"
   | "my-leave"
   | "messages"
   | "staffOnLeave"
-  | "feedback";
-
-type NotificationView =
-  | "menu"
-  | "messages"
-  | "ptg"
-  | "examinations"
-  | "assignments";
+  | "feedback"
+  | "notifications";
 
 export default function TeacherDashboard() {
   const { user, updateUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabName>("home");
 
-  const [notificationsVisible, setNotificationsVisible] = useState(false);
-
   const [sidebarVisible, setSidebarVisible] = useState(false);
-
-  const [notificationView, setNotificationView] =
-    useState<NotificationView>("menu");
 
   /* --------------------------------
      PROFILE DATA
@@ -113,16 +101,6 @@ export default function TeacherDashboard() {
   -------------------------------- */
 
   const handleTabChange = (tab: TabName) => {
-    setActiveTab(tab);
-  };
-
-  /* --------------------------------
-     OPEN NOTIFICATION PAGE
-  -------------------------------- */
-
-  const handleNotificationNavigation = (tab: TabName) => {
-    setNotificationsVisible(false);
-    setNotificationView("menu");
     setActiveTab(tab);
   };
 
@@ -217,12 +195,26 @@ export default function TeacherDashboard() {
 
       <TeacherHeader
         onMenuPress={() => setSidebarVisible(true)}
-        onNotificationPress={() => {
-          setNotificationView("menu");
-          setNotificationsVisible(true);
-        }}
         onProfilePress={() => {
           setActiveTab("profile");
+        }}
+        onViewAllNotifications={() => {
+          setActiveTab("notifications");
+        }}
+        onPTGPress={() => {
+          setActiveTab("ptg");
+        }}
+        onAssignmentsPress={() => {
+          setActiveTab("assignments");
+        }}
+        onExaminationsPress={() => {
+          setActiveTab("examinations");
+        }}
+        onMessagesPress={() => {
+          setActiveTab("messages");
+        }}
+        onAttendancePress={() => {
+          setActiveTab("attendance");
         }}
       />
 
@@ -254,297 +246,6 @@ export default function TeacherDashboard() {
       </Modal>
 
       {/* =================================
-          NOTIFICATION SHORTCUT MODAL
-      ================================= */}
-
-      <Modal
-        visible={notificationsVisible}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setNotificationsVisible(false)}
-      >
-        <View style={styles.notificationOverlay}>
-          <View style={styles.notificationCard}>
-            {/* Notification Header */}
-
-            <View style={styles.notificationHeader}>
-              <View>
-                <Text style={styles.notificationTitle}>
-                  {notificationView === "menu"
-                    ? "Notifications"
-                    : notificationView === "messages"
-                      ? "Messages"
-                      : notificationView === "ptg"
-                        ? "PTG Schedule"
-                        : notificationView === "examinations"
-                          ? "Examinations"
-                          : "Assignments"}
-                </Text>
-
-                <Text style={styles.notificationSubtitle}>
-                  {notificationView === "menu"
-                    ? "Quick access to your updates"
-                    : notificationView === "messages"
-                      ? "Teacher communication"
-                      : notificationView === "ptg"
-                        ? "Parent-Teacher-Guardian meetings"
-                        : notificationView === "examinations"
-                          ? "View examination schedules"
-                          : "View your assigned work"}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.notificationClose}
-                onPress={() => setNotificationsVisible(false)}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={22}
-                  color="#667085"
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Notification Menu */}
-
-            {notificationView === "menu" ? (
-              <View style={styles.notificationOptions}>
-                {/* MESSAGES */}
-
-                <TouchableOpacity
-                  style={styles.notificationOption}
-                  activeOpacity={0.8}
-                  onPress={() => handleNotificationNavigation("messages")}
-                >
-                  <View
-                    style={[
-                      styles.notificationOptionIcon,
-                      styles.messageIcon,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="message-text-outline"
-                      size={23}
-                      color="#7040D5"
-                    />
-                  </View>
-
-                  <View style={styles.notificationOptionText}>
-                    <Text style={styles.notificationOptionTitle}>
-                      Messages
-                    </Text>
-
-                    <Text style={styles.notificationOptionDescription}>
-                      View teacher messages and updates
-                    </Text>
-                  </View>
-
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={22}
-                    color="#98A2B3"
-                  />
-                </TouchableOpacity>
-
-                {/* PTG SCHEDULE */}
-
-                <TouchableOpacity
-                  style={styles.notificationOption}
-                  activeOpacity={0.8}
-                  onPress={() => handleNotificationNavigation("ptg")}
-                >
-                  <View
-                    style={[styles.notificationOptionIcon, styles.ptgIcon]}
-                  >
-                    <MaterialCommunityIcons
-                      name="calendar-month-outline"
-                      size={23}
-                      color="#2675E8"
-                    />
-                  </View>
-
-                  <View style={styles.notificationOptionText}>
-                    <Text style={styles.notificationOptionTitle}>
-                      PTG Schedule
-                    </Text>
-
-                    <Text style={styles.notificationOptionDescription}>
-                      View Parent-Teacher-Guardian meetings
-                    </Text>
-                  </View>
-
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={22}
-                    color="#98A2B3"
-                  />
-                </TouchableOpacity>
-
-                {/* EXAMINATIONS */}
-
-                <TouchableOpacity
-                  style={styles.notificationOption}
-                  activeOpacity={0.8}
-                  onPress={() =>
-                    handleNotificationNavigation("examinations")
-                  }
-                >
-                  <View
-                    style={[
-                      styles.notificationOptionIcon,
-                      styles.examinationIcon,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="clipboard-text-outline"
-                      size={23}
-                      color="#2675E8"
-                    />
-                  </View>
-
-                  <View style={styles.notificationOptionText}>
-                    <Text style={styles.notificationOptionTitle}>
-                      Examinations
-                    </Text>
-
-                    <Text style={styles.notificationOptionDescription}>
-                      View upcoming and completed examinations
-                    </Text>
-                  </View>
-
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={22}
-                    color="#98A2B3"
-                  />
-                </TouchableOpacity>
-
-                {/* ASSIGNMENTS */}
-
-                <TouchableOpacity
-                  style={styles.notificationOption}
-                  activeOpacity={0.8}
-                  onPress={() =>
-                    handleNotificationNavigation("assignments")
-                  }
-                >
-                  <View
-                    style={[
-                      styles.notificationOptionIcon,
-                      styles.passwordIcon,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="book-open-page-variant-outline"
-                      size={23}
-                      color="#D97706"
-                    />
-                  </View>
-
-                  <View style={styles.notificationOptionText}>
-                    <Text style={styles.notificationOptionTitle}>
-                      Assignments
-                    </Text>
-
-                    <Text style={styles.notificationOptionDescription}>
-                      View assignments and download attachments
-                    </Text>
-                  </View>
-
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={22}
-                    color="#98A2B3"
-                  />
-                </TouchableOpacity>
-
-                {/* CHANGE PASSWORD */}
-
-                <TouchableOpacity
-                  style={styles.notificationOption}
-                  activeOpacity={0.8}
-                  onPress={() =>
-                    handleNotificationNavigation("changePassword")
-                  }
-                >
-                  <View
-                    style={[
-                      styles.notificationOptionIcon,
-                      styles.passwordIcon,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="lock-reset"
-                      size={23}
-                      color="#D97706"
-                    />
-                  </View>
-
-                  <View style={styles.notificationOptionText}>
-                    <Text style={styles.notificationOptionTitle}>
-                      Change Password
-                    </Text>
-
-                    <Text style={styles.notificationOptionDescription}>
-                      Update your teacher account password
-                    </Text>
-                  </View>
-
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={22}
-                    color="#98A2B3"
-                  />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              /* MESSAGE DETAIL */
-
-              <View style={styles.notificationDetail}>
-                <View style={styles.notificationDetailIcon}>
-                  <MaterialCommunityIcons
-                    name="message-text-outline"
-                    size={32}
-                    color="#7040D5"
-                  />
-                </View>
-
-                <Text style={styles.notificationDetailTitle}>
-                  Messages
-                </Text>
-
-                <Text style={styles.notificationDetailText}>
-                  Open the Messages module to view and manage your
-                  conversations.
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.notificationBackButton}
-                  onPress={() => {
-                    handleNotificationNavigation("messages");
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <MaterialCommunityIcons
-                    name="arrow-right"
-                    size={17}
-                    color="#7040D5"
-                  />
-
-                  <Text style={styles.notificationBackText}>
-                    Open Messages
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* =================================
           HOME
       ================================= */}
 
@@ -561,7 +262,12 @@ export default function TeacherDashboard() {
           scrollEventThrottle={16}
           onScroll={handleContentScroll}
         >
-          <OverviewSection />
+          <OverviewSection
+            onAttendancePress={() => handleTabChange("attendance")}
+            onBatchesPress={() => handleTabChange("batches")}
+            onStudentsPress={() => handleTabChange("students")}
+            onLectureLogPress={() => handleTabChange("lectureLog")}
+          />
 
           <ScheduleSection
             onViewAllPress={() => {
@@ -579,10 +285,34 @@ export default function TeacherDashboard() {
             onBatchesPress={() => {
               handleTabChange("batches");
             }}
+            onStudentsPress={() => {
+              handleTabChange("students");
+            }}
             onReportsPress={() => {
               setSelectedStudentId(undefined);
               setSelectedStudentName(undefined);
               handleTabChange("reports");
+            }}
+            onAssignmentsPress={() => {
+              handleTabChange("assignments");
+            }}
+            onExaminationsPress={() => {
+              handleTabChange("examinations");
+            }}
+            onPTGPress={() => {
+              handleTabChange("ptg");
+            }}
+            onCalendarPress={() => {
+              handleTabChange("academicCalendar");
+            }}
+            onMyLeavePress={() => {
+              handleTabChange("my-leave");
+            }}
+            onMessagesPress={() => {
+              handleTabChange("messages");
+            }}
+            onFeedbackPress={() => {
+              handleTabChange("feedback");
             }}
           />
 
@@ -609,12 +339,6 @@ export default function TeacherDashboard() {
             onChangePasswordPress={() => {
               setActiveTab("changePassword");
             }}
-            onNotificationSettingsPress={() => {
-              setActiveTab("notificationSettings");
-            }}
-            onHelpPress={() => {
-              setActiveTab("helpSupport");
-            }}
           />
         </View>
       )}
@@ -635,31 +359,15 @@ export default function TeacherDashboard() {
       )}
 
       {/* =================================
-          NOTIFICATION SETTINGS
+          NOTIFICATIONS
       ================================= */}
 
-      {activeTab === "notificationSettings" && (
+      {activeTab === "notifications" && (
         <View style={styles.pageContainer}>
-          <NotificationSettingsPage
+          <TeacherNotificationsPage
             onContentScroll={handleContentScroll}
-            onBack={() => {
-              setActiveTab("profile");
-            }}
-          />
-        </View>
-      )}
-
-      {/* =================================
-          HELP & SUPPORT
-      ================================= */}
-
-      {activeTab === "helpSupport" && (
-        <View style={styles.pageContainer}>
-          <HelpSupportPage
-            onContentScroll={handleContentScroll}
-            onBack={() => {
-              setActiveTab("profile");
-            }}
+            onBack={() => setActiveTab("home")}
+            onNavigate={(tab) => handleTabChange(tab as TabName)}
           />
         </View>
       )}
@@ -770,6 +478,22 @@ export default function TeacherDashboard() {
           <TeacherAssignments
             onContentScroll={handleContentScroll}
             onBack={() => setActiveTab("home")}
+            onAddAssignment={() => setActiveTab("addAssignment")}
+          />
+        </View>
+      )}
+
+      {/* =================================
+          ADD ASSIGNMENT
+      ================================= */}
+
+      {activeTab === "addAssignment" && (
+        <View style={styles.pageContainer}>
+          <TeacherAddAssignmentPage
+            onBack={() => setActiveTab("assignments")}
+            onCreated={() => {
+              setActiveTab("assignments");
+            }}
           />
         </View>
       )}
@@ -915,165 +639,4 @@ const styles = StyleSheet.create({
 
   /* NOTIFICATION MODAL */
 
-  notificationOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(16, 24, 40, 0.48)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 22,
-    paddingVertical: 30,
-  },
-
-  notificationCard: {
-    width: "100%",
-    maxWidth: 480,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 22,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    elevation: 12,
-  },
-
-  notificationHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    paddingBottom: 17,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEF0F5",
-  },
-
-  notificationTitle: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 20,
-    color: "#202A3A",
-  },
-
-  notificationSubtitle: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 11,
-    color: "#929CAB",
-    marginTop: 3,
-  },
-
-  notificationClose: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "#F5F6FA",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 10,
-  },
-
-  notificationOptions: {
-    paddingTop: 8,
-  },
-
-  notificationOption: {
-    minHeight: 76,
-    flexDirection: "row",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F2F6",
-    paddingVertical: 12,
-  },
-
-  notificationOptionIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  messageIcon: {
-    backgroundColor: "#F1EAFF",
-  },
-
-  ptgIcon: {
-    backgroundColor: "#EAF2FF",
-  },
-
-  examinationIcon: {
-    backgroundColor: "#EAF2FF",
-  },
-
-  passwordIcon: {
-    backgroundColor: "#FFF3E3",
-  },
-
-  notificationOptionText: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 13,
-    marginRight: 8,
-  },
-
-  notificationOptionTitle: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 13,
-    color: "#263247",
-  },
-
-  notificationOptionDescription: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 10,
-    lineHeight: 15,
-    color: "#8B96A6",
-    marginTop: 3,
-  },
-
-  notificationDetail: {
-    alignItems: "center",
-    paddingTop: 28,
-    paddingBottom: 10,
-  },
-
-  notificationDetailIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: "#F1EAFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-
-  notificationDetailTitle: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 16,
-    color: "#263247",
-  },
-
-  notificationDetailText: {
-    fontFamily: "PoppinsRegular",
-    fontSize: 11,
-    lineHeight: 18,
-    color: "#8B96A6",
-    textAlign: "center",
-    marginTop: 7,
-    maxWidth: 290,
-  },
-
-  notificationBackButton: {
-    minHeight: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 18,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: "#F1EAFF",
-  },
-
-  notificationBackText: {
-    fontFamily: "PoppinsSemiBold",
-    fontSize: 11,
-    color: "#7040D5",
-    marginLeft: 7,
-  },
 });

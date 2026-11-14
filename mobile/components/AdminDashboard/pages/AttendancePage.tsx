@@ -18,6 +18,11 @@ import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
 import { API_BASE_URL } from '@/config/api';
 import { getToken } from '@/services/auth';
+import {
+  fetchTeacherAttendanceRecords,
+  TeacherAttendanceApiRecord,
+  updateTeacherAttendanceRecord,
+} from '@/services/attendance';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Leave';
 type ApiStudent = {
@@ -130,6 +135,46 @@ const mapAttendance = (item: ApiAttendance): AttendanceRecord => {
   };
 };
 
+type TeacherAttendanceRecord = {
+  id: string;
+  studentMongoId: string;
+  studentName: string;
+  studentId: string;
+  date: string;
+  branch: string;
+  stdSub: string;
+  status: AttendanceStatus;
+  checkIn: string;
+  remarks: string;
+};
+
+const mapTeacherAttendance = (item: TeacherAttendanceApiRecord): TeacherAttendanceRecord => {
+  const teacher = item.teacherId && typeof item.teacherId === 'object' ? (item.teacherId as any) : undefined;
+  const batch = item.batchId && typeof item.batchId === 'object' ? (item.batchId as any) : undefined;
+  const subject = item.subjectId && typeof item.subjectId === 'object' ? (item.subjectId as any) : undefined;
+  const teacherName = teacher?.fullName || teacher?.name || 'Teacher';
+  const teacherId = teacher?.email || teacher?.mobileNumber || 'Teacher';
+  const batchName = getBatchName(batch || 'Batch');
+  const subjectName = getSubjectName(subject || 'Subject');
+  let branch = 'My branch';
+  if (batch && typeof batch === 'object' && batch.branchId) {
+    const branchValue = batch.branchId as { name?: string; branchName?: string; _id?: string } | string;
+    if (typeof branchValue === 'object') branch = branchValue.name || branchValue.branchName || 'My branch';
+  }
+  return {
+    id: item._id,
+    studentMongoId: getObjectId(item.teacherId),
+    studentName: teacherName,
+    studentId: teacherId,
+    date: getDateLabel(item.date),
+    branch,
+    stdSub: `${batchName} / ${subjectName}`,
+    status: item.status,
+    checkIn: item.checkIn || '',
+    remarks: item.remarks || '',
+  };
+};
+
 export default function AttendancePage() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -137,9 +182,11 @@ export default function AttendancePage() {
   const isTablet = width >= 700 && width < 1100;
   const isDesktop = width >= 900;
 
+  const [attendanceMode, setAttendanceMode] = useState<'student' | 'teacher'>('student');
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [teacherRecords, setTeacherRecords] = useState<TeacherAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -175,16 +222,20 @@ export default function AttendancePage() {
     try {
       const token = await getToken();
       if (!token) throw new Error('Your session could not be found. Please log in again.');
-      const response = await fetch(`${API_BASE_URL}/attendance`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      });
+      const [response, teacherData] = await Promise.all([
+        fetch(`${API_BASE_URL}/attendance`, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        }),
+        fetchTeacherAttendanceRecords().catch(() => [] as TeacherAttendanceApiRecord[]),
+      ]);
       const payload = await response.json();
       if (!response.ok || payload.success === false) {
         throw new Error(payload.message || 'Unable to load attendance records.');
       }
       const list: ApiAttendance[] = Array.isArray(payload.data) ? payload.data : [];
       setRecords(list.map(mapAttendance));
+      setTeacherRecords(teacherData.map(mapTeacherAttendance));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to load attendance records.';
       setErrorMessage(message);
@@ -196,15 +247,16 @@ export default function AttendancePage() {
 
   useEffect(() => { fetchAttendance(); }, [fetchAttendance]);
 
-  const filters = ['All', ...Array.from(new Set(records.map((r) => r.branch).filter((b) => b && b !== 'My branch'))), ...STATUS_OPTIONS];
+  const activeRecords = attendanceMode === 'student' ? records : teacherRecords;
+  const filters = ['All', ...Array.from(new Set(activeRecords.map((r) => r.branch).filter((b) => b && b !== 'My branch'))), ...STATUS_OPTIONS];
   const filteredRecords = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return records.filter((record) => {
+    return activeRecords.filter((record) => {
       const matchesSearch = !query || [record.studentName, record.studentId, record.branch, record.stdSub, record.date, record.status].some((value) => value.toLowerCase().includes(query));
       const matchesFilter = selectedFilter === 'All' || record.branch === selectedFilter || record.status === selectedFilter;
       return matchesSearch && matchesFilter;
     });
-  }, [records, search, selectedFilter]);
+  }, [activeRecords, search, selectedFilter]);
 
   const uniqueStudents = useMemo(() => {
     const map = new Map<string, StudentAttendance>();
@@ -226,10 +278,42 @@ export default function AttendancePage() {
     return Array.from(map.values());
   }, [records]);
 
-  const totalStudents = uniqueStudents.length;
-  const presentStudents = records.filter((r) => r.status === 'Present').length;
-  const absentStudents = records.filter((r) => r.status === 'Absent').length;
-  const attendancePercentage = records.length ? Math.round((records.filter((r) => r.status === 'Present' || r.status === 'Late').length / records.length) * 100) : 0;
+  const uniqueTeachers = useMemo(() => {
+    const map = new Map<string, StudentAttendance>();
+    for (const record of teacherRecords) {
+      const key = record.studentMongoId || record.studentName;
+      if (!key) continue;
+      const current = map.get(key) || {
+        studentMongoId: key,
+        studentId: record.studentId,
+        studentName: record.studentName,
+        standardBatch: record.stdSub,
+        branch: record.branch,
+        totalClasses: 0,
+        present: 0,
+        absent: 0,
+        late: 0,
+        leave: 0,
+        percentage: 0,
+      };
+      current.totalClasses += 1;
+      if (record.status === 'Present') current.present += 1;
+      if (record.status === 'Absent') current.absent += 1;
+      if (record.status === 'Late') current.late += 1;
+      if (record.status === 'Leave') current.leave += 1;
+      current.percentage = current.totalClasses
+        ? Math.round(((current.present + current.late) / current.totalClasses) * 100)
+        : 0;
+      map.set(key, current);
+    }
+    return Array.from(map.values());
+  }, [teacherRecords]);
+
+  const uniquePeople = attendanceMode === 'student' ? uniqueStudents : uniqueTeachers;
+  const totalCount = uniquePeople.length;
+  const presentCount = activeRecords.filter((r) => r.status === 'Present').length;
+  const absentCount = activeRecords.filter((r) => r.status === 'Absent').length;
+  const attendancePercentage = activeRecords.length ? Math.round((activeRecords.filter((r) => r.status === 'Present' || r.status === 'Late').length / activeRecords.length) * 100) : 0;
 
   const handleView = (record: AttendanceRecord) => { setSelectedRecord(record); setViewVisible(true); };
   const handleEdit = (record: AttendanceRecord) => {
@@ -244,32 +328,66 @@ export default function AttendancePage() {
     if (!selectedRecord) return;
     setSaving(true);
     try {
-      const token = await getToken();
-      if (!token) throw new Error('Your session could not be found. Please log in again.');
-      const response = await fetch(`${API_BASE_URL}/attendance/${selectedRecord.id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ status: editStatus, checkIn: editCheckIn, remarks: editRemarks }),
-      });
-      const payload = await response.json();
-      if (!response.ok || payload.success === false) throw new Error(payload.message || 'Unable to update attendance.');
-      setEditVisible(false);
-      await fetchAttendance(false);
-      Alert.alert('Success', payload.message || 'Attendance updated successfully.');
+      if (attendanceMode === 'teacher') {
+        await updateTeacherAttendanceRecord(selectedRecord.id, {
+          status: editStatus,
+          checkIn: editCheckIn,
+          remarks: editRemarks,
+        });
+        setEditVisible(false);
+        await fetchAttendance(false);
+        Alert.alert('Success', 'Teacher attendance updated successfully.');
+      } else {
+        const token = await getToken();
+        if (!token) throw new Error('Your session could not be found. Please log in again.');
+        const response = await fetch(`${API_BASE_URL}/attendance/${selectedRecord.id}`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ status: editStatus, checkIn: editCheckIn, remarks: editRemarks }),
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.success === false) throw new Error(payload.message || 'Unable to update attendance.');
+        setEditVisible(false);
+        await fetchAttendance(false);
+        Alert.alert('Success', payload.message || 'Attendance updated successfully.');
+      }
     } catch (error) {
       Alert.alert('Update failed', error instanceof Error ? error.message : 'Unable to update attendance.');
     } finally { setSaving(false); }
   };
 
-  const handleIndividualAttendance = async (student: StudentAttendance) => {
-    setSelectedStudentAttendance(student);
-    setIndividualSummary(null);
+  const handleIndividualAttendance = async (item: StudentAttendance) => {
+    setSelectedStudentAttendance(item);
     setIndividualAttendanceVisible(true);
+
+    if (attendanceMode === 'teacher') {
+      const history = teacherRecords.filter((r) =>
+        r.studentMongoId === item.studentMongoId || r.studentName === item.studentName
+      );
+      const totalDays = history.length;
+      const present = history.filter((r) => r.status === 'Present').length;
+      const absent = history.filter((r) => r.status === 'Absent').length;
+      const late = history.filter((r) => r.status === 'Late').length;
+      const leave = history.filter((r) => r.status === 'Leave').length;
+      const percentage = totalDays ? Math.round(((present + late) / totalDays) * 100) : 0;
+      setIndividualSummary({
+        totalDays,
+        present,
+        absent,
+        late,
+        leave,
+        percentage,
+      });
+      setSummaryLoading(false);
+      return;
+    }
+
+    setIndividualSummary(null);
     setSummaryLoading(true);
     try {
       const token = await getToken();
       if (!token) throw new Error('Your session could not be found. Please log in again.');
-      const response = await fetch(`${API_BASE_URL}/attendance/student/${student.studentMongoId}/summary`, {
+      const response = await fetch(`${API_BASE_URL}/attendance/student/${item.studentMongoId}/summary`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       const payload = await response.json();
@@ -280,7 +398,14 @@ export default function AttendancePage() {
     } finally { setSummaryLoading(false); }
   };
 
-  const studentHistory = selectedStudentAttendance ? records.filter((r) => r.studentMongoId === selectedStudentAttendance.studentMongoId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
+  const studentHistory = selectedStudentAttendance
+    ? activeRecords
+        .filter((r) =>
+          r.studentMongoId === selectedStudentAttendance.studentMongoId ||
+          r.studentName === selectedStudentAttendance.studentName
+        )
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    : [];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
@@ -299,7 +424,62 @@ export default function AttendancePage() {
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, isDesktop && styles.contentDesktop]}>
           <View style={styles.headingBlock}>
             <Text style={styles.pageTitle}>Attendance Management</Text>
-            <Text style={styles.pageSubtitle}>View attendance by date, branch and class or batch.</Text>
+            <Text style={styles.pageSubtitle}>
+              {attendanceMode === 'student'
+                ? 'View attendance by date, branch and class or batch.'
+                : 'Monitor teacher attendance records, check-in times and status.'}
+            </Text>
+          </View>
+
+          {/* ATTENDANCE MODE TOGGLE */}
+          <View style={styles.roleToggleContainer}>
+            <TouchableOpacity
+              style={[
+                styles.roleToggleButton,
+                attendanceMode === 'student' && styles.roleToggleButtonActive,
+              ]}
+              onPress={() => setAttendanceMode('student')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="school-outline"
+                size={18}
+                color={attendanceMode === 'student' ? '#FFFFFF' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.roleToggleText,
+                  attendanceMode === 'student' && styles.roleToggleTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                Students Attendance
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.roleToggleButton,
+                attendanceMode === 'teacher' && styles.roleToggleButtonActive,
+              ]}
+              onPress={() => setAttendanceMode('teacher')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="account-tie-outline"
+                size={18}
+                color={attendanceMode === 'teacher' ? '#FFFFFF' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.roleToggleText,
+                  attendanceMode === 'teacher' && styles.roleToggleTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                Teachers Attendance
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {errorMessage ? (
@@ -312,42 +492,85 @@ export default function AttendancePage() {
           ) : null}
 
           <ScrollView horizontal={!isDesktop} showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.summaryRow, !isDesktop && styles.summaryRowMobile]} style={!isDesktop ? styles.summaryScroll : undefined}>
-            <View style={styles.summaryCard}><View style={styles.summaryMain}><View style={[styles.summaryIcon, styles.summaryPurple]}><MaterialCommunityIcons name="account-group-outline" size={20} color="#7040D5" /></View><View style={styles.summaryTextBlock}><Text style={styles.summaryLabel}>Students in records</Text><Text style={styles.summaryValue}>{loading ? '—' : totalStudents}</Text></View></View></View>
-            <View style={styles.summaryCard}><View style={[styles.summaryIcon, styles.summaryGreen]}><MaterialCommunityIcons name="account-check-outline" size={20} color="#35B878" /></View><View><Text style={styles.summaryLabel}>Present records</Text><Text style={styles.summaryValue}>{loading ? '—' : presentStudents}</Text></View></View>
-            <View style={styles.summaryCard}><View style={[styles.summaryIcon, styles.summaryOrange]}><MaterialCommunityIcons name="account-remove-outline" size={20} color="#F7941D" /></View><View><Text style={styles.summaryLabel}>Absent records</Text><Text style={styles.summaryValue}>{loading ? '—' : absentStudents}</Text></View></View>
+            <View style={styles.summaryCard}><View style={styles.summaryMain}><View style={[styles.summaryIcon, styles.summaryPurple]}><MaterialCommunityIcons name={attendanceMode === 'student' ? "account-group-outline" : "account-tie-outline"} size={20} color="#7040D5" /></View><View style={styles.summaryTextBlock}><Text style={styles.summaryLabel}>{attendanceMode === 'student' ? 'Students in records' : 'Teachers in records'}</Text><Text style={styles.summaryValue}>{loading ? '—' : totalCount}</Text></View></View></View>
+            <View style={styles.summaryCard}><View style={[styles.summaryIcon, styles.summaryGreen]}><MaterialCommunityIcons name="account-check-outline" size={20} color="#35B878" /></View><View><Text style={styles.summaryLabel}>Present records</Text><Text style={styles.summaryValue}>{loading ? '—' : presentCount}</Text></View></View>
+            <View style={styles.summaryCard}><View style={[styles.summaryIcon, styles.summaryOrange]}><MaterialCommunityIcons name="account-remove-outline" size={20} color="#F7941D" /></View><View><Text style={styles.summaryLabel}>Absent records</Text><Text style={styles.summaryValue}>{loading ? '—' : absentCount}</Text></View></View>
             <View style={styles.summaryCard}><View style={[styles.summaryIcon, styles.summaryBlue]}><MaterialCommunityIcons name="percent-outline" size={20} color="#2675E8" /></View><View><Text style={styles.summaryLabel}>Present + Late</Text><Text style={styles.summaryValue}>{loading ? '—' : `${attendancePercentage}%`}</Text></View></View>
           </ScrollView>
 
           <View style={styles.individualCard}>
             <View style={styles.individualHeader}>
-              <View style={styles.individualIcon}><MaterialCommunityIcons name="account-details-outline" size={20} color="#7040D5" /></View>
-              <View style={styles.individualHeaderText}><Text style={styles.individualTitle}>Check Individual Attendance</Text><Text style={styles.individualSubtitle}>Choose a student to see their attendance summary.</Text></View>
-              {uniqueStudents.length > 0 && <TouchableOpacity style={styles.checkAllButton} onPress={() => handleIndividualAttendance(uniqueStudents[0])} activeOpacity={0.8}><Text style={styles.checkAllButtonText}>Check</Text></TouchableOpacity>}
+              <View style={styles.individualIcon}>
+                <MaterialCommunityIcons
+                  name={attendanceMode === 'student' ? "account-details-outline" : "account-tie-outline"}
+                  size={20}
+                  color="#7040D5"
+                />
+              </View>
+              <View style={styles.individualHeaderText}>
+                <Text style={styles.individualTitle}>
+                  {attendanceMode === 'student' ? 'Check Student Attendance' : 'Check Teacher Attendance'}
+                </Text>
+                <Text style={styles.individualSubtitle}>
+                  {attendanceMode === 'student'
+                    ? 'Choose a student to see their attendance summary.'
+                    : 'Choose a teacher to see their overall attendance summary.'}
+                </Text>
+              </View>
+              {uniquePeople.length > 0 && (
+                <TouchableOpacity
+                  style={styles.checkAllButton}
+                  onPress={() => handleIndividualAttendance(uniquePeople[0])}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.checkAllButtonText}>Check</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.studentAttendanceRow}>
-              {uniqueStudents.map((student) => (
-                <TouchableOpacity key={student.studentMongoId} style={styles.studentAttendanceChip} onPress={() => handleIndividualAttendance(student)} activeOpacity={0.8}>
-                  <View style={styles.chipIcon}><MaterialCommunityIcons name="account-outline" size={17} color="#7040D5" /></View>
-                  <View style={styles.chipText}><Text style={styles.chipName} numberOfLines={1}>{student.studentName}</Text><Text style={styles.chipMeta}>{student.percentage}% • {student.present + student.late}/{student.totalClasses}</Text></View>
+              {uniquePeople.map((person) => (
+                <TouchableOpacity
+                  key={person.studentMongoId}
+                  style={styles.studentAttendanceChip}
+                  onPress={() => handleIndividualAttendance(person)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.chipIcon}>
+                    <MaterialCommunityIcons
+                      name={attendanceMode === 'student' ? "account-outline" : "account-tie-outline"}
+                      size={17}
+                      color="#7040D5"
+                    />
+                  </View>
+                  <View style={styles.chipText}>
+                    <Text style={styles.chipName} numberOfLines={1}>{person.studentName}</Text>
+                    <Text style={styles.chipMeta}>{person.percentage}% • {person.present + person.late}/{person.totalClasses}</Text>
+                  </View>
                 </TouchableOpacity>
               ))}
-              {!loading && uniqueStudents.length === 0 && <Text style={styles.emptySubtitle}>No students with attendance records yet.</Text>}
+              {!loading && uniquePeople.length === 0 && (
+                <Text style={styles.emptySubtitle}>
+                  {attendanceMode === 'student'
+                    ? 'No students with attendance records yet.'
+                    : 'No teachers with attendance records yet.'}
+                </Text>
+              )}
             </ScrollView>
           </View>
 
           <View style={styles.searchCard}>
-            <View style={styles.searchBox}><MaterialCommunityIcons name="magnify" size={19} color="#8792A4" /><TextInput value={search} onChangeText={setSearch} placeholder="Search student, branch or batch..." placeholderTextColor="#A1A9B7" style={styles.searchInput} />{search.length > 0 && <TouchableOpacity onPress={() => setSearch('')} activeOpacity={0.7}><MaterialCommunityIcons name="close-circle-outline" size={18} color="#9AA4B2" /></TouchableOpacity>}</View>
+            <View style={styles.searchBox}><MaterialCommunityIcons name="magnify" size={19} color="#8792A4" /><TextInput value={search} onChangeText={setSearch} placeholder={attendanceMode === 'student' ? "Search student, branch or batch..." : "Search teacher, branch or subject..."} placeholderTextColor="#A1A9B7" style={styles.searchInput} />{search.length > 0 && <TouchableOpacity onPress={() => setSearch('')} activeOpacity={0.7}><MaterialCommunityIcons name="close-circle-outline" size={18} color="#9AA4B2" /></TouchableOpacity>}</View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {filters.map((filter) => { const active = selectedFilter === filter; return <TouchableOpacity key={filter} style={[styles.filterButton, active && styles.filterButtonActive]} onPress={() => setSelectedFilter(filter)} activeOpacity={0.8}><Text style={[styles.filterText, active && styles.filterTextActive]}>{filter}</Text></TouchableOpacity>; })}
             </ScrollView>
           </View>
 
-          <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Attendance Records</Text><Text style={styles.sectionSubtitle}>{filteredRecords.length} records found</Text></View><TouchableOpacity onPress={() => { setRefreshing(true); fetchAttendance(false); }} activeOpacity={0.8}><MaterialCommunityIcons name="refresh" size={24} color="#7040D5" /></TouchableOpacity></View>
+          <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>{attendanceMode === 'student' ? 'Attendance Records' : 'Teacher Attendance Records'}</Text><Text style={styles.sectionSubtitle}>{filteredRecords.length} records found</Text></View><TouchableOpacity onPress={() => { setRefreshing(true); fetchAttendance(false); }} activeOpacity={0.8}><MaterialCommunityIcons name="refresh" size={24} color="#7040D5" /></TouchableOpacity></View>
 
           {loading ? <View style={styles.emptyCard}><ActivityIndicator size="large" color="#7040D5" /><Text style={styles.emptySubtitle}>Loading attendance records...</Text></View> : filteredRecords.map((record) => (
             <TouchableOpacity key={record.id} style={styles.recordCard} activeOpacity={0.9} onPress={() => handleView(record)}>
-              <View style={styles.recordTopRow}><View style={styles.studentIcon}><MaterialCommunityIcons name="account-outline" size={22} color="#7040D5" /></View><View style={styles.studentInfo}><Text style={styles.studentName} numberOfLines={1}>{record.studentName}</Text><Text style={styles.studentId}>{record.studentId}</Text></View><View style={[styles.statusBadge, record.status === 'Present' || record.status === 'Late' ? styles.presentBadge : styles.absentBadge]}><Text style={[styles.statusText, record.status === 'Present' || record.status === 'Late' ? styles.presentText : styles.absentText]}>{record.status}</Text></View></View>
-              <View style={styles.detailsGrid}><View style={styles.detailItem}><Text style={styles.detailLabel}>DATE</Text><Text style={styles.detailValue}>{record.date}</Text></View><View style={styles.detailItem}><Text style={styles.detailLabel}>BRANCH</Text><Text style={styles.detailValue} numberOfLines={1}>{record.branch}</Text></View><View style={styles.detailItem}><Text style={styles.detailLabel}>STD / SUB</Text><Text style={styles.detailValue} numberOfLines={1}>{record.stdSub}</Text></View><View style={styles.detailItem}><Text style={styles.detailLabel}>STATUS</Text><Text style={[styles.detailValue, record.status === 'Present' || record.status === 'Late' ? styles.presentValue : styles.absentValue]}>{record.status}</Text></View></View>
+              <View style={styles.recordTopRow}><View style={styles.studentIcon}><MaterialCommunityIcons name={attendanceMode === 'student' ? "account-outline" : "account-tie-outline"} size={22} color="#7040D5" /></View><View style={styles.studentInfo}><Text style={styles.studentName} numberOfLines={1}>{record.studentName}</Text><Text style={styles.studentId}>{record.studentId}</Text></View><View style={[styles.statusBadge, record.status === 'Present' || record.status === 'Late' ? styles.presentBadge : styles.absentBadge]}><Text style={[styles.statusText, record.status === 'Present' || record.status === 'Late' ? styles.presentText : styles.absentText]}>{record.status}</Text></View></View>
+              <View style={styles.detailsGrid}><View style={styles.detailItem}><Text style={styles.detailLabel}>DATE</Text><Text style={styles.detailValue}>{record.date}</Text></View><View style={styles.detailItem}><Text style={styles.detailLabel}>BRANCH</Text><Text style={styles.detailValue} numberOfLines={1}>{record.branch}</Text></View><View style={styles.detailItem}><Text style={styles.detailLabel}>{attendanceMode === 'student' ? 'STD / SUB' : 'BATCH / SUB'}</Text><Text style={styles.detailValue} numberOfLines={1}>{record.stdSub}</Text></View><View style={styles.detailItem}><Text style={styles.detailLabel}>STATUS</Text><Text style={[styles.detailValue, record.status === 'Present' || record.status === 'Late' ? styles.presentValue : styles.absentValue]}>{record.status}</Text></View></View>
               <View style={styles.actionRow}><TouchableOpacity style={styles.editButton} onPress={() => handleEdit(record)} activeOpacity={0.8}><MaterialCommunityIcons name="pencil-outline" size={15} color="#7040D5" /><Text style={styles.editButtonText}>Edit</Text></TouchableOpacity><TouchableOpacity style={styles.viewButton} onPress={() => handleView(record)} activeOpacity={0.8}><MaterialCommunityIcons name="eye-outline" size={15} color="#7040D5" /><Text style={styles.viewButtonText}>View</Text></TouchableOpacity></View>
             </TouchableOpacity>
           ))}
@@ -357,10 +580,10 @@ export default function AttendancePage() {
         <Modal visible={editVisible} transparent animationType="fade" onRequestClose={() => setEditVisible(false)}>
           <View style={styles.modalOverlay}><View style={styles.modalCard}><View style={styles.modalHeader}><View><Text style={styles.modalTitle}>Edit Attendance</Text><Text style={styles.modalSubtitle}>Update status and attendance details</Text></View><TouchableOpacity style={styles.modalClose} onPress={() => setEditVisible(false)} activeOpacity={0.8}><MaterialCommunityIcons name="close" size={20} color="#6F7D90" /></TouchableOpacity></View>
             {selectedRecord && <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
-              <View style={styles.editStudentHeader}><View style={styles.modalStudentIcon}><MaterialCommunityIcons name="account-outline" size={26} color="#7040D5" /></View><View style={styles.modalStudentInfo}><Text style={styles.modalStudentName}>{selectedRecord.studentName}</Text><Text style={styles.modalStudentId}>{selectedRecord.studentId}</Text></View></View>
+              <View style={styles.editStudentHeader}><View style={styles.modalStudentIcon}><MaterialCommunityIcons name={attendanceMode === 'student' ? "account-outline" : "account-tie-outline"} size={26} color="#7040D5" /></View><View style={styles.modalStudentInfo}><Text style={styles.modalStudentName}>{selectedRecord.studentName}</Text><Text style={styles.modalStudentId}>{selectedRecord.studentId}</Text></View></View>
               <View style={styles.editField}><Text style={styles.editLabel}>DATE</Text><TextInput value={selectedRecord.date} editable={false} style={[styles.editInput, { opacity: 0.7 }]} /></View>
               <View style={styles.editField}><Text style={styles.editLabel}>BRANCH</Text><TextInput value={selectedRecord.branch} editable={false} style={[styles.editInput, { opacity: 0.7 }]} /></View>
-              <View style={styles.editField}><Text style={styles.editLabel}>STD / SUBJECT</Text><TextInput value={selectedRecord.stdSub} editable={false} style={[styles.editInput, { opacity: 0.7 }]} /></View>
+              <View style={styles.editField}><Text style={styles.editLabel}>{attendanceMode === 'student' ? 'STD / SUBJECT' : 'BATCH / SUBJECT'}</Text><TextInput value={selectedRecord.stdSub} editable={false} style={[styles.editInput, { opacity: 0.7 }]} /></View>
               <Text style={styles.editLabel}>ATTENDANCE STATUS</Text><View style={styles.editStatusRow}>{STATUS_OPTIONS.map((status) => <TouchableOpacity key={status} style={[styles.editStatusButton, editStatus === status && (status === 'Present' || status === 'Late' ? styles.editStatusActive : styles.editAbsentActive)]} onPress={() => setEditStatus(status)} activeOpacity={0.8}><Text style={[styles.editStatusText, editStatus === status && (status === 'Present' || status === 'Late' ? styles.editStatusActiveText : styles.editAbsentActiveText)]}>{status}</Text></TouchableOpacity>)}</View>
               <View style={styles.editField}><Text style={styles.editLabel}>CHECK-IN (OPTIONAL)</Text><TextInput value={editCheckIn} onChangeText={setEditCheckIn} placeholder="e.g. 09:05 AM" placeholderTextColor="#A1A9B7" style={styles.editInput} /></View>
               <View style={styles.editField}><Text style={styles.editLabel}>REMARKS (OPTIONAL)</Text><TextInput value={editRemarks} onChangeText={setEditRemarks} placeholder="Add remarks" placeholderTextColor="#A1A9B7" style={[styles.editInput, { minHeight: 76, textAlignVertical: 'top' }]} multiline /></View>
@@ -370,10 +593,10 @@ export default function AttendancePage() {
         </Modal>
 
         <Modal visible={individualAttendanceVisible} transparent animationType="fade" onRequestClose={() => setIndividualAttendanceVisible(false)}>
-          <View style={styles.modalOverlay}><View style={styles.modalCard}><View style={styles.modalHeader}><View><Text style={styles.modalTitle}>Individual Attendance</Text><Text style={styles.modalSubtitle}>Attendance summary and history</Text></View><TouchableOpacity style={styles.modalClose} onPress={() => setIndividualAttendanceVisible(false)} activeOpacity={0.8}><MaterialCommunityIcons name="close" size={20} color="#6F7D90" /></TouchableOpacity></View>
+          <View style={styles.modalOverlay}><View style={styles.modalCard}><View style={styles.modalHeader}><View><Text style={styles.modalTitle}>{attendanceMode === 'student' ? 'Individual Student Attendance' : 'Individual Teacher Attendance'}</Text><Text style={styles.modalSubtitle}>Attendance summary and history</Text></View><TouchableOpacity style={styles.modalClose} onPress={() => setIndividualAttendanceVisible(false)} activeOpacity={0.8}><MaterialCommunityIcons name="close" size={20} color="#6F7D90" /></TouchableOpacity></View>
             {selectedStudentAttendance && <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
-              <View style={styles.modalStudent}><View style={styles.modalStudentIcon}><MaterialCommunityIcons name="account-outline" size={26} color="#7040D5" /></View><View style={styles.modalStudentInfo}><Text style={styles.modalStudentName}>{selectedStudentAttendance.studentName}</Text><Text style={styles.modalStudentId}>{selectedStudentAttendance.studentId}</Text></View></View>
-              <View style={styles.individualModalCourse}><Text style={styles.modalLabel}>STANDARD / BATCH</Text><Text style={styles.modalValue}>{selectedStudentAttendance.standardBatch}</Text></View><View style={styles.individualModalCourse}><Text style={styles.modalLabel}>BRANCH</Text><Text style={styles.modalValue}>{selectedStudentAttendance.branch}</Text></View>
+              <View style={styles.modalStudent}><View style={styles.modalStudentIcon}><MaterialCommunityIcons name={attendanceMode === 'student' ? "account-outline" : "account-tie-outline"} size={26} color="#7040D5" /></View><View style={styles.modalStudentInfo}><Text style={styles.modalStudentName}>{selectedStudentAttendance.studentName}</Text><Text style={styles.modalStudentId}>{selectedStudentAttendance.studentId}</Text></View></View>
+              <View style={styles.individualModalCourse}><Text style={styles.modalLabel}>{attendanceMode === 'student' ? 'STANDARD / BATCH' : 'BATCH / SUBJECT'}</Text><Text style={styles.modalValue}>{selectedStudentAttendance.standardBatch}</Text></View><View style={styles.individualModalCourse}><Text style={styles.modalLabel}>BRANCH</Text><Text style={styles.modalValue}>{selectedStudentAttendance.branch}</Text></View>
               {summaryLoading ? <ActivityIndicator size="large" color="#7040D5" /> : <View style={styles.attendanceStatsGrid}>
                 <View style={styles.attendanceStatBox}><Text style={styles.attendanceStatLabel}>TOTAL CLASSES</Text><Text style={styles.attendanceStatValue}>{individualSummary?.totalDays ?? 0}</Text></View>
                 <View style={[styles.attendanceStatBox, styles.attendancePresentBox]}><Text style={styles.attendanceStatLabel}>PRESENT</Text><Text style={[styles.attendanceStatValue, styles.presentValue]}>{individualSummary?.present ?? 0}</Text></View>
@@ -392,8 +615,8 @@ export default function AttendancePage() {
         <Modal visible={viewVisible} transparent animationType="fade" onRequestClose={() => setViewVisible(false)}>
           <View style={styles.modalOverlay}><View style={styles.modalCard}><View style={styles.modalHeader}><View><Text style={styles.modalTitle}>Attendance Details</Text><Text style={styles.modalSubtitle}>Attendance record information</Text></View><TouchableOpacity style={styles.modalClose} onPress={() => setViewVisible(false)} activeOpacity={0.8}><MaterialCommunityIcons name="close" size={20} color="#6F7D90" /></TouchableOpacity></View>
             {selectedRecord && <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
-              <View style={styles.modalStudent}><View style={styles.modalStudentIcon}><MaterialCommunityIcons name="account-outline" size={26} color="#7040D5" /></View><View><Text style={styles.modalStudentName}>{selectedRecord.studentName}</Text><Text style={styles.modalStudentId}>{selectedRecord.studentId}</Text></View></View>
-              <View style={styles.modalDetailsGrid}><View style={styles.modalDetail}><Text style={styles.modalLabel}>DATE</Text><Text style={styles.modalValue}>{selectedRecord.date}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>BRANCH</Text><Text style={styles.modalValue}>{selectedRecord.branch}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>STD / SUB</Text><Text style={styles.modalValue}>{selectedRecord.stdSub}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>STATUS</Text><Text style={[styles.modalValue, selectedRecord.status === 'Present' || selectedRecord.status === 'Late' ? styles.presentValue : styles.absentValue]}>{selectedRecord.status}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>CHECK-IN</Text><Text style={styles.modalValue}>{selectedRecord.checkIn || '—'}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>REMARKS</Text><Text style={styles.modalValue}>{selectedRecord.remarks || '—'}</Text></View></View>
+              <View style={styles.modalStudent}><View style={styles.modalStudentIcon}><MaterialCommunityIcons name={attendanceMode === 'student' ? "account-outline" : "account-tie-outline"} size={26} color="#7040D5" /></View><View><Text style={styles.modalStudentName}>{selectedRecord.studentName}</Text><Text style={styles.modalStudentId}>{selectedRecord.studentId}</Text></View></View>
+              <View style={styles.modalDetailsGrid}><View style={styles.modalDetail}><Text style={styles.modalLabel}>DATE</Text><Text style={styles.modalValue}>{selectedRecord.date}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>BRANCH</Text><Text style={styles.modalValue}>{selectedRecord.branch}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>{attendanceMode === 'student' ? 'STD / SUB' : 'BATCH / SUB'}</Text><Text style={styles.modalValue}>{selectedRecord.stdSub}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>STATUS</Text><Text style={[styles.modalValue, selectedRecord.status === 'Present' || selectedRecord.status === 'Late' ? styles.presentValue : styles.absentValue]}>{selectedRecord.status}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>CHECK-IN</Text><Text style={styles.modalValue}>{selectedRecord.checkIn || '—'}</Text></View><View style={styles.modalDetail}><Text style={styles.modalLabel}>REMARKS</Text><Text style={styles.modalValue}>{selectedRecord.remarks || '—'}</Text></View></View>
               <TouchableOpacity style={styles.modalButton} onPress={() => setViewVisible(false)} activeOpacity={0.8}><Text style={styles.modalButtonText}>Close</Text></TouchableOpacity>
             </ScrollView>}
           </View></View>
@@ -1899,6 +2122,42 @@ const styles = StyleSheet.create({
 
     color: '#FFFFFF',
 
+  },
+
+  roleToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#EEEDF5',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+    width: '100%',
+  },
+  roleToggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 11,
+  },
+  roleToggleButtonActive: {
+    backgroundColor: '#7040D5',
+    shadowColor: '#7040D5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  roleToggleText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 12,
+    color: '#667085',
+  },
+  roleToggleTextActive: {
+    fontFamily: 'PoppinsSemiBold',
+    color: '#FFFFFF',
   },
 
 });

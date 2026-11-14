@@ -10,7 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 type OverviewCardProps = {
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
-  iconBackground: string;
+  iconBackground?: string;
+  background?: string;
   title: string;
   value: string;
   subtitle: string;
@@ -22,85 +23,52 @@ export default function OverviewCard({
   icon,
   iconColor,
   iconBackground,
+  background,
   title,
   value,
   subtitle,
   extra,
   onPress,
 }: OverviewCardProps) {
+  const bg = background || iconBackground || '#EEE7FF';
+
   return (
     <Pressable
-      onPress={onPress}
       style={({ pressed }) => [
         styles.card,
         pressed && styles.pressed,
       ]}
+      onPress={onPress}
     >
-      {/* Icon */}
       <View
         style={[
-          styles.iconCircle,
+          styles.iconBox,
           {
-            backgroundColor: iconBackground,
+            backgroundColor: bg,
           },
         ]}
       >
         <Ionicons
           name={icon}
-          size={25}
+          size={22}
           color={iconColor}
         />
       </View>
 
-      {/* Title */}
-      <View style={styles.titleContainer}>
-        <Text
-          style={[
-            styles.title,
-            title === 'My\nAttendance' &&
-              styles.attendanceTitle,
-          ]}
-          numberOfLines={2}
-          adjustsFontSizeToFit
-          minimumFontScale={0.8}
-        >
-          {title}
-        </Text>
-      </View>
+      <Text style={styles.title} numberOfLines={1}>
+        {title.replace('\n', ' ')}
+      </Text>
 
-      {/* Value */}
-      <View style={styles.valueContainer}>
-        <Text
-          style={[
-            styles.value,
-            value === 'Present' && styles.presentValue,
-          ]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.75}
-        >
-          {value}
-        </Text>
-      </View>
+      <Text style={styles.value} numberOfLines={1}>
+        {value}
+      </Text>
 
-      {/* Subtitle */}
-      <View style={styles.subtitleContainer}>
-        <Text
-          style={styles.subtitle}
-          numberOfLines={2}
-          adjustsFontSizeToFit
-          minimumFontScale={0.8}
-        >
-          {subtitle}
-        </Text>
-      </View>
+      <Text style={styles.subtitle} numberOfLines={1}>
+        {subtitle}
+      </Text>
 
-      {/* Extra */}
       {extra ? (
-        <Text
-          style={styles.extra}
-          numberOfLines={1}
-        >
+        <Text style={styles.extra} numberOfLines={1}>
           {extra}
         </Text>
       ) : null}
@@ -110,130 +78,58 @@ export default function OverviewCard({
 
 const styles = StyleSheet.create({
   card: {
-    width: 150,
-    height: 220,
-
+    width: '48.5%',
+    minHeight: 142,
     backgroundColor: '#FFFFFF',
-
-    borderRadius: 16,
-
+    borderRadius: 18,
+    padding: 13,
     borderWidth: 1,
-    borderColor: '#E3E3E8',
-
-    alignItems: 'center',
-
-    paddingTop: 12,
-    paddingHorizontal: 10,
-    paddingBottom: 8,
+    borderColor: '#EFEBF8',
+    shadowColor: '#202124',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
   },
 
-  iconCircle: {
-    width: 54,
-    height: 54,
-
-    borderRadius: 27,
-
+  iconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-
-    marginBottom: 7,
-
-    flexShrink: 0,
-  },
-
-  titleContainer: {
-    width: '100%',
-    height: 36,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginBottom: 1,
+    marginBottom: 8,
   },
 
   title: {
-    width: '100%',
-    color: '#171A2B',
-
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 14,
-    lineHeight: 19,
-
-    textAlign: 'center',
-  },
-
-  attendanceTitle: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
-
-  valueContainer: {
-    width: '100%',
-    height: 38,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginTop: 2,
-
-    flexShrink: 0,
+    color: '#6E6E7D',
+    fontSize: 11,
+    fontFamily: 'PoppinsMedium',
   },
 
   value: {
-    color: '#111528',
-
+    color: '#171A2B',
+    fontSize: 19,
     fontFamily: 'PoppinsBold',
-    fontSize: 28,
-    lineHeight: 36,
-
-    textAlign: 'center',
-  },
-
-  presentValue: {
-    color: '#22A55A',
-
-    fontFamily: 'PoppinsBold',
-    fontSize: 18,
-    lineHeight: 26,
-
-    textAlign: 'center',
-  },
-
-  subtitleContainer: {
-    width: '100%',
-    minHeight: 34,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    marginTop: 1,
-
-    flexShrink: 0,
+    marginTop: 2,
   },
 
   subtitle: {
-    width: '100%',
-    color: '#4F5565',
-
+    color: '#92929E',
+    fontSize: 9.5,
     fontFamily: 'PoppinsRegular',
-    fontSize: 13,
-    lineHeight: 18,
-
-    textAlign: 'center',
+    marginTop: 1,
   },
 
   extra: {
     color: '#171A2B',
-
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-
-    textAlign: 'center',
+    fontSize: 11,
     marginTop: 2,
   },
 
   pressed: {
     opacity: 0.75,
+    transform: [{ scale: 0.98 }],
   },
 });

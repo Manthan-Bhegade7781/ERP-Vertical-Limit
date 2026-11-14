@@ -1,11 +1,11 @@
-import React from 'react';
+import React from "react";
 import {
   Pressable,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 type QuickActionProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -25,7 +25,7 @@ export default function QuickAction({
   return (
     <Pressable
       style={({ pressed }) => [
-        styles.action,
+        styles.card,
         pressed && styles.pressed,
       ]}
       onPress={onPress}
@@ -40,7 +40,7 @@ export default function QuickAction({
       >
         <Ionicons
           name={icon}
-          size={25}
+          size={18}
           color={color}
         />
       </View>
@@ -48,8 +48,6 @@ export default function QuickAction({
       <Text
         style={styles.label}
         numberOfLines={2}
-        adjustsFontSizeToFit
-        minimumFontScale={0.8}
       >
         {label}
       </Text>
@@ -58,37 +56,37 @@ export default function QuickAction({
 }
 
 const styles = StyleSheet.create({
-  action: {
-    flex: 1,
-    alignItems: 'center',
-    minWidth: 0,
-  },
-
-  iconBox: {
-    width: 60,
-    height: 60,
-
-    borderRadius: 14,
-
-    alignItems: 'center',
-    justifyContent: 'center',
-
+  card: {
+    width: "48.5%",
+    minHeight: 68,
+    borderRadius: 15,
+    backgroundColor: "#F8F8FB",
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
 
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 9,
+    flexShrink: 0,
+  },
+
   label: {
-    color: '#171A2B',
-    fontSize: 11.5,
-    lineHeight: 16,
-
-    fontFamily: 'PoppinsSemiBold',
-    textAlign: 'center',
-
-    minHeight: 32,
+    flex: 1,
+    color: "#242637",
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: "PoppinsSemiBold",
   },
 
   pressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.97 }],
+    transform: [{ scale: 0.98 }],
   },
 });

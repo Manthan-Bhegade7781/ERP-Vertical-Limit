@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -7,8 +8,10 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { changePassword } from "@/services/auth";
 
 type ChangePasswordPageProps = {
   onContentScroll?: (event: any) => void;
@@ -19,35 +22,23 @@ export default function ChangePasswordPage({
   onContentScroll,
   onBack,
 }: ChangePasswordPageProps) {
-  const [currentPassword, setCurrentPassword] =
-    useState('');
+  const insets = useSafeAreaInsets();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const [newPassword, setNewPassword] =
-    useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const [confirmPassword, setConfirmPassword] =
-    useState('');
-
-  const [showCurrent, setShowCurrent] =
-    useState(false);
-
-  const [showNew, setShowNew] =
-    useState(false);
-
-  const [showConfirm, setShowConfirm] =
-    useState(false);
-
-  const hasEightCharacters =
-    newPassword.length >= 8;
-
-  const hasLetter =
-    /[A-Za-z]/.test(newPassword);
-
-  const hasNumber =
-    /\d/.test(newPassword);
+  const hasEightCharacters = newPassword.length >= 8;
+  const hasLetter = /[A-Za-z]/.test(newPassword);
+  const hasNumber = /\d/.test(newPassword);
 
   const passwordsMatch =
     newPassword.length > 0 &&
+    confirmPassword.length > 0 &&
     newPassword === confirmPassword;
 
   const isFormValid = useMemo(
@@ -63,30 +54,48 @@ export default function ChangePasswordPage({
       hasLetter,
       hasNumber,
       passwordsMatch,
-    ],
+    ]
   );
 
-  const handleUpdatePassword = () => {
-    if (!isFormValid) {
+  const handleUpdatePassword = async () => {
+    if (!isFormValid || submitting) {
       return;
     }
 
-    Alert.alert(
-      'Password Updated',
-      'Your password has been changed successfully.',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            setCurrentPassword('');
-            setNewPassword('');
-            setConfirmPassword('');
+    try {
+      setSubmitting(true);
+      const res = await changePassword(currentPassword, newPassword);
 
-            onBack?.();
-          },
-        },
-      ],
-    );
+      if (res.success) {
+        Alert.alert(
+          "Password Updated",
+          res.message || "Your password has been changed successfully.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+                onBack?.();
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Update Failed",
+          res.message || "Failed to update password. Please check your current password."
+        );
+      }
+    } catch (err: any) {
+      Alert.alert(
+        "Error",
+        err.message || "An unexpected error occurred. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderPasswordInput = (
@@ -95,13 +104,11 @@ export default function ChangePasswordPage({
     onChangeText: (text: string) => void,
     visible: boolean,
     onToggleVisibility: () => void,
-    placeholder: string,
+    placeholder: string
   ) => {
     return (
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>
-          {label}
-        </Text>
+        <Text style={styles.inputLabel}>{label}</Text>
 
         <View style={styles.inputWrapper}>
           <Ionicons
@@ -127,11 +134,7 @@ export default function ChangePasswordPage({
             style={styles.eyeButton}
           >
             <Ionicons
-              name={
-                visible
-                  ? 'eye-outline'
-                  : 'eye-off-outline'
-              }
+              name={visible ? "eye-outline" : "eye-off-outline"}
               size={20}
               color="#777C89"
             />
@@ -144,29 +147,30 @@ export default function ChangePasswordPage({
   return (
     <View style={styles.container}>
       {/* HEADER */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + 8,
+          },
+        ]}
+      >
         <Pressable
           onPress={onBack}
           style={({ pressed }) => [
             styles.backButton,
             pressed && styles.pressed,
           ]}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
-          <Ionicons
-            name="arrow-back"
-            size={22}
-            color="#5420D8"
-          />
+          <Ionicons name="arrow-back" size={22} color="#5420D8" />
         </Pressable>
 
         <View style={styles.headerText}>
-          <Text style={styles.headerTitle}>
-            Change Password
-          </Text>
-
-          <Text style={styles.headerSubtitle}>
-            Keep your account secure
-          </Text>
+          <Text style={styles.headerTitle}>Change Password</Text>
+          <Text style={styles.headerSubtitle}>Keep your account secure</Text>
         </View>
       </View>
 
@@ -189,13 +193,9 @@ export default function ChangePasswordPage({
           </View>
 
           <View style={styles.introText}>
-            <Text style={styles.introTitle}>
-              Update your password
-            </Text>
-
+            <Text style={styles.introTitle}>Update your password</Text>
             <Text style={styles.introDescription}>
-              Choose a strong password that you
-              don't use on other accounts.
+              Choose a strong password that you don't use on other accounts.
             </Text>
           </View>
         </View>
@@ -203,30 +203,30 @@ export default function ChangePasswordPage({
         {/* PASSWORD FORM */}
         <View style={styles.formCard}>
           {renderPasswordInput(
-            'Current Password',
+            "Current Password",
             currentPassword,
             setCurrentPassword,
             showCurrent,
             () => setShowCurrent(!showCurrent),
-            'Enter your current password',
+            "Enter your current password"
           )}
 
           {renderPasswordInput(
-            'New Password',
+            "New Password",
             newPassword,
             setNewPassword,
             showNew,
             () => setShowNew(!showNew),
-            'Enter your new password',
+            "Enter your new password"
           )}
 
           {renderPasswordInput(
-            'Confirm New Password',
+            "Confirm New Password",
             confirmPassword,
             setConfirmPassword,
             showConfirm,
             () => setShowConfirm(!showConfirm),
-            'Re-enter your new password',
+            "Re-enter your new password"
           )}
 
           {/* PASSWORD REQUIREMENTS */}
@@ -260,24 +260,24 @@ export default function ChangePasswordPage({
           <Pressable
             style={({ pressed }) => [
               styles.updateButton,
-              !isFormValid &&
-                styles.updateButtonDisabled,
-              pressed &&
-                isFormValid &&
-                styles.pressed,
+              (!isFormValid || submitting) && styles.updateButtonDisabled,
+              pressed && isFormValid && !submitting && styles.pressed,
             ]}
             onPress={handleUpdatePassword}
-            disabled={!isFormValid}
+            disabled={!isFormValid || submitting}
           >
-            <Ionicons
-              name="lock-closed-outline"
-              size={19}
-              color="#FFFFFF"
-            />
-
-            <Text style={styles.updateButtonText}>
-              Update Password
-            </Text>
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={19}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.updateButtonText}>Update Password</Text>
+              </>
+            )}
           </Pressable>
         </View>
 
@@ -290,8 +290,7 @@ export default function ChangePasswordPage({
           />
 
           <Text style={styles.securityText}>
-            For your security, never share your
-            password with anyone.
+            For your security, never share your password with anyone.
           </Text>
         </View>
       </ScrollView>
@@ -308,31 +307,19 @@ type RequirementProps = {
   text: string;
 };
 
-function Requirement({
-  valid,
-  text,
-}: RequirementProps) {
+function Requirement({ valid, text }: RequirementProps) {
   return (
     <View style={styles.requirementRow}>
       <Ionicons
-        name={
-          valid
-            ? 'checkmark-circle'
-            : 'ellipse-outline'
-        }
+        name={valid ? "checkmark-circle" : "ellipse-outline"}
         size={17}
-        color={
-          valid
-            ? '#22A55A'
-            : '#A0A3AD'
-        }
+        color={valid ? "#22A55A" : "#A0A3AD"}
       />
 
       <Text
         style={[
           styles.requirementText,
-          valid &&
-            styles.requirementTextValid,
+          valid && styles.requirementTextValid,
         ]}
       >
         {text}
@@ -348,27 +335,27 @@ function Requirement({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F6F6F9',
+    backgroundColor: "#F6F6F9",
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEF2',
+    borderBottomColor: "#EEEEF2",
   },
 
   backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#EEE7FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 11,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#EEE7FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
   },
 
   headerText: {
@@ -376,14 +363,14 @@ const styles = StyleSheet.create({
   },
 
   headerTitle: {
-    color: '#111528',
-    fontFamily: 'PoppinsBold',
+    color: "#111528",
+    fontFamily: "PoppinsBold",
     fontSize: 18,
   },
 
   headerSubtitle: {
-    color: '#858996',
-    fontFamily: 'PoppinsRegular',
+    color: "#858996",
+    fontFamily: "PoppinsRegular",
     fontSize: 10.5,
     marginTop: 1,
   },
@@ -394,14 +381,14 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 120,
+    paddingTop: 14,
+    paddingBottom: 40,
   },
 
   introCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: 17,
     padding: 14,
     marginBottom: 10,
@@ -411,9 +398,9 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 15,
-    backgroundColor: '#EEE7FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#EEE7FF",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
 
@@ -422,21 +409,21 @@ const styles = StyleSheet.create({
   },
 
   introTitle: {
-    color: '#111528',
-    fontFamily: 'PoppinsSemiBold',
+    color: "#111528",
+    fontFamily: "PoppinsSemiBold",
     fontSize: 14,
   },
 
   introDescription: {
-    color: '#777C89',
-    fontFamily: 'PoppinsRegular',
+    color: "#777C89",
+    fontFamily: "PoppinsRegular",
     fontSize: 10.5,
     lineHeight: 16,
     marginTop: 2,
   },
 
   formCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 17,
     padding: 14,
     marginBottom: 10,
@@ -447,27 +434,27 @@ const styles = StyleSheet.create({
   },
 
   inputLabel: {
-    color: '#343848',
-    fontFamily: 'PoppinsSemiBold',
+    color: "#343848",
+    fontFamily: "PoppinsSemiBold",
     fontSize: 11.5,
     marginBottom: 6,
   },
 
   inputWrapper: {
     height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F7F6FA',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F7F6FA",
     borderWidth: 1,
-    borderColor: '#E4E1EB',
+    borderColor: "#E4E1EB",
     borderRadius: 12,
     paddingHorizontal: 13,
   },
 
   input: {
     flex: 1,
-    color: '#171A2B',
-    fontFamily: 'PoppinsMedium',
+    color: "#171A2B",
+    fontFamily: "PoppinsMedium",
     fontSize: 12.5,
     marginLeft: 9,
     paddingVertical: 0,
@@ -478,7 +465,7 @@ const styles = StyleSheet.create({
   },
 
   requirements: {
-    backgroundColor: '#F8F6FD',
+    backgroundColor: "#F8F6FD",
     borderRadius: 12,
     padding: 12,
     marginTop: 2,
@@ -486,62 +473,62 @@ const styles = StyleSheet.create({
   },
 
   requirementsTitle: {
-    color: '#343848',
-    fontFamily: 'PoppinsSemiBold',
+    color: "#343848",
+    fontFamily: "PoppinsSemiBold",
     fontSize: 11.5,
     marginBottom: 7,
   },
 
   requirementRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 5,
   },
 
   requirementText: {
-    color: '#858996',
-    fontFamily: 'PoppinsRegular',
+    color: "#858996",
+    fontFamily: "PoppinsRegular",
     fontSize: 10.5,
     marginLeft: 7,
   },
 
   requirementTextValid: {
-    color: '#22A55A',
-    fontFamily: 'PoppinsMedium',
+    color: "#22A55A",
+    fontFamily: "PoppinsMedium",
   },
 
   updateButton: {
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#5420D8',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#5420D8",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 7,
   },
 
   updateButtonDisabled: {
-    backgroundColor: '#C8C8CE',
+    backgroundColor: "#C8C8CE",
   },
 
   updateButtonText: {
-    color: '#FFFFFF',
-    fontFamily: 'PoppinsSemiBold',
+    color: "#FFFFFF",
+    fontFamily: "PoppinsSemiBold",
     fontSize: 13,
   },
 
   securityCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#EEE7FF',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#EEE7FF",
     borderRadius: 14,
     padding: 12,
   },
 
   securityText: {
     flex: 1,
-    color: '#665A82',
-    fontFamily: 'PoppinsRegular',
+    color: "#665A82",
+    fontFamily: "PoppinsRegular",
     fontSize: 10.5,
     lineHeight: 16,
     marginLeft: 8,

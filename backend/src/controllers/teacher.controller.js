@@ -9,6 +9,18 @@ const { generateEmployeeId } = require("../utils/employeeId");
 const createNotification = require("../utils/createNotification");
 
 // =====================================================
+// HELPER: ACCESS CONTROL & PERMISSIONS
+// =====================================================
+
+const isSuperAdmin = (user) =>
+  Array.isArray(user?.roles) && user.roles.includes("super_admin");
+
+const getAdminBranchId = (user) => {
+  if (isSuperAdmin(user)) return null;
+  return user?.branchId ? user.branchId.toString() : null;
+};
+
+// =====================================================
 // HELPER: CREATE NOTIFICATION SAFELY
 // =====================================================
 
@@ -55,12 +67,31 @@ const createTeacher = async (req, res) => {
       address,
     } = req.body;
 
+    let targetBranchId = branchId;
+
+    if (!isSuperAdmin(req.user)) {
+      const adminBranchId = getAdminBranchId(req.user);
+      if (!adminBranchId) {
+        return res.status(403).json({
+          success: false,
+          message: "Your admin account is not assigned to any branch.",
+        });
+      }
+      if (branchId && branchId.toString() !== adminBranchId) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only add teachers to your assigned branch.",
+        });
+      }
+      targetBranchId = adminBranchId;
+    }
+
     // 1. Validate required fields.
     if (
       !fullName ||
       !email ||
       !password ||
-      !branchId ||
+      !targetBranchId ||
       !qualification ||
       experience === undefined ||
       experience === null ||
@@ -99,7 +130,7 @@ const createTeacher = async (req, res) => {
     }
 
     // 2. Validate branch ID.
-    if (!mongoose.Types.ObjectId.isValid(branchId)) {
+    if (!mongoose.Types.ObjectId.isValid(targetBranchId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid branch ID.",
@@ -108,7 +139,7 @@ const createTeacher = async (req, res) => {
 
     // 3. Check branch exists and is active.
     const branch = await Branch.findOne({
-      _id: branchId,
+      _id: targetBranchId,
       status: "active",
     });
 
@@ -152,7 +183,7 @@ const createTeacher = async (req, res) => {
           mobileNumber: mobileNumber?.trim() || "",
           passwordHash,
           roles: ["teacher"],
-          branchId,
+          branchId: targetBranchId,
           status: "active",
           registrationRole: null,
         },
@@ -246,16 +277,38 @@ const createTeacher = async (req, res) => {
 
 const getTeachers = async (req, res) => {
   try {
-    const teachers = await Teacher.find()
-    .populate({
-      path: "userId",
-      select: "fullName email mobileNumber branchId roles status",
-      populate: {
-        path: "branchId",
-        select: "name code",
-      },
-    })
-    .sort({ createdAt: -1 });
+    let teacherFilter = {};
+
+    if (!isSuperAdmin(req.user)) {
+      const branchId = getAdminBranchId(req.user);
+
+      if (!branchId) {
+        return res.status(403).json({
+          success: false,
+          message: "Your admin account is not assigned to any branch.",
+        });
+      }
+
+      const branchTeacherUsers = await User.find({
+        roles: "teacher",
+        branchId,
+      }).select("_id");
+
+      teacherFilter = {
+        userId: { $in: branchTeacherUsers.map((u) => u._id) },
+      };
+    }
+
+    const teachers = await Teacher.find(teacherFilter)
+      .populate({
+        path: "userId",
+        select: "fullName email mobileNumber branchId roles status",
+        populate: {
+          path: "branchId",
+          select: "name code",
+        },
+      })
+      .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -301,6 +354,20 @@ const getTeacherById = async (req, res) => {
         success: false,
         message: "Teacher not found.",
       });
+    }
+
+    if (!isSuperAdmin(req.user)) {
+      const branchId = getAdminBranchId(req.user);
+      const teacherBranchId =
+        teacher.userId?.branchId?._id?.toString() ||
+        teacher.userId?.branchId?.toString();
+
+      if (!branchId || teacherBranchId !== branchId) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only view teachers belonging to your assigned branch.",
+        });
+      }
     }
 
     return res.status(200).json({
@@ -350,6 +417,28 @@ const updateTeacher = async (req, res) => {
       });
     }
 
+    // Keep the associated User status synchronized.
+    const user = await User.findById(teacher.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Associated user account not found.",
+      });
+    }
+
+    if (!isSuperAdmin(req.user)) {
+      const branchId = getAdminBranchId(req.user);
+      const teacherBranchId = user.branchId?.toString();
+
+      if (!branchId || teacherBranchId !== branchId) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only edit teachers belonging to your assigned branch.",
+        });
+      }
+    }
+
     // Validate required fields.
     if (
       typeof qualification !== "string" ||
@@ -384,16 +473,6 @@ const updateTeacher = async (req, res) => {
 
     if (status !== undefined) {
       teacher.status = status;
-    }
-
-    // Keep the associated User status synchronized.
-    const user = await User.findById(teacher.userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "Associated user account not found.",
-      });
     }
 
     if (status !== undefined) {
@@ -501,6 +580,18 @@ const updateTeacherStatus = async (req, res) => {
         success: false,
         message: "Associated user account not found.",
       });
+    }
+
+    if (!isSuperAdmin(req.user)) {
+      const branchId = getAdminBranchId(req.user);
+      const teacherBranchId = user.branchId?.toString();
+
+      if (!branchId || teacherBranchId !== branchId) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only update status of teachers in your assigned branch.",
+        });
+      }
     }
 
     // Update both records.

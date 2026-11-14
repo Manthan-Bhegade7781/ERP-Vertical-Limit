@@ -24,11 +24,14 @@ import {
   AttendanceBatch,
   AttendanceStudent,
   AttendanceStatus as ApiAttendanceStatus,
+  TeacherAttendanceApiRecord,
   fetchAttendanceBatches,
   fetchAttendanceRecords,
+  fetchTeacherAttendanceRecords,
   getReferenceId,
   getReferenceName,
   updateAttendanceRecord,
+  updateTeacherAttendanceRecord,
 } from '@/services/attendance';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Leave';
@@ -187,13 +190,81 @@ const mapApiAttendanceRecord = (
   };
 };
 
+type TeacherRecord = {
+  id: string;
+  teacherMongoId: string;
+  dateKey: string;
+  teacherName: string;
+  teacherEmail: string;
+  teacherMobile: string;
+  batch: string;
+  subject: string;
+  branch: string;
+  date: string;
+  status: AttendanceStatus;
+  checkIn: string;
+  remarks: string;
+};
+
+const mapTeacherAttendanceRecord = (
+  apiRecord: TeacherAttendanceApiRecord,
+  batches: AttendanceBatch[]
+): TeacherRecord => {
+  const teacher =
+    apiRecord.teacherId && typeof apiRecord.teacherId === 'object'
+      ? (apiRecord.teacherId as any)
+      : undefined;
+  const populatedBatch =
+    apiRecord.batchId && typeof apiRecord.batchId === 'object'
+      ? (apiRecord.batchId as AttendanceBatch)
+      : undefined;
+  const teacherMongoId = getReferenceId(apiRecord.teacherId);
+  const batchId = getReferenceId(apiRecord.batchId);
+  const batchFromList = batches.find((item) => item._id === batchId);
+  const batch = populatedBatch || batchFromList;
+  const branchReference =
+    populatedBatch?.branchId && typeof populatedBatch.branchId === 'object'
+      ? populatedBatch.branchId
+      : batchFromList?.branchId || batch?.branchId;
+  const branchName =
+    branchReference && typeof branchReference === 'object'
+      ? (branchReference.name || branchReference.code || '—')
+      : '—';
+  const teacherName =
+    teacher?.fullName || teacher?.name || 'Teacher';
+  const subjectName =
+    apiRecord.subjectId && typeof apiRecord.subjectId === 'object'
+      ? (apiRecord.subjectId as any).name || (apiRecord.subjectId as any).code || 'Subject'
+      : 'Subject';
+  const dateKey = dateKeyFromValue(apiRecord.date || '');
+
+  return {
+    id: apiRecord._id,
+    teacherMongoId,
+    dateKey,
+    teacherName,
+    teacherEmail: teacher?.email || '',
+    teacherMobile: teacher?.mobileNumber || '',
+    batch: batch?.name || '—',
+    subject: subjectName,
+    branch: branchName,
+    date: formatDateLabel(apiRecord.date || ''),
+    status: apiRecord.status,
+    checkIn: formatCheckIn(apiRecord.checkIn),
+    remarks: apiRecord.remarks || '',
+  };
+};
+
 export default function AttendancePage() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
   const isMobile = width < 600;
 
+  const [attendanceMode, setAttendanceMode] =
+    useState<'student' | 'teacher'>('student');
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [teacherRecords, setTeacherRecords] = useState<TeacherRecord[]>([]);
   const [batches, setBatches] = useState<AttendanceBatch[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(true);
   const [recordsError, setRecordsError] = useState('');
@@ -230,12 +301,14 @@ export default function AttendancePage() {
     setLoadingRecords(true);
     setRecordsError('');
     try {
-      const [apiRecords, batchData] = await Promise.all([
+      const [apiRecords, batchData, apiTeacherRecords] = await Promise.all([
         fetchAttendanceRecords(),
         fetchAttendanceBatches().catch(() => [] as AttendanceBatch[]),
+        fetchTeacherAttendanceRecords().catch(() => [] as TeacherAttendanceApiRecord[]),
       ]);
       setBatches(batchData);
       setRecords(apiRecords.map((record) => mapApiAttendanceRecord(record, batchData)));
+      setTeacherRecords(apiTeacherRecords.map((record) => mapTeacherAttendanceRecord(record, batchData)));
     } catch (error) {
       setRecordsError(getApiErrorMessage(error));
     } finally {
@@ -251,35 +324,40 @@ export default function AttendancePage() {
   );
 
   /*
-   * Today's summary — calculated from the live records returned by the API.
+   * Today's / Overall summary — calculated from active mode (student or teacher).
    */
   const todayKey = localDateKey();
   const todayLabel = formatLongDateLabel(todayKey);
-  const todaysRecords = records.filter((record) => record.dateKey === todayKey);
+  const activeRecords = attendanceMode === 'student' ? records : teacherRecords;
+  const todaysRecords = activeRecords.filter((record) => record.dateKey === todayKey);
 
-  const presentCount = todaysRecords.filter(
+  // If today has records use them, otherwise show overall attendance across all sessions
+  const hasToday = todaysRecords.length > 0;
+  const summaryRecords = hasToday ? todaysRecords : activeRecords;
+
+  const presentCount = summaryRecords.filter(
     (record) => record.status === 'Present'
   ).length;
 
-  const absentCount = todaysRecords.filter(
+  const absentCount = summaryRecords.filter(
     (record) => record.status === 'Absent'
   ).length;
 
-  const lateCount = todaysRecords.filter(
+  const lateCount = summaryRecords.filter(
     (record) => record.status === 'Late'
   ).length;
 
-  const leaveCount = todaysRecords.filter(
+  const leaveCount = summaryRecords.filter(
     (record) => record.status === 'Leave'
   ).length;
 
   const attendancePercentage =
-    todaysRecords.length > 0
-      ? Math.round(((presentCount + lateCount) / todaysRecords.length) * 100)
+    summaryRecords.length > 0
+      ? Math.round(((presentCount + lateCount) / summaryRecords.length) * 100)
       : 0;
 
   /*
-   * Search + filter
+   * Search + filter for students
    */
   const filteredRecords = useMemo(() => {
     const searchText = search.trim().toLowerCase();
@@ -287,12 +365,8 @@ export default function AttendancePage() {
     return records.filter((record) => {
       const matchesSearch =
         !searchText ||
-        record.studentName
-          .toLowerCase()
-          .includes(searchText) ||
-        record.studentId
-          .toLowerCase()
-          .includes(searchText) ||
+        record.studentName.toLowerCase().includes(searchText) ||
+        record.studentId.toLowerCase().includes(searchText) ||
         record.batch.toLowerCase().includes(searchText) ||
         record.branch.toLowerCase().includes(searchText);
 
@@ -303,6 +377,29 @@ export default function AttendancePage() {
       return matchesSearch && matchesFilter;
     });
   }, [records, search, selectedFilter]);
+
+  /*
+   * Search + filter for teachers
+   */
+  const filteredTeacherRecords = useMemo(() => {
+    const searchText = search.trim().toLowerCase();
+
+    return teacherRecords.filter((record) => {
+      const matchesSearch =
+        !searchText ||
+        record.teacherName.toLowerCase().includes(searchText) ||
+        record.teacherEmail.toLowerCase().includes(searchText) ||
+        record.subject.toLowerCase().includes(searchText) ||
+        record.batch.toLowerCase().includes(searchText) ||
+        record.branch.toLowerCase().includes(searchText);
+
+      const matchesFilter =
+        selectedFilter === 'All' ||
+        record.status === selectedFilter;
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [teacherRecords, search, selectedFilter]);
 
   /*
    * Calculate total and monthly attendance from actual backend records.
@@ -374,13 +471,98 @@ export default function AttendancePage() {
   };
 
   /*
-   * Open total attendance for ANY student.
+   * Calculate total and monthly attendance for teachers.
+   */
+  const getTeacherAttendance = (
+    record: TeacherRecord | AttendanceRecord
+  ): StudentAttendance => {
+    const targetMongoId = 'teacherMongoId' in record ? record.teacherMongoId : record.studentMongoId;
+    const targetName = 'teacherName' in record ? record.teacherName : record.studentName;
+    const targetBatch = record.batch;
+    const targetBranch = record.branch;
+    const targetId = 'teacherEmail' in record ? (record.teacherEmail || record.teacherMobile || record.subject) : record.studentId;
+
+    const historyRecords = teacherRecords.filter((item) =>
+      targetMongoId
+        ? item.teacherMongoId === targetMongoId
+        : item.teacherName.toLowerCase() === targetName.toLowerCase()
+    );
+
+    const summary = {
+      present: 0,
+      absent: 0,
+      late: 0,
+      leave: 0,
+    };
+    const months: Record<string, { month: string; present: number; late: number; total: number }> = {};
+
+    historyRecords.forEach((item) => {
+      if (item.status === 'Present') summary.present += 1;
+      if (item.status === 'Absent') summary.absent += 1;
+      if (item.status === 'Late') summary.late += 1;
+      if (item.status === 'Leave') summary.leave += 1;
+
+      const monthKey = item.dateKey.slice(0, 7);
+      if (!monthKey) return;
+      if (!months[monthKey]) {
+        const [year, month] = monthKey.split('-').map(Number);
+        months[monthKey] = {
+          month: `${monthShortNames[month - 1]} ${year}`,
+          present: 0,
+          late: 0,
+          total: 0,
+        };
+      }
+      months[monthKey].total += 1;
+      if (item.status === 'Present') months[monthKey].present += 1;
+      if (item.status === 'Late') months[monthKey].late += 1;
+    });
+
+    const totalDays = summary.present + summary.absent + summary.late + summary.leave;
+    const percentage = totalDays > 0
+      ? ((summary.present + summary.late) / totalDays) * 100
+      : 0;
+    const monthly = Object.entries(months)
+      .sort(([left], [right]) => right.localeCompare(left))
+      .slice(0, 3)
+      .map(([, item]) => ({
+        month: item.month,
+        percentage: item.total > 0 ? ((item.present + item.late) / item.total) * 100 : 0,
+      }));
+
+    return {
+      studentName: targetName,
+      studentId: targetId,
+      batch: targetBatch,
+      branch: targetBranch,
+      totalDays,
+      present: summary.present,
+      absent: summary.absent,
+      late: summary.late,
+      leave: summary.leave,
+      percentage,
+      monthly,
+    };
+  };
+
+  /*
+   * Open total attendance for student or teacher.
    */
   const openTotalAttendance = (
     record: AttendanceRecord
   ) => {
-    const attendance = getStudentAttendance(record);
+    const attendance = attendanceMode === 'teacher'
+      ? getTeacherAttendance(record)
+      : getStudentAttendance(record);
 
+    setSelectedStudent(attendance);
+    setShowTotalAttendance(true);
+  };
+
+  const openTeacherTotalAttendance = (
+    record: TeacherRecord
+  ) => {
+    const attendance = getTeacherAttendance(record);
     setSelectedStudent(attendance);
     setShowTotalAttendance(true);
   };
@@ -390,6 +572,26 @@ export default function AttendancePage() {
    */
   const openActions = (record: AttendanceRecord) => {
     setSelectedRecord(record);
+    setShowActions(true);
+  };
+
+  /*
+   * Three-dot menu for Teacher.
+   */
+  const openTeacherActions = (record: TeacherRecord) => {
+    setSelectedRecord({
+      id: record.id,
+      studentMongoId: record.teacherMongoId,
+      dateKey: record.dateKey,
+      studentName: record.teacherName,
+      studentId: record.teacherEmail || record.teacherMobile || record.subject,
+      batch: record.batch,
+      branch: record.branch,
+      date: record.date,
+      status: record.status,
+      checkIn: record.checkIn,
+      remarks: record.remarks,
+    });
     setShowActions(true);
   };
 
@@ -417,15 +619,31 @@ export default function AttendancePage() {
 
     setSavingEdit(true);
     try {
-      const updated = await updateAttendanceRecord(selectedRecord.id, {
-        status: editStatus as ApiAttendanceStatus,
-        checkIn: timeForApi(editCheckIn, editStatus),
-        remarks: editRemarks.trim(),
-      });
-      const updatedRecord = mapApiAttendanceRecord(updated, batches);
-      setRecords((currentRecords) => currentRecords.map((record) =>
-        record.id === updatedRecord.id ? updatedRecord : record
-      ));
+      if (attendanceMode === 'teacher') {
+        const updated = await updateTeacherAttendanceRecord(selectedRecord.id, {
+          status: editStatus as ApiAttendanceStatus,
+          checkIn: timeForApi(editCheckIn, editStatus),
+          remarks: editRemarks.trim(),
+        });
+        const updatedRecord = mapTeacherAttendanceRecord(updated, batches);
+        setTeacherRecords((currentRecords) =>
+          currentRecords.map((record) =>
+            record.id === updatedRecord.id ? updatedRecord : record
+          )
+        );
+      } else {
+        const updated = await updateAttendanceRecord(selectedRecord.id, {
+          status: editStatus as ApiAttendanceStatus,
+          checkIn: timeForApi(editCheckIn, editStatus),
+          remarks: editRemarks.trim(),
+        });
+        const updatedRecord = mapApiAttendanceRecord(updated, batches);
+        setRecords((currentRecords) =>
+          currentRecords.map((record) =>
+            record.id === updatedRecord.id ? updatedRecord : record
+          )
+        );
+      }
       setShowEditAttendance(false);
       setSelectedRecord(null);
       Alert.alert('Attendance Updated', 'The attendance record has been updated successfully.');
@@ -454,15 +672,31 @@ export default function AttendancePage() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const updated = await updateAttendanceRecord(target.id, {
-                status: 'Absent',
-                checkIn: '',
-                remarks: 'Attendance cleared',
-              });
-              const updatedRecord = mapApiAttendanceRecord(updated, batches);
-              setRecords((currentRecords) => currentRecords.map((record) =>
-                record.id === updatedRecord.id ? updatedRecord : record
-              ));
+              if (attendanceMode === 'teacher') {
+                const updated = await updateTeacherAttendanceRecord(target.id, {
+                  status: 'Absent',
+                  checkIn: '',
+                  remarks: 'Attendance cleared',
+                });
+                const updatedRecord = mapTeacherAttendanceRecord(updated, batches);
+                setTeacherRecords((currentRecords) =>
+                  currentRecords.map((record) =>
+                    record.id === updatedRecord.id ? updatedRecord : record
+                  )
+                );
+              } else {
+                const updated = await updateAttendanceRecord(target.id, {
+                  status: 'Absent',
+                  checkIn: '',
+                  remarks: 'Attendance cleared',
+                });
+                const updatedRecord = mapApiAttendanceRecord(updated, batches);
+                setRecords((currentRecords) =>
+                  currentRecords.map((record) =>
+                    record.id === updatedRecord.id ? updatedRecord : record
+                  )
+                );
+              }
               setSelectedRecord(null);
               Alert.alert('Attendance Cleared', 'The record has been updated.');
             } catch (error) {
@@ -758,6 +992,129 @@ export default function AttendancePage() {
         <TouchableOpacity
           style={styles.totalAttendanceButton}
           onPress={() => openTotalAttendance(record)}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons
+            name="chart-donut"
+            size={15}
+            color="#7040D5"
+          />
+
+          <Text style={styles.totalAttendanceButtonText}>
+            Total Attendance
+          </Text>
+
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={17}
+            color="#7040D5"
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  /*
+   * Teacher attendance record.
+   */
+  const renderTeacherRecord = (record: TeacherRecord) => (
+    <View key={record.id} style={styles.recordCard}>
+      <View style={styles.recordTopRow}>
+        <View style={styles.studentIdentity}>
+          <View style={[styles.studentAvatar, { backgroundColor: '#F0EAFE' }]}>
+            <Text style={[styles.studentAvatarText, { color: '#7040D5' }]}>
+              {record.teacherName
+                .split(' ')
+                .map((name) => name.charAt(0))
+                .join('')
+                .slice(0, 2)
+                .toUpperCase() || 'TC'}
+            </Text>
+          </View>
+
+          <View style={styles.studentInfo}>
+            <Text style={styles.studentName}>{record.teacherName}</Text>
+            <Text style={styles.studentId}>
+              {record.subject} • {record.batch}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.moreButton}
+          onPress={() => openTeacherActions(record)}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="dots-vertical"
+            size={22}
+            color="#68758A"
+          />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.recordDivider} />
+
+      <View style={styles.recordDetails}>
+        <View style={styles.detailItem}>
+          <MaterialCommunityIcons
+            name="calendar-outline"
+            size={17}
+            color="#7040D5"
+          />
+          <View>
+            <Text style={styles.detailLabel}>Date</Text>
+            <Text style={styles.detailValue}>{record.date}</Text>
+          </View>
+        </View>
+
+        <View style={styles.detailItem}>
+          <MaterialCommunityIcons
+            name="clock-outline"
+            size={17}
+            color="#7040D5"
+          />
+          <View>
+            <Text style={styles.detailLabel}>Check-in</Text>
+            <Text style={styles.detailValue}>{record.checkIn || '—'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.detailItem}>
+          <MaterialCommunityIcons
+            name="domain"
+            size={17}
+            color="#7040D5"
+          />
+          <View>
+            <Text style={styles.detailLabel}>Branch</Text>
+            <Text style={styles.detailValue} numberOfLines={1}>
+              {record.branch}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.detailItem}>
+          <MaterialCommunityIcons
+            name="book-open-outline"
+            size={17}
+            color="#7040D5"
+          />
+          <View>
+            <Text style={styles.detailLabel}>Subject</Text>
+            <Text style={styles.detailValue} numberOfLines={1}>
+              {record.subject}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.recordBottomRow}>
+        {renderStatusBadge(record.status)}
+
+        <TouchableOpacity
+          style={styles.totalAttendanceButton}
+          onPress={() => openTeacherTotalAttendance(record)}
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons
@@ -1224,20 +1581,78 @@ export default function AttendancePage() {
           </Text>
 
           <Text style={styles.pageSubtitle}>
-            Monitor daily attendance and view complete
-            student attendance history.
+            {attendanceMode === 'student'
+              ? 'Monitor daily attendance and view complete student attendance history.'
+              : 'Monitor daily attendance and view complete teacher attendance history.'}
           </Text>
 
-          {/* TODAY'S ATTENDANCE */}
+          {/* ATTENDANCE MODE TOGGLE */}
+          <View style={styles.roleToggleContainer}>
+            <TouchableOpacity
+              style={[
+                styles.roleToggleButton,
+                attendanceMode === 'student' && styles.roleToggleButtonActive,
+              ]}
+              onPress={() => setAttendanceMode('student')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="school-outline"
+                size={18}
+                color={attendanceMode === 'student' ? '#FFFFFF' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.roleToggleText,
+                  attendanceMode === 'student' && styles.roleToggleTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                Students Attendance
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.roleToggleButton,
+                attendanceMode === 'teacher' && styles.roleToggleButtonActive,
+              ]}
+              onPress={() => setAttendanceMode('teacher')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="account-tie-outline"
+                size={18}
+                color={attendanceMode === 'teacher' ? '#FFFFFF' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.roleToggleText,
+                  attendanceMode === 'teacher' && styles.roleToggleTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                Teachers Attendance
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* OVERVIEW CARD */}
           <View style={styles.overviewCard}>
             <View style={styles.overviewHeader}>
               <View style={styles.overviewHeadingBlock}>
                 <Text style={styles.overviewTitle}>
-                  Today&apos;s Attendance
+                  {hasToday
+                    ? "Today's Attendance"
+                    : attendanceMode === 'teacher'
+                    ? "Teachers Overall Attendance"
+                    : "Students Overall Attendance"}
                 </Text>
 
                 <Text style={styles.overviewDescription}>
-                  Attendance overview for {todayLabel}
+                  {hasToday
+                    ? `Attendance overview for ${todayLabel}`
+                    : `Overall summary across all ${activeRecords.length} recorded sessions`}
                 </Text>
               </View>
 
@@ -1251,7 +1666,7 @@ export default function AttendancePage() {
                 <Text
                   style={styles.overviewPercentageLabel}
                 >
-                  Overall
+                  {hasToday ? "Today" : "Overall"}
                 </Text>
               </View>
             </View>
@@ -1329,7 +1744,11 @@ export default function AttendancePage() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search student, batch or branch..."
+                placeholder={
+                  attendanceMode === 'student'
+                    ? 'Search student, batch or branch...'
+                    : 'Search teacher, subject, batch or branch...'
+                }
                 placeholderTextColor="#A0A9B8"
                 style={styles.searchInput}
               />
@@ -1392,15 +1811,13 @@ export default function AttendancePage() {
           <View style={styles.listHeader}>
             <View>
               <Text style={styles.listTitle}>
-                Attendance Records
+                {attendanceMode === 'student' ? 'Student Attendance Records' : 'Teacher Attendance Records'}
               </Text>
 
               <Text style={styles.listSubtitle}>
-                {filteredRecords.length} record
-                {filteredRecords.length !== 1
-                  ? 's'
-                  : ''}{' '}
-                found
+                {attendanceMode === 'student'
+                  ? `${filteredRecords.length} record${filteredRecords.length !== 1 ? 's' : ''} found`
+                  : `${filteredTeacherRecords.length} record${filteredTeacherRecords.length !== 1 ? 's' : ''} found`}
               </Text>
             </View>
           </View>
@@ -1423,29 +1840,54 @@ export default function AttendancePage() {
                 <Text style={styles.markButtonText}>Retry</Text>
               </TouchableOpacity>
             </View>
-          ) : filteredRecords.length > 0 ? (
-            <View style={styles.recordsList}>
-              {filteredRecords.map(renderRecord)}
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <MaterialCommunityIcons
-                  name="calendar-search-outline"
-                  size={32}
-                  color="#7040D5"
-                />
+          ) : attendanceMode === 'student' ? (
+            filteredRecords.length > 0 ? (
+              <View style={styles.recordsList}>
+                {filteredRecords.map(renderRecord)}
               </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIcon}>
+                  <MaterialCommunityIcons
+                    name="calendar-search-outline"
+                    size={32}
+                    color="#7040D5"
+                  />
+                </View>
 
-              <Text style={styles.emptyTitle}>
-                No attendance records found
-              </Text>
+                <Text style={styles.emptyTitle}>
+                  No student attendance records found
+                </Text>
 
-              <Text style={styles.emptySubtitle}>
-                Try changing your search or attendance
-                filter.
-              </Text>
-            </View>
+                <Text style={styles.emptySubtitle}>
+                  Try changing your search or attendance filter.
+                </Text>
+              </View>
+            )
+          ) : (
+            filteredTeacherRecords.length > 0 ? (
+              <View style={styles.recordsList}>
+                {filteredTeacherRecords.map(renderTeacherRecord)}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIcon}>
+                  <MaterialCommunityIcons
+                    name="calendar-search-outline"
+                    size={32}
+                    color="#7040D5"
+                  />
+                </View>
+
+                <Text style={styles.emptyTitle}>
+                  No teacher attendance records found
+                </Text>
+
+                <Text style={styles.emptySubtitle}>
+                  Try changing your search or attendance filter.
+                </Text>
+              </View>
+            )
           )}
         </ScrollView>
 
@@ -3116,5 +3558,49 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
     fontSize: 10,
     color: '#7040D5',
+  },
+
+  roleToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#EEEDF5',
+    borderRadius: 14,
+    padding: 4,
+    marginTop: 14,
+    marginBottom: 16,
+    width: '100%',
+  },
+  roleToggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 11,
+  },
+  roleToggleButtonActive: {
+    backgroundColor: '#7040D5',
+    shadowColor: '#7040D5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  roleToggleText: {
+    fontFamily: 'PoppinsMedium',
+    fontSize: 12,
+    color: '#667085',
+  },
+  roleToggleTextActive: {
+    fontFamily: 'PoppinsSemiBold',
+    color: '#FFFFFF',
+  },
+  teacherRemarksText: {
+    flex: 1,
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#8994A7',
+    marginLeft: 12,
   },
 });

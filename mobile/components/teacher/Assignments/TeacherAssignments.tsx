@@ -21,6 +21,7 @@ import { AssignmentRecord, fetchAssignments } from "@/services/assignments";
 
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import TeacherAddAssignmentPage from "./TeacherAddAssignmentPage";
 
 type StatusFilter = "all" | "active" | "upcoming" | "due_today" | "overdue";
 type TypeFilter =
@@ -178,12 +179,15 @@ const MetricCard = ({
 type TeacherAssignmentsProps = {
   onContentScroll?: (event: any) => void;
   onBack?: () => void;
+  onAddAssignment?: () => void;
 };
 
 const TeacherAssignments = ({
   onContentScroll,
   onBack,
+  onAddAssignment,
 }: TeacherAssignmentsProps = {}) => {
+  const [isAddingAssignment, setIsAddingAssignment] = useState(false);
   const [assignments, setAssignments] = useState<AssignmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -193,6 +197,14 @@ const TeacherAssignments = ({
   const [selectedAssignment, setSelectedAssignment] =
     useState<AssignmentRecord | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleOpenAddAssignment = () => {
+    if (onAddAssignment) {
+      onAddAssignment();
+    } else {
+      setIsAddingAssignment(true);
+    }
+  };
 
   const loadAssignments = useCallback(async () => {
     try {
@@ -383,6 +395,18 @@ const TeacherAssignments = ({
     );
   };
 
+  if (isAddingAssignment) {
+    return (
+      <TeacherAddAssignmentPage
+        onBack={() => setIsAddingAssignment(false)}
+        onCreated={() => {
+          setIsAddingAssignment(false);
+          void loadAssignments();
+        }}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -438,16 +462,45 @@ const TeacherAssignments = ({
 
               <View style={styles.headerText}>
                 <Text style={styles.title}>Assignments</Text>
-                <Text style={styles.subtitle}>
-                  View assignments for your assigned classes
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  View and manage class assignments
                 </Text>
               </View>
 
-              <View style={styles.headerCount}>
-                <Text style={styles.headerCountValue}>{metrics.total}</Text>
-                <Text style={styles.headerCountLabel}>Total</Text>
-              </View>
+              <Pressable
+                style={styles.headerAddBtn}
+                onPress={handleOpenAddAssignment}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Add Assignment"
+              >
+                <Ionicons name="add" size={18} color="#5420D8" />
+                <Text style={styles.headerAddBtnText}>Add</Text>
+              </Pressable>
             </View>
+
+            {/* ADD ASSIGNMENT BANNER */}
+            <Pressable
+              style={styles.addAssignmentBanner}
+              onPress={handleOpenAddAssignment}
+              accessibilityRole="button"
+              accessibilityLabel="Create New Assignment"
+            >
+              <View style={styles.addAssignmentBannerLeft}>
+                <View style={styles.addAssignmentIconBox}>
+                  <Ionicons name="document-text-outline" size={20} color="#5420D8" />
+                </View>
+                <View style={styles.addAssignmentBannerTextWrap}>
+                  <Text style={styles.addAssignmentBannerTitle}>Create New Assignment</Text>
+                  <Text style={styles.addAssignmentBannerSubtitle}>
+                    Assign homework, practice sets & projects to your classes
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.addAssignmentActionBadge}>
+                <Ionicons name="add" size={18} color="#5420D8" />
+              </View>
+            </Pressable>
 
             <View style={styles.metricsGrid}>
               <MetricCard
@@ -751,8 +804,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   backButton: {
-    width: 46,
-    height: 46,
+    width: 39,
+    height: 39,
     borderRadius: 14,
     backgroundColor: '#EEE7FF',
     alignItems: 'center',
@@ -760,8 +813,8 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   headerIcon: {
-    width: 46,
-    height: 46,
+    width: 39,
+    height: 39,
     borderRadius: 14,
     backgroundColor: '#EEE7FF',
     alignItems: 'center',
@@ -771,7 +824,7 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   title: {
     fontFamily: "PoppinsBold",
-    fontSize: 19,
+    fontSize: 15,
     color: "#111528",
   },
   subtitle: {
@@ -798,6 +851,71 @@ const styles = StyleSheet.create({
     fontFamily: "PoppinsRegular",
     fontSize: 8,
     color: "#7040D5",
+  },
+  headerAddBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEE7FF",
+    borderRadius: 12,
+    paddingHorizontal: 13,
+    height: 40,
+    justifyContent: "center",
+    marginLeft: 8,
+    gap: 4,
+  },
+  headerAddBtnText: {
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 13,
+    color: "#5420D8",
+  },
+  addAssignmentBanner: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#EBE6F5",
+  },
+  addAssignmentBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 10,
+    gap: 12,
+  },
+  addAssignmentIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#EEE7FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addAssignmentBannerTextWrap: {
+    flex: 1,
+  },
+  addAssignmentBannerTitle: {
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 14,
+    color: "#111528",
+  },
+  addAssignmentBannerSubtitle: {
+    fontFamily: "PoppinsRegular",
+    fontSize: 11,
+    color: "#777C89",
+    marginTop: 1,
+  },
+  addAssignmentActionBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#EEE7FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   metricsGrid: {
     flexDirection: "row",

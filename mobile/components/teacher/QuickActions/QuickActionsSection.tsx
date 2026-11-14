@@ -1,37 +1,44 @@
-import React from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-
-import QuickAction from './QuickAction';
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+import QuickAction from "./QuickAction";
 
 type QuickActionsSectionProps = {
   onAttendancePress?: () => void;
   onLectureLogPress?: () => void;
   onBatchesPress?: () => void;
+  onStudentsPress?: () => void;
   onReportsPress?: () => void;
+  onAssignmentsPress?: () => void;
+  onExaminationsPress?: () => void;
+  onPTGPress?: () => void;
+  onCalendarPress?: () => void;
+  onMyLeavePress?: () => void;
+  onMessagesPress?: () => void;
+  onFeedbackPress?: () => void;
 };
 
 export default function QuickActionsSection({
   onAttendancePress,
   onLectureLogPress,
   onBatchesPress,
+  onStudentsPress,
   onReportsPress,
+  onAssignmentsPress,
+  onExaminationsPress,
+  onPTGPress,
+  onCalendarPress,
+  onMyLeavePress,
+  onMessagesPress,
+  onFeedbackPress,
 }: QuickActionsSectionProps) {
   return (
     <View style={styles.section}>
+      <Text style={styles.title}>Quick Access</Text>
 
-      <Text style={styles.title}>
-        Quick Actions
-      </Text>
-
-      <View style={styles.row}>
-
+      <View style={styles.grid}>
         <QuickAction
-          icon="person-add-outline"
-          label={"Mark \nAttendance"}
+          icon="checkmark-circle-outline"
+          label="Mark Attendance"
           color="#6630D7"
           background="#EEE7FF"
           onPress={onAttendancePress}
@@ -39,7 +46,7 @@ export default function QuickActionsSection({
 
         <QuickAction
           icon="document-text-outline"
-          label={"Add \nLecture Log"}
+          label="Add Lecture Log"
           color="#22A55A"
           background="#E3F7EB"
           onPress={onLectureLogPress}
@@ -47,46 +54,99 @@ export default function QuickActionsSection({
 
         <QuickAction
           icon="people-outline"
-          label={"My \nBatches"}
+          label="My Batches"
           color="#1670E8"
           background="#E6F0FF"
           onPress={onBatchesPress}
         />
 
         <QuickAction
-          icon="bar-chart-outline"
-          label={"View \nReports"}
+          icon="person-outline"
+          label="My Students"
           color="#F28A17"
           background="#FFF0DF"
+          onPress={onStudentsPress}
+        />
+
+        <QuickAction
+          icon="bar-chart-outline"
+          label="View Reports"
+          color="#8B5CF6"
+          background="#F4F0FF"
           onPress={onReportsPress}
         />
 
-      </View>
+        <QuickAction
+          icon="clipboard-outline"
+          label="Assignments"
+          color="#D97706"
+          background="#FEF3C7"
+          onPress={onAssignmentsPress}
+        />
 
+        <QuickAction
+          icon="create-outline"
+          label="Examinations"
+          color="#2563EB"
+          background="#DBEAFE"
+          onPress={onExaminationsPress}
+        />
+
+        <QuickAction
+          icon="calendar-outline"
+          label="PTG Schedule"
+          color="#059669"
+          background="#D1FAE5"
+          onPress={onPTGPress}
+        />
+
+        <QuickAction
+          icon="calendar-number-outline"
+          label="Academic Calendar"
+          color="#E11D48"
+          background="#FFE4E6"
+          onPress={onCalendarPress}
+        />
+
+        <QuickAction
+          icon="time-outline"
+          label="My Leave"
+          color="#9333EA"
+          background="#F3E8FF"
+          onPress={onMyLeavePress}
+        />
+
+        <QuickAction
+          icon="mail-outline"
+          label="Messages"
+          color="#0284C7"
+          background="#E0F2FE"
+          onPress={onMessagesPress}
+        />
+
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   section: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-
-    padding: 16,
+    padding: 14,
     marginBottom: 16,
   },
 
   title: {
-    color: '#111528',
-    fontSize: 18,
-    fontFamily: 'PoppinsBold',
+    color: "#111528",
+    fontSize: 17,
+    fontFamily: "PoppinsBold",
+    marginBottom: 12,
   },
 
-  row: {
-    flexDirection: 'row',
-
-    marginTop: 16,
-
-    gap: 8,
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
 });

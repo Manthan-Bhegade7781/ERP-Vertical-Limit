@@ -25,8 +25,6 @@ type ProfilePageProps = {
   ) => void;
   onContentScroll?: (event: any) => void;
   onChangePasswordPress?: () => void;
-  onNotificationSettingsPress?: () => void;
-  onHelpPress?: () => void;
 };
 
 type ProfileRowProps = {
@@ -149,8 +147,6 @@ export default function ProfilePage({
   onSaveProfile,
   onContentScroll,
   onChangePasswordPress,
-  onNotificationSettingsPress,
-  onHelpPress,
 }: ProfilePageProps) {
   const { logout, user } = useAuth();
 
@@ -369,18 +365,6 @@ export default function ProfilePage({
               icon="lock-closed-outline"
               title="Change Password"
               onPress={onChangePasswordPress}
-            />
-
-            <ProfileAction
-              icon="notifications-outline"
-              title="Notification Settings"
-              onPress={onNotificationSettingsPress}
-            />
-
-            <ProfileAction
-              icon="help-circle-outline"
-              title="Help & Support"
-              onPress={onHelpPress}
             />
 
             <ProfileAction
