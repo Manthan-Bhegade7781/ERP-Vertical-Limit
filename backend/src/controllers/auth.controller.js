@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 
@@ -19,6 +20,47 @@ const { generateEmployeeId } = require("../utils/employeeId");
 const { generateToken } = require("../utils/jwt");
 
 // =====================================================
+// BUILD USER RESPONSE
+// Includes teacher profile when user has teacher role
+// =====================================================
+
+const buildUserResponse = async (user) => {
+  let teacher = null;
+
+  if (user.roles?.includes("teacher")) {
+    const teacherProfile = await Teacher.findOne({
+      userId: user._id,
+    })
+      .select(
+        "employeeId specialization qualification experience address status"
+      )
+      .lean();
+
+    if (teacherProfile) {
+      teacher = {
+        employeeId: teacherProfile.employeeId,
+        specialization: teacherProfile.specialization,
+        qualification: teacherProfile.qualification,
+        experience: teacherProfile.experience,
+        address: teacherProfile.address,
+        status: teacherProfile.status,
+      };
+    }
+  }
+
+  return {
+    id: user._id.toString(),
+    fullName: user.fullName,
+    email: user.email,
+    mobileNumber: user.mobileNumber,
+    roles: user.roles,
+    branchId: user.branchId,
+    status: user.status,
+    ...(user.roles?.includes("teacher") && { teacher }),
+  };
+};
+
+// =====================================================
 // REGISTER
 // =====================================================
 
@@ -33,14 +75,10 @@ const register = async (req, res) => {
       mobileNumber,
       role,
       branchId,
-
-      // Teacher-specific fields
       specialization,
       qualification,
       experience,
       address,
-
-      // Student-specific fields
       batchId,
       guardianName,
       guardianMobile,
@@ -202,7 +240,6 @@ const register = async (req, res) => {
 
     // 14. Create Student profile
     if (role === "student") {
-      // Generate a unique student ID
       const studentId = `STU-${crypto
         .randomUUID()
         .replace(/-/g, "")
@@ -230,10 +267,7 @@ const register = async (req, res) => {
     // 15. Commit registration transaction
     await session.commitTransaction();
 
-    // =================================================
-    // 16. NOTIFY ACTIVE SUPER ADMINS ABOUT REGISTRATION
-    // =================================================
-
+    // 16. Notify active Super Admins and branch Admins
     try {
       const superAdmins = await User.find({
         roles: "super_admin",
@@ -251,6 +285,7 @@ const register = async (req, res) => {
         `for the ${branch.name} branch. Approval is required.`;
 
       const allAdmins = [...superAdmins, ...branchAdmins];
+
       const uniqueAdminIds = Array.from(
         new Set(allAdmins.map((a) => a._id.toString()))
       );
@@ -267,7 +302,6 @@ const register = async (req, res) => {
         )
       );
     } catch (notificationError) {
-      // Do not fail registration if notification creation fails
       console.error(
         "New registration notification error:",
         notificationError
@@ -319,7 +353,6 @@ const register = async (req, res) => {
 
     console.error("Registration error:", error);
 
-    // Handle duplicate email or generated IDs
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -404,13 +437,15 @@ const login = async (req, res) => {
     // 5. Generate JWT
     const token = generateToken(user);
 
+    // 6. Fetch additional student details
     let studentDetails = {};
-    if (user.roles && user.roles.includes("student")) {
+
+    if (user.roles?.includes("student")) {
       try {
-        const student = await Student.findOne({ userId: user._id }).populate(
-          "batchId",
-          "name standard"
-        );
+        const student = await Student.findOne({
+          userId: user._id,
+        }).populate("batchId", "name standard");
+
         if (student) {
           studentDetails = {
             studentId: student.studentId,
@@ -423,19 +458,16 @@ const login = async (req, res) => {
       }
     }
 
-    // 6. Return safe user information
+    // 7. Build common user response including teacher profile
+    const userResponse = await buildUserResponse(user);
+
+    // 8. Return safe user information
     return res.status(200).json({
       success: true,
       message: "Login successful",
       data: {
         user: {
-          id: user._id,
-          fullName: user.fullName,
-          email: user.email,
-          mobileNumber: user.mobileNumber,
-          roles: user.roles,
-          branchId: user.branchId,
-          status: user.status,
+          ...userResponse,
           ...studentDetails,
         },
         token,
@@ -457,13 +489,15 @@ const login = async (req, res) => {
 
 const getMe = async (req, res) => {
   try {
+    // 1. Fetch additional student details
     let studentDetails = {};
-    if (req.user.roles && req.user.roles.includes("student")) {
+
+    if (req.user.roles?.includes("student")) {
       try {
-        const student = await Student.findOne({ userId: req.user._id }).populate(
-          "batchId",
-          "name standard"
-        );
+        const student = await Student.findOne({
+          userId: req.user._id,
+        }).populate("batchId", "name standard");
+
         if (student) {
           studentDetails = {
             studentId: student.studentId,
@@ -476,17 +510,14 @@ const getMe = async (req, res) => {
       }
     }
 
+    // 2. Build common user response including teacher profile
+    const userResponse = await buildUserResponse(req.user);
+
     return res.status(200).json({
       success: true,
       data: {
         user: {
-          id: req.user._id,
-          fullName: req.user.fullName,
-          email: req.user.email,
-          mobileNumber: req.user.mobileNumber,
-          roles: req.user.roles,
-          branchId: req.user.branchId,
-          status: req.user.status,
+          ...userResponse,
           ...studentDetails,
         },
       },
@@ -573,14 +604,15 @@ const updateMe = async (req, res) => {
       });
     }
 
-    // 6. Return updated profile
+    // 6. Fetch additional student details
     let studentDetails = {};
-    if (updatedUser.roles && updatedUser.roles.includes("student")) {
+
+    if (updatedUser.roles?.includes("student")) {
       try {
-        const student = await Student.findOne({ userId: updatedUser._id }).populate(
-          "batchId",
-          "name standard"
-        );
+        const student = await Student.findOne({
+          userId: updatedUser._id,
+        }).populate("batchId", "name standard");
+
         if (student) {
           studentDetails = {
             studentId: student.studentId,
@@ -593,18 +625,16 @@ const updateMe = async (req, res) => {
       }
     }
 
+    // 7. Build updated response including teacher profile
+    const userResponse = await buildUserResponse(updatedUser);
+
+    // 8. Return updated profile
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully",
       data: {
         user: {
-          id: updatedUser._id,
-          fullName: updatedUser.fullName,
-          email: updatedUser.email,
-          mobileNumber: updatedUser.mobileNumber,
-          roles: updatedUser.roles,
-          branchId: updatedUser.branchId,
-          status: updatedUser.status,
+          ...userResponse,
           ...studentDetails,
         },
       },
@@ -612,7 +642,6 @@ const updateMe = async (req, res) => {
   } catch (error) {
     console.error("Update profile error:", error);
 
-    // MongoDB duplicate email error
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -643,6 +672,7 @@ const changePassword = async (req, res) => {
     }
 
     const user = await User.findById(req.user._id);
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -650,7 +680,11 @@ const changePassword = async (req, res) => {
       });
     }
 
-    const isMatch = await comparePassword(currentPassword, user.passwordHash);
+    const isMatch = await comparePassword(
+      currentPassword,
+      user.passwordHash
+    );
+
     if (!isMatch) {
       return res.status(400).json({
         success: false,
@@ -681,6 +715,7 @@ const changePassword = async (req, res) => {
     });
   } catch (error) {
     console.error("Change password error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to change password",
@@ -696,6 +731,7 @@ const changePassword = async (req, res) => {
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+
     if (!email || !email.trim()) {
       return res.status(400).json({
         success: false,
@@ -715,55 +751,64 @@ const forgotPassword = async (req, res) => {
 
     // Generate 6-digit numeric OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     user.resetPasswordOtp = otp;
     user.resetPasswordOtpExpires = expiresAt;
     await user.save();
 
     if (process.env.NODE_ENV === "development") {
-      console.log(`[AUTH] Password reset code generated for: ${normalizedEmail}`);
+      console.log(
+        `[AUTH] Password reset code generated for: ${normalizedEmail}`
+      );
     }
 
     try {
       await createNotification({
         recipient: user._id,
         title: "Password Reset OTP Requested",
-        message: `A password reset verification code has been dispatched to your email. It will expire in 10 minutes.`,
+        message:
+          "A password reset verification code has been dispatched to your email. It will expire in 10 minutes.",
         type: "general",
         icon: "shield-key-outline",
       });
     } catch (notifErr) {
-      // Non-blocking
+      // Notification failure should not block password reset.
     }
-    // Send the OTP to the user's email address
-      const emailResult = await sendPasswordResetEmail({
-        to: normalizedEmail,
-        fullName: user.fullName,
-        otp,
+
+    // Send OTP to the user's email address
+    const emailResult = await sendPasswordResetEmail({
+      to: normalizedEmail,
+      fullName: user.fullName,
+      otp,
+    });
+
+    if (!emailResult.success) {
+      // Clear OTP because the email was not sent
+      user.resetPasswordOtp = null;
+      user.resetPasswordOtpExpires = null;
+      await user.save();
+
+      console.error(
+        "[FORGOT PASSWORD] Email delivery failed:",
+        emailResult.error || "SMTP not configured"
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to send password reset email. Please try again later.",
       });
-
-      if (!emailResult.success) {
-        // Clear OTP because the email was not sent
-        user.resetPasswordOtp = null;
-        user.resetPasswordOtpExpires = null;
-        await user.save();
-
-        console.error("[FORGOT PASSWORD] Email delivery failed:", emailResult.error || "SMTP not configured");
-
-        return res.status(500).json({
-          success: false,
-          message: "Unable to send password reset email. Please try again later.",
-        });
-      }
-
+    }
 
     return res.status(200).json({
       success: true,
-      message: "A 6-digit verification code has been sent to your registered email address.",
+      message:
+        "A 6-digit verification code has been sent to your registered email address.",
     });
   } catch (error) {
     console.error("Forgot password error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to process password reset request",
@@ -779,6 +824,7 @@ const forgotPassword = async (req, res) => {
 const verifyResetOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
+
     if (!email || !otp) {
       return res.status(400).json({
         success: false,
@@ -807,6 +853,7 @@ const verifyResetOtp = async (req, res) => {
       user.resetPasswordOtp = null;
       user.resetPasswordOtpExpires = null;
       await user.save();
+
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new one",
@@ -826,6 +873,7 @@ const verifyResetOtp = async (req, res) => {
     });
   } catch (error) {
     console.error("Verify OTP error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to verify OTP",
@@ -841,6 +889,7 @@ const verifyResetOtp = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
+
     if (!email || !otp || !newPassword) {
       return res.status(400).json({
         success: false,
@@ -861,7 +910,8 @@ const resetPassword = async (req, res) => {
     if (!user.resetPasswordOtp || !user.resetPasswordOtpExpires) {
       return res.status(400).json({
         success: false,
-        message: "No active password reset request found. Please request a new OTP",
+        message:
+          "No active password reset request found. Please request a new OTP",
       });
     }
 
@@ -869,6 +919,7 @@ const resetPassword = async (req, res) => {
       user.resetPasswordOtp = null;
       user.resetPasswordOtpExpires = null;
       await user.save();
+
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new one",
@@ -901,14 +952,18 @@ const resetPassword = async (req, res) => {
     user.resetPasswordOtpExpires = null;
     await user.save();
 
-    console.log(`[PASSWORD RESET SUCCESS] For user: ${normalizedEmail}`);
+    console.log(
+      `[PASSWORD RESET SUCCESS] For user: ${normalizedEmail}`
+    );
 
     return res.status(200).json({
       success: true,
-      message: "Password reset successfully. You can now log in with your new password.",
+      message:
+        "Password reset successfully. You can now log in with your new password.",
     });
   } catch (error) {
     console.error("Reset password error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to reset password",

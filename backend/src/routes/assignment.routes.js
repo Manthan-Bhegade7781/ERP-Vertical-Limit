@@ -10,22 +10,33 @@ const {
   downloadAssignmentAttachment,
 } = require("../controllers/assignment.controller");
 
-const uploadAssignmentPDF = require(
-  "../middleware/assignmentUpload.middleware"
-);
+const uploadAssignmentPDF = require("../middleware/assignmentUpload.middleware");
 
 const { protect } = require("../middleware/auth.middleware");
 const { authorizeRoles } = require("../middleware/role.middleware");
 
-// All assignment routes require authentication.
 router.use(protect);
 
 // Download an assignment PDF.
-// Keep this route before GET /:id.
+// Keep this route before GET /:id so :id doesn't match "attachment".
 router.get(
   "/:id/attachment",
   authorizeRoles("super_admin", "admin", "teacher", "student"),
   downloadAssignmentAttachment
+);
+
+// Get all assignments accessible to the logged-in user.
+router.get(
+  "/",
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  getAssignments
+);
+
+// View individual assignment.
+router.get(
+  "/:id",
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  getAssignmentById
 );
 
 // Create assignment with an optional PDF attachment.
@@ -36,21 +47,6 @@ router.post(
   createAssignment
 );
 
-// Get all assignments accessible to the logged-in user.
-router.get(
-  "/",
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
-  getAssignments
-);
-
-// Get one assignment.
-router.get(
-  "/:id",
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
-  getAssignmentById
-);
-
-// Update assignment with an optional replacement PDF.
 router.put(
   "/:id",
   authorizeRoles("super_admin", "admin", "teacher"),
@@ -58,7 +54,6 @@ router.put(
   updateAssignment
 );
 
-// Delete assignment.
 router.delete(
   "/:id",
   authorizeRoles("super_admin", "admin"),

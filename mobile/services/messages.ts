@@ -1,8 +1,5 @@
-
 import { API_BASE_URL } from "@/config/api";
 import { getToken } from "@/services/auth";
-
-const BASE_URL = API_BASE_URL.replace(/\/+$/, "");
 
 export type MessageFolder =
   | "inbox"
@@ -10,14 +7,6 @@ export type MessageFolder =
   | "unread"
   | "archived"
   | "important";
-
-export type MessageStatusAction =
-  | "read"
-  | "unread"
-  | "important"
-  | "normal"
-  | "archive"
-  | "unarchive";
 
 export type MessageCategory =
   | "General"
@@ -29,139 +18,169 @@ export type MessageCategory =
   | "Events"
   | "Assignments";
 
-export type MessagePriority = "Normal" | "Important";
+export type MessageUser = {
+  _id?: string;
+  id?: string;
+  fullName?: string;
+  email?: string;
+  roles?: string[];
+};
 
 export type MessageRecipient = {
+  user: MessageUser | string;
+  readAt?: string | null;
+  archivedAt?: string | null;
+  isImportant?: boolean;
+};
+
+export type MessageRecord = {
+  _id: string;
+  sender: MessageUser | string;
+  recipients: MessageRecipient[];
+  subject: string;
+  body: string;
+  category: MessageCategory;
+  priority: "Important" | "Normal";
+  replyTo?: string | null;
+  branchId?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type MessageContact = {
   id: string;
   fullName: string;
   email: string;
   roles: string[];
-  branchId: string | null;
+  branchId?: string | null;
 };
 
-export type ApiResponse<T> = {
-  success: boolean;
-  message?: string;
-  count?: number;
-  data: T;
-};
-
-export type CreateMessagePayload = {
-  recipientIds: string[];
-  subject: string;
-  body: string;
-  category?: MessageCategory;
-  priority?: MessagePriority;
-};
-
-export type ReplyMessagePayload = {
-  body: string;
-};
-
-// Common authenticated API request
 async function request<T>(
-  endpoint: string,
-  options: RequestInit = {}
+  path: string,
+  options: RequestInit = {},
 ): Promise<T> {
   const token = await getToken();
 
   if (!token) {
-    throw new Error("Session expired. Please log in again.");
+    throw new Error("Your session has expired. Please log in again.");
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
-      ...options.headers,
+      ...(options.headers || {}),
     },
   });
 
-  const result = await response.json().catch(() => null);
+  const result = await response.json().catch(() => ({}));
 
-  if (!response.ok || result?.success === false) {
+  if (!response.ok || result.success === false) {
     throw new Error(
-      result?.message || `Request failed (${response.status})`
+      result.message || `Request failed (${response.status})`,
     );
   }
 
   return result as T;
 }
 
-// Get messages for the selected folder
-export async function getMessages(
-  folder?: MessageFolder
-) {
-  const query = folder
-    ? `?folder=${encodeURIComponent(folder)}`
-    : "";
+export async function fetchMessages(
+  folder: MessageFolder = "inbox",
+): Promise<MessageRecord[]> {
+  const result = await request<{
+    data?: MessageRecord[];
+  }>(`/messages?folder=${folder}`);
 
-  return request<ApiResponse<unknown[]>>(
-    `/messages${query}`,
-    { method: "GET" }
-  );
+  return Array.isArray(result.data) ? result.data : [];
 }
 
-// Get a single message; the backend may mark it as read
-export async function getMessageById(messageId: string) {
-  return request<ApiResponse<unknown>>(
-    `/messages/${encodeURIComponent(messageId)}`,
-    { method: "GET" }
-  );
+export async function fetchMessageById(
+  id: string,
+): Promise<MessageRecord> {
+  const result = await request<{
+    data?: MessageRecord;
+  }>(`/messages/${id}`);
+
+  if (!result.data) {
+    throw new Error("Message details could not be loaded.");
+  }
+
+  return result.data;
 }
 
-// Get users the current user can message
-export async function getMessageRecipients() {
-  return request<ApiResponse<MessageRecipient[]>>(
-    "/users/message-recipients",
-    { method: "GET" }
-  );
+export async function fetchMessageContacts(): Promise<MessageContact[]> {
+  const result = await request<{
+    data?: MessageContact[];
+  }>("/users/message-recipients");
+
+  return Array.isArray(result.data) ? result.data : [];
 }
 
-// Send a new message
-export async function createMessage(
-  payload: CreateMessagePayload
-) {
-  return request<ApiResponse<unknown>>("/messages", {
+export async function sendMessage(payload: {
+  recipientIds: string[];
+  subject: string;
+  body: string;
+  category: MessageCategory;
+  priority: "Important" | "Normal";
+}): Promise<MessageRecord> {
+  const result = await request<{
+    data?: MessageRecord;
+  }>("/messages", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+
+  if (!result.data) {
+    throw new Error("Message could not be sent.");
+  }
+
+  return result.data;
 }
 
-// Reply to an existing message
 export async function replyToMessage(
-  messageId: string,
-  payload: ReplyMessagePayload
-) {
-  return request<ApiResponse<unknown>>(
-    `/messages/${encodeURIComponent(messageId)}/reply`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }
-  );
+  id: string,
+  body: string,
+): Promise<MessageRecord> {
+  const result = await request<{
+    data?: MessageRecord;
+  }>(`/messages/${id}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+
+  if (!result.data) {
+    throw new Error("Reply could not be sent.");
+  }
+
+  return result.data;
 }
 
-// Update read, important, and archive status
 export async function updateMessageStatus(
-  messageId: string,
-  action: MessageStatusAction
-) {
-  return request<ApiResponse<unknown>>(
-    `/messages/${encodeURIComponent(messageId)}/status`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ action }),
-    }
-  );
+  id: string,
+  action:
+    | "read"
+    | "unread"
+    | "important"
+    | "normal"
+    | "archive"
+    | "unarchive",
+): Promise<void> {
+  await request(`/messages/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ action }),
+  });
 }
 
-// Delete a message
-export async function deleteMessage(messageId: string) {
-  return request<ApiResponse<unknown>>(
-    `/messages/${encodeURIComponent(messageId)}`,
-    { method: "DELETE" }
-  );
+export async function deleteMessage(id: string): Promise<void> {
+  await request(`/messages/${id}`, {
+    method: "DELETE",
+  });
 }
+
+// Backward-compatibility aliases for Student & Admin dashboards
+export const getMessages = fetchMessages;
+export const getMessageById = fetchMessageById;
+export const getMessageRecipients = fetchMessageContacts;
+export const createMessage = sendMessage;

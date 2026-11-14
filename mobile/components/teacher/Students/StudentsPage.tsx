@@ -1,8 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,13 +19,28 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
+import {
+  fetchTeacherAssignedStudents,
+  getReferenceName,
+  TeacherStudentApiRecord,
+} from '../../../services/students';
+
+/* =========================================================
+   PROPS
+========================================================= */
+
 type StudentsPageProps = {
   onContentScroll?: (event: any) => void;
+  onBack?: () => void;
   onStudentReportPress?: (
     studentId: string,
     studentName: string,
   ) => void;
 };
+
+/* =========================================================
+   FRONTEND STUDENT TYPE
+========================================================= */
 
 type Student = {
   id: string;
@@ -26,129 +48,88 @@ type Student = {
   batch: string;
   subject: string;
   initials: string;
+  status: string;
 };
 
-const STUDENTS: Student[] = [
-  {
-    id: 'STU-0801',
-    name: 'Aarav Mehta',
-    batch: '8th Standard',
-    subject: 'Physics',
-    initials: 'AM',
-  },
-  {
-    id: 'STU-0802',
-    name: 'Avni Shah',
-    batch: '8th Standard',
-    subject: 'Physics',
-    initials: 'AS',
-  },
-  {
-    id: 'STU-0803',
-    name: 'Harsh Kumar',
-    batch: '8th Standard',
-    subject: 'Physics',
-    initials: 'HK',
-  },
-  {
-    id: 'STU-0901',
-    name: 'Kiara Patel',
-    batch: '9th Standard',
-    subject: 'Physics',
-    initials: 'KP',
-  },
-  {
-    id: 'STU-0902',
-    name: 'Reyansh Singh',
-    batch: '9th Standard',
-    subject: 'Physics',
-    initials: 'RS',
-  },
-  {
-    id: 'STU-0903',
-    name: 'Tara Joshi',
-    batch: '9th Standard',
-    subject: 'Physics',
-    initials: 'TJ',
-  },
-  {
-    id: 'STU-1001',
-    name: 'Aditi Verma',
-    batch: '10th Standard',
-    subject: 'Physics',
-    initials: 'AV',
-  },
-  {
-    id: 'STU-1002',
-    name: 'Rohan Malhotra',
-    batch: '10th Standard',
-    subject: 'Physics',
-    initials: 'RM',
-  },
-  {
-    id: 'STU-1003',
-    name: 'Ishita Rao',
-    batch: '10th Standard',
-    subject: 'Physics',
-    initials: 'IR',
-  },
-  {
-    id: 'STU-1101',
-    name: 'Arjun Kapoor',
-    batch: '11th Standard',
-    subject: 'Physics',
-    initials: 'AK',
-  },
-  {
-    id: 'STU-1102',
-    name: 'Meera Nair',
-    batch: '11th Standard',
-    subject: 'Physics',
-    initials: 'MN',
-  },
-  {
-    id: 'STU-1103',
-    name: 'Vivaan Sharma',
-    batch: '11th Standard',
-    subject: 'Physics',
-    initials: 'VS',
-  },
-  {
-    id: 'STU-1201',
-    name: 'Aditya Joshi',
-    batch: '12th Standard',
-    subject: 'Physics',
-    initials: 'AJ',
-  },
-  {
-    id: 'STU-1202',
-    name: 'Ananya Gupta',
-    batch: '12th Standard',
-    subject: 'Physics',
-    initials: 'AG',
-  },
-  {
-    id: 'STU-1203',
-    name: 'Kabir Shah',
-    batch: '12th Standard',
-    subject: 'Physics',
-    initials: 'KS',
-  },
-];
+/* =========================================================
+   HELPERS
+========================================================= */
 
-const BATCHES = [
-  'All Batches',
-  '8th Standard',
-  '9th Standard',
-  '10th Standard',
-  '11th Standard',
-  '12th Standard',
-];
+const getInitials = (name: string): string => {
+  if (!name) return 'ST';
+
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+};
+
+const getBatchName = (
+  student: TeacherStudentApiRecord,
+): string => {
+  if (
+    student.batchId &&
+    typeof student.batchId === 'object'
+  ) {
+    return (
+      student.batchId.name ||
+      student.batchId.standard ||
+      'Unassigned Batch'
+    );
+  }
+
+  return 'Unassigned Batch';
+};
+
+const getStudentName = (
+  student: TeacherStudentApiRecord,
+): string => {
+  return getReferenceName(student.userId) || 'Unknown Student';
+};
+
+const mapStudent = (
+  student: TeacherStudentApiRecord,
+): Student => {
+  const name = getStudentName(student);
+
+  const subjects =
+    student.teacherSubjects
+      ?.map((subject) => subject.name)
+      .filter(Boolean)
+      .join(', ') || 'Not assigned';
+
+  return {
+    id: student.studentId || student._id,
+    name,
+    batch: getBatchName(student),
+    subject: subjects,
+    initials: getInitials(name),
+    status: student.status || 'active',
+  };
+};
+
+/* =========================================================
+   MAIN COMPONENT
+========================================================= */
 
 export default function StudentsPage({
   onContentScroll,
+  onBack,
   onStudentReportPress,
 }: StudentsPageProps) {
+  /* =============================
+     STATE
+  ============================= */
+
+  const [students, setStudents] = useState<Student[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [error, setError] = useState('');
+
   const [searchText, setSearchText] = useState('');
 
   const [selectedBatch, setSelectedBatch] =
@@ -157,43 +138,126 @@ export default function StudentsPage({
   const [batchModalVisible, setBatchModalVisible] =
     useState(false);
 
-  const filteredStudents = useMemo(() => {
-    const query = searchText
-      .trim()
-      .toLowerCase();
+  /* =============================
+     FETCH TEACHER STUDENTS
+  ============================= */
 
-    return STUDENTS.filter((student) => {
+  const loadStudents = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await fetchTeacherAssignedStudents();
+
+      const mappedStudents = response.map(mapStudent);
+
+      setStudents(mappedStudents);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Unable to load assigned students.';
+
+      setError(message);
+      setStudents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      setError('');
+
+      const response = await fetchTeacherAssignedStudents();
+      const mappedStudents = response.map(mapStudent);
+
+      setStudents(mappedStudents);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Unable to load assigned students.';
+
+      setError(message);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
+
+  /* =============================
+     DYNAMIC BATCHES
+  ============================= */
+
+  const batches = useMemo(() => {
+    const uniqueBatches = Array.from(
+      new Set(
+        students
+          .map((student) => student.batch)
+          .filter(
+            (batch) =>
+              batch && batch !== 'Unassigned Batch',
+          ),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+
+    return ['All Batches', ...uniqueBatches];
+  }, [students]);
+
+  /* =============================
+     FILTER STUDENTS
+  ============================= */
+
+  const filteredStudents = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+
+    return students.filter((student) => {
       const matchesBatch =
         selectedBatch === 'All Batches' ||
         student.batch === selectedBatch;
 
       const matchesSearch =
         !query ||
-        student.name
-          .toLowerCase()
-          .includes(query) ||
-        student.id
-          .toLowerCase()
-          .includes(query);
+        student.name.toLowerCase().includes(query) ||
+        student.id.toLowerCase().includes(query);
 
       return matchesBatch && matchesSearch;
     });
-  }, [searchText, selectedBatch]);
+  }, [students, searchText, selectedBatch]);
+
+  /* =============================
+     BATCH COUNT
+  ============================= */
 
   const batchCount = useMemo(() => {
-    return BATCHES.filter(
-      (batch) => batch !== 'All Batches',
-    ).filter((batch) =>
-      STUDENTS.some(
-        (student) => student.batch === batch,
-      ),
-    ).length;
-  }, []);
+    return batches.length - 1;
+  }, [batches]);
+
+  /* =============================
+     SELECT BATCH
+  ============================= */
 
   const selectBatch = (batch: string) => {
     setSelectedBatch(batch);
     setBatchModalVisible(false);
   };
+
+  /* =============================
+     RETRY
+  ============================= */
+
+  const handleRetry = () => {
+    loadStudents();
+  };
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
     <View style={styles.container}>
@@ -203,25 +267,55 @@ export default function StudentsPage({
         showsVerticalScrollIndicator={false}
         onScroll={onContentScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#5420D8"
+            colors={["#5420D8"]}
+          />
+        }
       >
         {/* ================================
             PAGE HEADER
         ================================= */}
 
-        <View style={styles.pageHeader}>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.pageTitle}>
+        <View style={styles.headerCard}>
+          <Pressable
+            style={styles.backButton}
+            onPress={onBack ?? (() => undefined)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Go back to previous screen"
+          >
+            <Ionicons
+              name="arrow-back"
+              size={26}
+              color="#5420D8"
+            />
+          </Pressable>
+
+          <View style={styles.headerIcon}>
+            <Ionicons
+              name="people-outline"
+              size={25}
+              color="#5420D8"
+            />
+          </View>
+
+          <View style={styles.headerText}>
+            <Text style={styles.title}>
               Students
             </Text>
 
-            <Text style={styles.pageSubtitle}>
+            <Text style={styles.subtitle}>
               Search and view student performance
             </Text>
           </View>
 
           <View style={styles.totalBadge}>
             <Text style={styles.totalBadgeNumber}>
-              {STUDENTS.length}
+              {loading ? '--' : students.length}
             </Text>
 
             <Text style={styles.totalBadgeLabel}>
@@ -283,7 +377,7 @@ export default function StudentsPage({
 
             <View style={styles.batchCountBadge}>
               <Text style={styles.batchCountText}>
-                {batchCount} Batches
+                {loading ? '--' : batchCount} Batches
               </Text>
             </View>
           </View>
@@ -293,9 +387,8 @@ export default function StudentsPage({
               styles.batchSelector,
               pressed && styles.pressed,
             ]}
-            onPress={() =>
-              setBatchModalVisible(true)
-            }
+            onPress={() => setBatchModalVisible(true)}
+            disabled={loading || students.length === 0}
           >
             <View style={styles.selectorLeft}>
               <View style={styles.selectorIcon}>
@@ -335,15 +428,17 @@ export default function StudentsPage({
             </Text>
 
             <Text style={styles.resultSubtitle}>
-              {filteredStudents.length}{' '}
-              {filteredStudents.length === 1
-                ? 'student'
-                : 'students'}{' '}
-              found
+              {loading
+                ? 'Loading students...'
+                : `${filteredStudents.length} ${
+                    filteredStudents.length === 1
+                      ? 'student'
+                      : 'students'
+                  } found`}
             </Text>
           </View>
 
-          {searchText.length > 0 && (
+          {searchText.length > 0 && !loading && (
             <View style={styles.searchResultBadge}>
               <Ionicons
                 name="search-outline"
@@ -359,58 +454,138 @@ export default function StudentsPage({
         </View>
 
         {/* ================================
+            LOADING STATE
+        ================================= */}
+
+        {loading && (
+          <View style={styles.stateContainer}>
+            <ActivityIndicator
+              size="large"
+              color="#6428D7"
+            />
+
+            <Text style={styles.stateTitle}>
+              Loading students...
+            </Text>
+
+            <Text style={styles.stateSubtitle}>
+              Fetching your assigned students
+            </Text>
+          </View>
+        )}
+
+        {/* ================================
+            ERROR STATE
+        ================================= */}
+
+        {!loading && error.length > 0 && (
+          <View style={styles.stateContainer}>
+            <View style={styles.stateIcon}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={32}
+                color="#D94A4A"
+              />
+            </View>
+
+            <Text style={styles.stateTitle}>
+              Unable to load students
+            </Text>
+
+            <Text style={styles.stateSubtitle}>
+              {error}
+            </Text>
+
+            <Pressable
+              style={styles.retryButton}
+              onPress={handleRetry}
+            >
+              <Ionicons
+                name="refresh-outline"
+                size={16}
+                color="#FFFFFF"
+              />
+
+              <Text style={styles.retryButtonText}>
+                Try Again
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* ================================
             STUDENT LIST
         ================================= */}
 
-        <View style={styles.studentList}>
-          {filteredStudents.length > 0 ? (
-            filteredStudents.map((student) => (
-              <StudentCard
-                key={student.id}
-                student={student}
-                onReportPress={() => {
-                  onStudentReportPress?.(
-                    student.id,
-                    student.name,
-                  );
-                }}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Ionicons
-                  name="search-outline"
-                  size={32}
-                  color="#6428D7"
+        {!loading && !error && (
+          <View style={styles.studentList}>
+            {filteredStudents.length > 0 ? (
+              filteredStudents.map((student) => (
+                <StudentCard
+                  key={student.id}
+                  student={student}
+                  onReportPress={() => {
+                    onStudentReportPress?.(
+                      student.id,
+                      student.name,
+                    );
+                  }}
                 />
-              </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIcon}>
+                  <Ionicons
+                    name={
+                      students.length === 0
+                        ? 'people-outline'
+                        : 'search-outline'
+                    }
+                    size={32}
+                    color="#6428D7"
+                  />
+                </View>
 
-              <Text style={styles.emptyTitle}>
-                No students found
-              </Text>
-
-              <Text style={styles.emptySubtitle}>
-                Try another name, Student ID,
-                or select a different batch.
-              </Text>
-
-              <Pressable
-                style={styles.clearFiltersButton}
-                onPress={() => {
-                  setSearchText('');
-                  setSelectedBatch(
-                    'All Batches',
-                  );
-                }}
-              >
-                <Text style={styles.clearFiltersText}>
-                  Clear Filters
+                <Text style={styles.emptyTitle}>
+                  {students.length === 0
+                    ? 'No students assigned yet'
+                    : 'No students found'}
                 </Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
+
+                <Text style={styles.emptySubtitle}>
+                  {students.length === 0
+                    ? 'Students will appear here when they are added to your assigned batches.'
+                    : 'Try another name, Student ID, or select a different batch.'}
+                </Text>
+
+                {students.length > 0 && (
+                  <Pressable
+                    style={styles.clearFiltersButton}
+                    onPress={() => {
+                      setSearchText('');
+                      setSelectedBatch('All Batches');
+                    }}
+                  >
+                    <Text style={styles.clearFiltersText}>
+                      Clear Filters
+                    </Text>
+                  </Pressable>
+                )}
+
+                {students.length === 0 && (
+                  <Pressable
+                    style={styles.clearFiltersButton}
+                    onPress={handleRetry}
+                  >
+                    <Text style={styles.clearFiltersText}>
+                      Refresh
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.bottomSpace} />
       </ScrollView>
@@ -462,14 +637,14 @@ export default function StudentsPage({
             </View>
 
             <View style={styles.batchOptions}>
-              {BATCHES.map((batch) => {
+              {batches.map((batch) => {
                 const isSelected =
                   batch === selectedBatch;
 
                 const studentCount =
                   batch === 'All Batches'
-                    ? STUDENTS.length
-                    : STUDENTS.filter(
+                    ? students.length
+                    : students.filter(
                         (student) =>
                           student.batch === batch,
                       ).length;
@@ -483,15 +658,9 @@ export default function StudentsPage({
                         styles.batchOptionSelected,
                       pressed && styles.pressed,
                     ]}
-                    onPress={() =>
-                      selectBatch(batch)
-                    }
+                    onPress={() => selectBatch(batch)}
                   >
-                    <View
-                      style={
-                        styles.batchOptionLeft
-                      }
-                    >
+                    <View style={styles.batchOptionLeft}>
                       <View
                         style={[
                           styles.batchOptionIcon,
@@ -510,11 +679,7 @@ export default function StudentsPage({
                         />
                       </View>
 
-                      <View
-                        style={
-                          styles.batchOptionText
-                        }
-                      >
+                      <View style={styles.batchOptionText}>
                         <Text
                           style={[
                             styles.batchOptionTitle,
@@ -525,11 +690,7 @@ export default function StudentsPage({
                           {batch}
                         </Text>
 
-                        <Text
-                          style={
-                            styles.batchOptionCount
-                          }
-                        >
+                        <Text style={styles.batchOptionCount}>
                           {studentCount}{' '}
                           {studentCount === 1
                             ? 'student'
@@ -539,9 +700,7 @@ export default function StudentsPage({
                     </View>
 
                     {isSelected && (
-                      <View
-                        style={styles.selectedCheck}
-                      >
+                      <View style={styles.selectedCheck}>
                         <Ionicons
                           name="checkmark"
                           size={17}
@@ -560,9 +719,9 @@ export default function StudentsPage({
   );
 }
 
-/* =====================================
+/* =========================================================
    STUDENT CARD
-===================================== */
+========================================================= */
 
 type StudentCardProps = {
   student: Student;
@@ -601,7 +760,10 @@ function StudentCard({
               color="#6D7280"
             />
 
-            <Text style={styles.metaText}>
+            <Text
+              style={styles.metaText}
+              numberOfLines={1}
+            >
               {student.batch}
             </Text>
           </View>
@@ -615,14 +777,15 @@ function StudentCard({
               color="#6D7280"
             />
 
-            <Text style={styles.metaText}>
+            <Text
+              style={styles.metaText}
+              numberOfLines={1}
+            >
               {student.subject}
             </Text>
           </View>
         </View>
       </View>
-
-      {/* REPORT BUTTON */}
 
       <Pressable
         style={({ pressed }) => [
@@ -645,9 +808,9 @@ function StudentCard({
   );
 }
 
-/* =====================================
+/* =========================================================
    STYLES
-===================================== */
+========================================================= */
 
 const styles = StyleSheet.create({
   container: {
@@ -665,34 +828,54 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  pageHeader: {
+  headerCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
   },
 
-  headerTextContainer: {
+  backButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    flexShrink: 0,
+  },
+
+  headerIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+    flexShrink: 0,
+  },
+
+  headerText: {
     flex: 1,
     minWidth: 0,
   },
 
-  pageTitle: {
+  title: {
     color: '#111528',
     fontFamily: 'PoppinsBold',
-    fontSize: 22,
-    lineHeight: 29,
+    fontSize: 19,
   },
 
-  pageSubtitle: {
-    color: '#7B7F8B',
+  subtitle: {
+    color: '#777C89',
     fontFamily: 'PoppinsRegular',
-    fontSize: 11.5,
-    marginTop: 2,
+    fontSize: 10.5,
+    marginTop: 1,
   },
 
   totalBadge: {
@@ -919,6 +1102,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 0,
+    flexShrink: 1,
   },
 
   metaText: {
@@ -926,6 +1110,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsRegular',
     fontSize: 9,
     marginLeft: 3,
+    flexShrink: 1,
   },
 
   metaDot: {
@@ -974,6 +1159,7 @@ const styles = StyleSheet.create({
     color: '#171A2B',
     fontFamily: 'PoppinsBold',
     fontSize: 16,
+    textAlign: 'center',
   },
 
   emptySubtitle: {
@@ -997,6 +1183,58 @@ const styles = StyleSheet.create({
     color: '#6428D7',
     fontFamily: 'PoppinsSemiBold',
     fontSize: 11,
+  },
+
+  stateContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+
+  stateIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: '#FCEEEE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+
+  stateTitle: {
+    color: '#171A2B',
+    fontFamily: 'PoppinsBold',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+
+  stateSubtitle: {
+    color: '#858996',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 17,
+    marginTop: 5,
+  },
+
+  retryButton: {
+    backgroundColor: '#6428D7',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11,
+    marginLeft: 6,
   },
 
   modalOverlay: {

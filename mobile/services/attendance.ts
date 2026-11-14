@@ -67,10 +67,6 @@ export type AttendanceApiRecord = {
   updatedAt?: string;
 };
 
-/*
- * Compatibility alias for components that import
- * AttendanceRecord from this service.
- */
 export type AttendanceRecord = AttendanceApiRecord;
 
 export type AttendanceFilters = {
@@ -104,12 +100,32 @@ type ApiEnvelope<T> = {
   data?: T;
 };
 
+type TeacherBatchSubject = {
+  _id: string;
+  name: string;
+  code?: string;
+  standard?: string;
+  type?: string;
+  description?: string;
+  duration?: number;
+};
+
+type TeacherBatchResponse = AttendanceBatch & {
+  subjects?: TeacherBatchSubject[];
+  studentCount?: number;
+  subjectCount?: number;
+};
+
+type TeacherBatchesResponse = {
+  batches?: TeacherBatchResponse[];
+};
+
 /* =====================================================
    API RESPONSE HANDLING
 ===================================================== */
 
 const parseResponse = async <T>(
-  response: Response
+  response: Response,
 ): Promise<ApiEnvelope<T>> => {
   const responseText = await response.text();
 
@@ -120,28 +136,28 @@ const parseResponse = async <T>(
       result = JSON.parse(responseText) as ApiEnvelope<T>;
     } catch {
       throw new Error(
-        `Invalid server response. HTTP ${response.status}.`
+        `Invalid server response. HTTP ${response.status}.`,
       );
     }
   }
 
   if (response.status === 401) {
     throw new Error(
-      'Your session has expired. Please sign in again.'
+      'Your session has expired. Please sign in again.',
     );
   }
 
   if (response.status === 403) {
     throw new Error(
       result.message ||
-        'You do not have permission to access this resource.'
+        'You do not have permission to access this resource.',
     );
   }
 
   if (!response.ok || result.success === false) {
     throw new Error(
       result.message ||
-        `Request failed with HTTP ${response.status}.`
+        `Request failed with HTTP ${response.status}.`,
     );
   }
 
@@ -154,13 +170,13 @@ const parseResponse = async <T>(
 
 const apiRequest = async <T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<ApiEnvelope<T>> => {
   const token = await getToken();
 
   if (!token) {
     throw new Error(
-      'Authentication required. Please sign in again.'
+      'Authentication required. Please sign in again.',
     );
   }
 
@@ -189,11 +205,11 @@ const apiRequest = async <T>(
       {
         ...options,
         headers,
-      }
+      },
     );
   } catch {
     throw new Error(
-      'Unable to connect to the server. Check your network and API URL.'
+      'Unable to connect to the server. Check your network and API URL.',
     );
   }
 
@@ -204,14 +220,8 @@ const apiRequest = async <T>(
    REFERENCE HELPERS
 ===================================================== */
 
-/**
- * Extract a MongoDB ID from either:
- * - A string ID
- * - An object containing _id
- * - An object containing id
- */
 export const getReferenceId = (
-  reference: AttendanceReference
+  reference: AttendanceReference,
 ): string => {
   if (typeof reference === 'string') {
     return reference;
@@ -227,12 +237,9 @@ export const getReferenceId = (
   return '';
 };
 
-/**
- * Extract a display name from populated MongoDB data.
- */
 export const getReferenceName = (
   reference: AttendanceReference,
-  fallback = ''
+  fallback = '',
 ): string => {
   if (
     reference &&
@@ -253,83 +260,118 @@ export const getReferenceName = (
 };
 
 /* =====================================================
-   GET BATCHES
-   GET /api/batches
+   GET TEACHER'S ASSIGNED BATCHES
+
+   GET /api/batches/teacher/my-batches
 ===================================================== */
 
 export const fetchAttendanceBatches =
   async (): Promise<AttendanceBatch[]> => {
-    const result = await apiRequest<{
-      batches?: AttendanceBatch[];
-    }>('/batches');
+    const result = await apiRequest<TeacherBatchesResponse>(
+      '/batches/teacher/my-batches',
+    );
 
     const batches = result.data?.batches;
 
-    return Array.isArray(batches)
-      ? batches
-      : [];
+    if (!Array.isArray(batches)) {
+      return [];
+    }
+
+    return batches.filter(
+      (batch) =>
+        batch.isRemoved !== true &&
+        batch.status !== 'inactive',
+    );
   };
 
 /* =====================================================
-   GET STUDENTS
-   GET /api/students
+   GET TEACHER'S ASSIGNED STUDENTS
+
+   GET /api/students/teacher/assigned
 ===================================================== */
 
 export const fetchAttendanceStudents =
   async (): Promise<AttendanceStudent[]> => {
-    const result = await apiRequest<
-      | AttendanceStudent[]
-      | { students?: AttendanceStudent[] }
-    >('/students');
+    const result = await apiRequest<AttendanceStudent[]>(
+      '/students/teacher/assigned',
+    );
 
-    const data = result.data;
-
-    if (Array.isArray(data)) {
-      return data;
+    if (!Array.isArray(result.data)) {
+      return [];
     }
 
-    if (
-      data &&
-      typeof data === 'object' &&
-      Array.isArray(data.students)
-    ) {
-      return data.students;
-    }
+    return result.data.filter((student) => {
+      const user =
+        student.userId &&
+        typeof student.userId === 'object'
+          ? student.userId
+          : null;
 
-    return [];
+      return (
+        student.status?.toLowerCase() === 'active' &&
+        user?.status?.toLowerCase() === 'active'
+      );
+    });
   };
 
 /* =====================================================
-   GET SUBJECTS ASSIGNED TO A BATCH
-   GET /api/batch-subjects/batch/:batchId
+   GET SUBJECTS ASSIGNED TO SELECTED TEACHER BATCH
+
+   Subjects are included in:
+   GET /api/batches/teacher/my-batches
 ===================================================== */
 
 export const fetchBatchSubjectAssignments =
   async (
-    batchId: string
+    batchId: string,
   ): Promise<BatchSubjectAssignment[]> => {
     if (!batchId) {
       return [];
     }
 
-    const result = await apiRequest<{
-      batchSubjects?: BatchSubjectAssignment[];
-    }>(
-      `/batch-subjects/batch/${encodeURIComponent(
-        batchId
-      )}`
+    const result = await apiRequest<TeacherBatchesResponse>(
+      '/batches/teacher/my-batches',
     );
 
-    const assignments =
-      result.data?.batchSubjects;
+    const batches = result.data?.batches;
 
-    return Array.isArray(assignments)
-      ? assignments
-      : [];
+    if (!Array.isArray(batches)) {
+      return [];
+    }
+
+    const selectedBatch = batches.find(
+      (batch) => batch._id === batchId,
+    );
+
+    if (
+      !selectedBatch ||
+      !Array.isArray(selectedBatch.subjects)
+    ) {
+      return [];
+    }
+
+    return selectedBatch.subjects
+      .filter(
+        (subject) =>
+          Boolean(subject._id) &&
+          Boolean(subject.name),
+      )
+      .map((subject) => ({
+        _id: `${batchId}-${subject._id}`,
+        batchId,
+        subjectId: {
+          _id: subject._id,
+          name: subject.name,
+          code: subject.code,
+          status: 'active',
+        },
+        status: 'active',
+      }));
   };
 
 /* =====================================================
    GET ATTENDANCE RECORDS
+
    GET /api/attendance
 
    Optional filters:
@@ -338,7 +380,7 @@ export const fetchBatchSubjectAssignments =
 
 export const fetchAttendanceRecords =
   async (
-    filters: AttendanceFilters = {}
+    filters: AttendanceFilters = {},
   ): Promise<AttendanceApiRecord[]> => {
     const params = new URLSearchParams();
 
@@ -351,7 +393,7 @@ export const fetchAttendanceRecords =
         ) {
           params.append(key, String(value));
         }
-      }
+      },
     );
 
     const query = params.toString();
@@ -384,12 +426,13 @@ export const fetchAttendanceRecords =
 
 /* =====================================================
    CREATE ATTENDANCE
+
    POST /api/attendance
 ===================================================== */
 
 export const createAttendanceRecord =
   async (
-    payload: CreateAttendancePayload
+    payload: CreateAttendancePayload,
   ): Promise<AttendanceApiRecord> => {
     if (
       !payload.studentId ||
@@ -399,7 +442,7 @@ export const createAttendanceRecord =
       !payload.status
     ) {
       throw new Error(
-        'Student, batch, subject, date and status are required.'
+        'Student, batch, subject, date and status are required.',
       );
     }
 
@@ -409,7 +452,7 @@ export const createAttendanceRecord =
         {
           method: 'POST',
           body: JSON.stringify(payload),
-        }
+        },
       );
 
     if (
@@ -418,7 +461,7 @@ export const createAttendanceRecord =
       !result.data._id
     ) {
       throw new Error(
-        'The server did not return the saved attendance record.'
+        'The server did not return the saved attendance record.',
       );
     }
 
@@ -427,17 +470,18 @@ export const createAttendanceRecord =
 
 /* =====================================================
    UPDATE ATTENDANCE
+
    PUT /api/attendance/:id
 ===================================================== */
 
 export const updateAttendanceRecord =
   async (
     attendanceId: string,
-    payload: UpdateAttendancePayload
+    payload: UpdateAttendancePayload,
   ): Promise<AttendanceApiRecord> => {
     if (!attendanceId) {
       throw new Error(
-        'Attendance record ID is required.'
+        'Attendance record ID is required.',
       );
     }
 
@@ -447,19 +491,17 @@ export const updateAttendanceRecord =
       payload.remarks === undefined
     ) {
       throw new Error(
-        'Provide at least one attendance field to update.'
+        'Provide at least one attendance field to update.',
       );
     }
 
     const result =
       await apiRequest<AttendanceApiRecord>(
-        `/attendance/${encodeURIComponent(
-          attendanceId
-        )}`,
+        `/attendance/${encodeURIComponent(attendanceId)}`,
         {
           method: 'PUT',
           body: JSON.stringify(payload),
-        }
+        },
       );
 
     if (
@@ -468,7 +510,7 @@ export const updateAttendanceRecord =
       !result.data._id
     ) {
       throw new Error(
-        'The server did not return the updated attendance record.'
+        'The server did not return the updated attendance record.',
       );
     }
 
@@ -523,5 +565,87 @@ export const getMyAttendance = async (): Promise<StudentAttendanceData> => {
     throw new Error('Unable to load your attendance data.');
   }
 
+  return result.data;
+};
+
+/* =====================================================
+   TEACHER ATTENDANCE API
+   GET/POST /api/teacher-attendance
+   PUT /api/teacher-attendance/:id
+===================================================== */
+
+export type TeacherAttendanceApiRecord = {
+  _id: string;
+  teacherId: AttendanceReference;
+  batchId: AttendanceReference | AttendanceBatch;
+  subjectId: AttendanceReference;
+  date: string;
+  status: AttendanceStatus;
+  checkIn?: string;
+  remarks?: string;
+  markedBy?: AttendanceReference;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateTeacherAttendancePayload = {
+  batchId: string;
+  subjectId: string;
+  date: string;
+  status: AttendanceStatus;
+  checkIn?: string;
+  remarks?: string;
+};
+
+export const fetchTeacherAttendanceRecord = async (
+  filters: { batchId: string; subjectId: string; date: string },
+): Promise<TeacherAttendanceApiRecord | null> => {
+  const params = new URLSearchParams();
+  params.append('batchId', filters.batchId);
+  params.append('subjectId', filters.subjectId);
+  params.append('date', filters.date);
+
+  const result = await apiRequest<TeacherAttendanceApiRecord[]>(
+    `/teacher-attendance?${params.toString()}`,
+  );
+
+  if (!Array.isArray(result.data)) return null;
+  return result.data[0] || null;
+};
+
+export const createTeacherAttendanceRecord = async (
+  payload: CreateTeacherAttendancePayload,
+): Promise<TeacherAttendanceApiRecord> => {
+  const result = await apiRequest<TeacherAttendanceApiRecord>(
+    '/teacher-attendance',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!result.data?._id) {
+    throw new Error('The server did not return the saved teacher attendance record.');
+  }
+  return result.data;
+};
+
+export const updateTeacherAttendanceRecord = async (
+  attendanceId: string,
+  payload: UpdateAttendancePayload,
+): Promise<TeacherAttendanceApiRecord> => {
+  if (!attendanceId) throw new Error('Teacher attendance record ID is required.');
+
+  const result = await apiRequest<TeacherAttendanceApiRecord>(
+    `/teacher-attendance/${encodeURIComponent(attendanceId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!result.data?._id) {
+    throw new Error('The server did not return the updated teacher attendance record.');
+  }
   return result.data;
 };

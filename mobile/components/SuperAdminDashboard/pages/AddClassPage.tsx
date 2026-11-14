@@ -1090,7 +1090,7 @@ export default function AddClassPage() {
 
           <Text style={styles.infoText}>
 
-            Select a branch, then a batch. The subject list loads from that batch's active assignments, and the assigned teacher is shown automatically.
+            Select a branch, then a batch. The subject list loads from that batchs active assignments, and the assigned teacher is shown automatically.
 
           </Text>
 

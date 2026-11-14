@@ -3,12 +3,15 @@ const mongoose = require("mongoose");
 const Student = require("../models/Student");
 const User = require("../models/User");
 const Batch = require("../models/Batch");
+const BatchSubject = require("../models/BatchSubject");
 
 const { hashPassword } = require("../utils/password");
 const { generateStudentId } = require("../utils/studentId");
 const createNotification = require("../utils/createNotification");
 
-
+// =====================================================
+// COMMON HELPERS
+// =====================================================
 
 const isSuperAdmin = (user) =>
   Array.isArray(user.roles) && user.roles.includes("super_admin");
@@ -27,8 +30,9 @@ const canAccessStudent = async (student, user) => {
   const batch = await Batch.findById(student.batchId).select("branchId");
 
   return Boolean(
-    batch && batch.branchId &&
-    batch.branchId.toString() === branchId
+    batch &&
+      batch.branchId &&
+      batch.branchId.toString() === branchId
   );
 };
 
@@ -36,18 +40,22 @@ const canAccessBatch = async (batchId, user) => {
   if (isSuperAdmin(user)) return true;
 
   const branchId = getAdminBranchId(user);
-  if (!branchId || !mongoose.isValidObjectId(batchId)) return false;
 
-  const batch = await Batch.findById(batchId).select("branchId isRemoved");
+  if (!branchId || !mongoose.isValidObjectId(batchId)) {
+    return false;
+  }
+
+  const batch = await Batch.findById(batchId).select(
+    "branchId isRemoved"
+  );
 
   return Boolean(
     batch &&
-    batch.isRemoved !== true &&
-    batch.branchId &&
-    batch.branchId.toString() === branchId
+      batch.isRemoved !== true &&
+      batch.branchId &&
+      batch.branchId.toString() === branchId
   );
 };
-
 
 // =====================================================
 // CREATE STUDENT
@@ -77,17 +85,18 @@ const createStudent = async (req, res) => {
 
     const batch = await Batch.findById(batchId);
 
-    if (!(await canAccessBatch(batchId, req.user))) {
-    return res.status(403).json({
-      success: false,
-      message: "You can only add students to batches in your assigned branch",
-    });
-  }
-
     if (!batch) {
       return res.status(404).json({
         success: false,
         message: "Batch not found",
+      });
+    }
+
+    if (!(await canAccessBatch(batchId, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You can only add students to batches in your assigned branch",
       });
     }
 
@@ -163,7 +172,7 @@ const createStudent = async (req, res) => {
       await session.endSession();
     }
 
-    // Notify the newly created student
+    // Notify newly created student
     await createNotification({
       recipient: user._id,
       title: "Welcome to Vertical Limit",
@@ -209,11 +218,12 @@ const createStudent = async (req, res) => {
 
 // =====================================================
 // GET ALL STUDENTS
+// ADMIN / SUPER ADMIN
 // =====================================================
 
 const getStudents = async (req, res) => {
   try {
-      let studentFilter = {};
+    let studentFilter = {};
 
     if (!isSuperAdmin(req.user)) {
       const branchId = getAdminBranchId(req.user);
@@ -225,10 +235,14 @@ const getStudents = async (req, res) => {
         });
       }
 
-      const batches = await Batch.find({ branchId }).select("_id");
+      const batches = await Batch.find({
+        branchId,
+      }).select("_id");
 
       studentFilter = {
-        batchId: { $in: batches.map((batch) => batch._id) },
+        batchId: {
+          $in: batches.map((batch) => batch._id),
+        },
       };
     }
 
@@ -243,7 +257,8 @@ const getStudents = async (req, res) => {
       })
       .populate({
         path: "batchId",
-        select: "name code standard academicYear branchId startDate endDate",
+        select:
+          "name code standard academicYear branchId startDate endDate",
       })
       .sort({ createdAt: -1 });
 
@@ -258,6 +273,143 @@ const getStudents = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch students",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// GET TEACHER ASSIGNED STUDENTS
+// TEACHER ONLY
+// =====================================================
+
+const getTeacherStudents = async (req, res) => {
+  try {
+    const teacherId = req.user?._id;
+
+    // Verify teacher role
+    if (
+      !teacherId ||
+      !Array.isArray(req.user.roles) ||
+      !req.user.roles.includes("teacher")
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Teacher access only",
+      });
+    }
+
+    // Verify teacher account status
+    if (req.user.status !== "active") {
+      return res.status(403).json({
+        success: false,
+        message: "Your teacher account is not active",
+      });
+    }
+
+    // Find active subject assignments for this teacher
+    const assignments = await BatchSubject.find({
+      teacherId,
+      status: "active",
+    })
+      .populate({
+        path: "batchId",
+        match: {
+          isRemoved: { $ne: true },
+        },
+        select: "name code standard academicYear branchId",
+      })
+      .populate({
+        path: "subjectId",
+        match: {
+          status: "active",
+        },
+        select: "name code standard type",
+      })
+      .lean();
+
+    const batchSubjects = new Map();
+
+    assignments.forEach((assignment) => {
+      if (!assignment.batchId || !assignment.subjectId) {
+        return;
+      }
+
+      const batchId = assignment.batchId._id.toString();
+
+      // Verify branch access when the teacher has a branch
+      if (
+        req.user.branchId &&
+        assignment.batchId.branchId?.toString() !==
+          req.user.branchId.toString()
+      ) {
+        return;
+      }
+
+      if (!batchSubjects.has(batchId)) {
+        batchSubjects.set(batchId, []);
+      }
+
+      batchSubjects.get(batchId).push({
+        id: assignment.subjectId._id.toString(),
+        name: assignment.subjectId.name,
+        code: assignment.subjectId.code,
+        type: assignment.subjectId.type,
+      });
+    });
+
+    const assignedBatchIds = Array.from(batchSubjects.keys());
+
+    // No active batch assignments
+    if (assignedBatchIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+        message: "No students found in your assigned batches",
+      });
+    }
+
+    // Fetch students from teacher's assigned batches
+    const students = await Student.find({
+      batchId: {
+        $in: assignedBatchIds,
+      },
+    })
+      .populate({
+        path: "userId",
+        select: "fullName email mobileNumber status",
+      })
+      .populate({
+        path: "batchId",
+        select: "name code standard academicYear branchId",
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Attach the teacher's assigned subjects to each student
+    const result = students.map((student) => {
+      const batchId = student.batchId?._id?.toString();
+
+      return {
+        ...student,
+        teacherSubjects: batchId
+          ? batchSubjects.get(batchId) || []
+          : [],
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: result.length,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Get teacher students error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch assigned students",
       error: error.message,
     });
   }
@@ -348,17 +500,17 @@ const updateStudent = async (req, res) => {
     }
 
     if (!(await canAccessStudent(student, req.user))) {
-    return res.status(403).json({
-      success: false,
-      message: "You are not authorized to update this student",
-    });
-  }
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this student",
+      });
+    }
 
     // Capture original values before updating
     const previousBatchId = student.batchId?.toString();
     const previousStatus = student.status;
 
-    // Validate new batch
+    // Validate new batch if supplied
     if (batchId) {
       const batch = await Batch.findById(batchId);
 
@@ -376,14 +528,14 @@ const updateStudent = async (req, res) => {
         });
       }
 
-      student.batchId = batchId;
-    }
+      if (!(await canAccessBatch(batchId, req.user))) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only assign students to batches in your branch",
+        });
+      }
 
-    if (!(await canAccessBatch(batchId, req.user))) {
-      return res.status(403).json({
-        success: false,
-        message: "You can only assign students to batches in your branch",
-      });
+      student.batchId = batchId;
     }
 
     // Update Student profile
@@ -448,7 +600,7 @@ const updateStudent = async (req, res) => {
       user.mobileNumber = mobileNumber.trim();
     }
 
-    // Synchronize account status when changed through this controller
+    // Synchronize account status when changed
     if (status !== undefined) {
       user.status = status;
     }
@@ -475,7 +627,9 @@ const updateStudent = async (req, res) => {
 
       await createNotification({
         recipient: user._id,
-        title: isActive ? "Account Activated" : "Account Deactivated",
+        title: isActive
+          ? "Account Activated"
+          : "Account Deactivated",
         message: isActive
           ? "Your student account has been activated."
           : "Your student account has been deactivated.",
@@ -540,7 +694,8 @@ const updateStudentStatus = async (req, res) => {
     if (!(await canAccessStudent(student, req.user))) {
       return res.status(403).json({
         success: false,
-        message: "You are not authorized to change this student's status",
+        message:
+          "You are not authorized to change this student's status",
       });
     }
 
@@ -562,13 +717,15 @@ const updateStudentStatus = async (req, res) => {
     await student.save();
     await user.save();
 
-    // Notify only when the status actually changes
+    // Notify only when status changes
     if (previousStatus !== status) {
       const isActive = status === "active";
 
       await createNotification({
         recipient: user._id,
-        title: isActive ? "Account Activated" : "Account Deactivated",
+        title: isActive
+          ? "Account Activated"
+          : "Account Deactivated",
         message: isActive
           ? "Your student account has been activated."
           : "Your student account has been deactivated.",
@@ -695,6 +852,7 @@ const getMyClasses = async (req, res) => {
 module.exports = {
   createStudent,
   getStudents,
+  getTeacherStudents,
   getStudentById,
   updateStudent,
   updateStudentStatus,

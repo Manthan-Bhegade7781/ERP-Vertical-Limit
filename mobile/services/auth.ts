@@ -1,10 +1,18 @@
-
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import { API_BASE_URL } from '@/config/api';
 
 const TOKEN_KEY = 'auth_token';
+
+export type TeacherProfile = {
+  employeeId: string;
+  specialization: string;
+  qualification: string;
+  experience: string;
+  address: string;
+  status: 'active' | 'inactive';
+};
 
 export type AuthUser = {
   id: string;
@@ -17,6 +25,7 @@ export type AuthUser = {
   studentId?: string;
   standard?: string;
   batchName?: string;
+  teacher?: TeacherProfile | null;
 };
 
 type LoginResponse = {
@@ -52,11 +61,8 @@ export type ChangePasswordResponse = {
 /**
  * Platform-aware token storage.
  *
- * Web: localStorage (development convenience).
+ * Web: localStorage.
  * Native: Expo SecureStore.
- *
- * For production web apps, prefer secure, HttpOnly cookies
- * configured by the backend instead of localStorage.
  */
 const tokenStorage = {
   async get(): Promise<string | null> {
@@ -142,9 +148,13 @@ export const getCurrentUser =
       }
     );
 
-    if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
       await logout();
       return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user: ${response.status}`);
     }
 
     const result: MeResponse = await response.json();

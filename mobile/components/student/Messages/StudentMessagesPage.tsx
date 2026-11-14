@@ -72,7 +72,7 @@ export default function StudentMessagesPage({
       }
 
       const res = await getMessages(activeFolder);
-      const rawList: any[] = Array.isArray(res?.data) ? res.data : [];
+      const rawList: any[] = Array.isArray(res) ? res : Array.isArray((res as any)?.data) ? (res as any).data : [];
 
       const parsed: FormattedMessage[] = rawList.map((m: any) => {
         const sender = m.sender || {};

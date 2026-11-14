@@ -1,35 +1,36 @@
+const mongoose = require("mongoose");
+
 const Batch = require("../models/Batch");
 const Branch = require("../models/Branch");
+const BatchSubject = require("../models/BatchSubject");
+const Student = require("../models/Student");
 
-/*
-  Calculate batch status from dates.
+// ============================================================
+// COMMON HELPERS
+// ============================================================
 
-  Upcoming  -> current date is before start date
-  Active    -> current date is between start and end date
-  Completed -> current date is after end date
-
-  Removed batches are handled separately using isRemoved.
-*/
 const getBatchStatus = (startDate, endDate) => {
   const now = new Date();
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  if (now < start) {
-    return "upcoming";
-  }
-
-  if (now > end) {
-    return "completed";
-  }
+  if (now < start) return "upcoming";
+  if (now > end) return "completed";
 
   return "active";
 };
 
+const getUserId = (user) => user?._id || user?.id;
+
+const isSuperAdmin = (user) =>
+  user?.roles?.includes("super_admin");
+
+const isAdminOnly = (user) =>
+  user?.roles?.includes("admin") && !isSuperAdmin(user);
+
 // ============================================================
 // CREATE BATCH
 // ============================================================
-
 
 const createBatch = async (req, res) => {
   try {
@@ -45,25 +46,17 @@ const createBatch = async (req, res) => {
       description,
     } = req.body;
 
-    const roles = Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : req.user?.role
-        ? [req.user.role]
-        : [];
+    const superAdmin = isSuperAdmin(req.user);
+    const admin = isAdminOnly(req.user);
 
-    const isSuperAdmin = roles.includes("super_admin");
-    const isAdmin = roles.includes("admin") && !isSuperAdmin;
-
-    if (!isSuperAdmin && !isAdmin) {
+    if (!superAdmin && !admin) {
       return res.status(403).json({
         success: false,
         message: "You are not authorized to create batches",
       });
     }
 
-    // Admin uses their assigned branch.
-    // Super Admin uses the branch selected in the form.
-    const branchId = isAdmin
+    const branchId = admin
       ? req.user?.branchId
       : req.body.branchId;
 
@@ -188,29 +181,34 @@ const createBatch = async (req, res) => {
   }
 };
 
-
 // ============================================================
 // GET ALL BATCHES
 // ============================================================
 
 const getBatches = async (req, res) => {
   try {
-    const query = { isRemoved: { $ne: true } };
+    const query = {
+      isRemoved: { $ne: true },
+    };
 
-    // Admins can only see batches from their assigned branch.
-    if (req.user?.roles?.includes("admin") && !req.user?.roles?.includes("super_admin")) {
+    // Admin: only batches from their branch.
+    if (isAdminOnly(req.user)) {
       if (!req.user.branchId) {
         return res.status(403).json({
           success: false,
           message: "Your account is not assigned to a branch",
         });
       }
+
       query.branchId = req.user.branchId;
     }
 
     const batches = await Batch.find(query)
       .populate("branchId", "name code")
-      .sort({ startDate: 1, createdAt: -1 });
+      .sort({
+        startDate: 1,
+        createdAt: -1,
+      });
 
     const batchesWithStatus = batches.map((batch) => ({
       ...batch.toObject(),
@@ -238,12 +236,186 @@ const getBatches = async (req, res) => {
 };
 
 // ============================================================
+// GET TEACHER'S ASSIGNED BATCHES
+// ============================================================
+
+const getTeacherBatches = async (req, res) => {
+  try {
+    const teacherId = getUserId(req.user);
+
+    if (!teacherId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    if (!req.user?.roles?.includes("teacher")) {
+      return res.status(403).json({
+        success: false,
+        message: "Only teachers can access this resource",
+      });
+    }
+
+    if (req.user.status !== "active") {
+      return res.status(403).json({
+        success: false,
+        message: "Your teacher account is not active",
+      });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid teacher ID",
+      });
+    }
+
+    // Find only active assignments belonging to this teacher.
+    const assignments = await BatchSubject.find({
+      teacherId,
+      status: "active",
+    })
+      .populate({
+        path: "batchId",
+        match: {
+          isRemoved: { $ne: true },
+        },
+        select:
+          "name code standard academicYear branchId startDate endDate schedule capacity description",
+      })
+      .populate({
+        path: "subjectId",
+        match: {
+          status: "active",
+        },
+        select:
+          "name code standard type description duration",
+      })
+      .sort({
+        createdAt: -1,
+      });
+
+    const batchMap = new Map();
+
+    // Group assigned subjects under their respective batches.
+    assignments.forEach((assignment) => {
+      const batch = assignment.batchId;
+      const subject = assignment.subjectId;
+
+      if (!batch || !subject) {
+        return;
+      }
+
+      // Prevent access to batches belonging to another branch
+      // when the teacher has an assigned branch.
+      if (
+        req.user.branchId &&
+        String(batch.branchId) !== String(req.user.branchId)
+      ) {
+        return;
+      }
+
+      const batchId = batch._id.toString();
+
+      if (!batchMap.has(batchId)) {
+        batchMap.set(batchId, {
+          ...batch.toObject(),
+          subjects: [],
+        });
+      }
+
+      const currentBatch = batchMap.get(batchId);
+
+      currentBatch.subjects.push({
+        _id: subject._id,
+        name: subject.name,
+        code: subject.code,
+        standard: subject.standard,
+        type: subject.type,
+        description: subject.description,
+        duration: subject.duration,
+      });
+    });
+
+    const batches = Array.from(batchMap.values());
+
+    // Calculate actual active student counts.
+    const batchIds = batches.map((batch) => batch._id);
+
+    let studentCounts = [];
+
+    if (batchIds.length > 0) {
+      studentCounts = await Student.aggregate([
+        {
+          $match: {
+            batchId: {
+              $in: batchIds,
+            },
+            status: "active",
+          },
+        },
+        {
+          $group: {
+            _id: "$batchId",
+            studentCount: {
+              $sum: 1,
+            },
+          },
+        },
+      ]);
+    }
+
+    const studentCountMap = new Map(
+      studentCounts.map((item) => [
+        item._id.toString(),
+        item.studentCount,
+      ])
+    );
+
+    const batchesWithDetails = batches.map((batch) => ({
+      ...batch,
+      studentCount:
+        studentCountMap.get(batch._id.toString()) || 0,
+      subjectCount: batch.subjects.length,
+      status: getBatchStatus(
+        batch.startDate,
+        batch.endDate
+      ),
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: "Teacher batches fetched successfully",
+      count: batchesWithDetails.length,
+      data: {
+        batches: batchesWithDetails,
+      },
+    });
+  } catch (error) {
+    console.error("Get teacher batches error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch teacher batches",
+    });
+  }
+};
+
+// ============================================================
 // GET SINGLE BATCH
 // ============================================================
 
 const getBatchById = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid batch ID",
+      });
+    }
 
     const batch = await Batch.findOne({
       _id: id,
@@ -287,6 +459,13 @@ const updateBatch = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid batch ID",
+      });
+    }
+
     const {
       name,
       code,
@@ -300,7 +479,6 @@ const updateBatch = async (req, res) => {
       description,
     } = req.body;
 
-    // Find existing batch
     const batch = await Batch.findOne({
       _id: id,
       isRemoved: { $ne: true },
@@ -313,15 +491,22 @@ const updateBatch = async (req, res) => {
       });
     }
 
-    // Admins may edit only batches in their own branch and cannot move them.
-    if (req.user?.roles?.includes("admin") && !req.user?.roles?.includes("super_admin")) {
-      if (!req.user.branchId || batch.branchId.toString() !== req.user.branchId.toString()) {
+    // Admins can only edit batches in their branch.
+    if (isAdminOnly(req.user)) {
+      if (
+        !req.user.branchId ||
+        String(batch.branchId) !== String(req.user.branchId)
+      ) {
         return res.status(403).json({
           success: false,
           message: "You can only edit batches belonging to your branch",
         });
       }
-      if (!branchId || branchId.toString() !== req.user.branchId.toString()) {
+
+      if (
+        !branchId ||
+        String(branchId) !== String(req.user.branchId)
+      ) {
         return res.status(403).json({
           success: false,
           message: "You cannot move a batch to another branch",
@@ -329,7 +514,6 @@ const updateBatch = async (req, res) => {
       }
     }
 
-    // Validate required fields
     if (
       !name ||
       !code ||
@@ -340,7 +524,7 @@ const updateBatch = async (req, res) => {
       !endDate ||
       !schedule?.startTime ||
       !schedule?.endTime ||
-      !schedule?.days ||
+      !Array.isArray(schedule?.days) ||
       schedule.days.length === 0 ||
       capacity === undefined ||
       capacity === null
@@ -351,7 +535,6 @@ const updateBatch = async (req, res) => {
       });
     }
 
-    // Check branch
     const branch = await Branch.findById(branchId);
 
     if (!branch) {
@@ -368,7 +551,6 @@ const updateBatch = async (req, res) => {
       });
     }
 
-    // Check duplicate code excluding current batch
     const duplicateBatch = await Batch.findOne({
       code: code.toUpperCase().trim(),
       _id: { $ne: id },
@@ -381,7 +563,6 @@ const updateBatch = async (req, res) => {
       });
     }
 
-    // Validate capacity
     if (!Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
       return res.status(400).json({
         success: false,
@@ -389,7 +570,6 @@ const updateBatch = async (req, res) => {
       });
     }
 
-    // Validate dates
     const parsedStartDate = new Date(startDate);
     const parsedEndDate = new Date(endDate);
 
@@ -410,7 +590,6 @@ const updateBatch = async (req, res) => {
       });
     }
 
-    // Update batch
     batch.name = name.trim();
     batch.code = code.toUpperCase().trim();
     batch.standard = standard;
@@ -461,6 +640,13 @@ const removeBatch = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid batch ID",
+      });
+    }
+
     const batch = await Batch.findOne({
       _id: id,
       isRemoved: { $ne: true },
@@ -503,15 +689,16 @@ const getRegistrationBatches = async (req, res) => {
   try {
     const { branchId } = req.query;
 
-    // Validate branch ID
-    if (!branchId || !require("mongoose").Types.ObjectId.isValid(branchId)) {
+    if (
+      !branchId ||
+      !mongoose.Types.ObjectId.isValid(branchId)
+    ) {
       return res.status(400).json({
         success: false,
         message: "A valid branch ID is required",
       });
     }
 
-    // Check that the branch exists and is active
     const branch = await Branch.findOne({
       _id: branchId,
       status: "active",
@@ -524,7 +711,6 @@ const getRegistrationBatches = async (req, res) => {
       });
     }
 
-    // Find batches belonging to the selected branch
     const batches = await Batch.find({
       branchId: branch._id,
       isRemoved: { $ne: true },
@@ -533,7 +719,9 @@ const getRegistrationBatches = async (req, res) => {
         "name code standard academicYear branchId startDate endDate isRemoved"
       )
       .populate("branchId", "name code")
-      .sort({ startDate: 1 });
+      .sort({
+        startDate: 1,
+      });
 
     return res.status(200).json({
       success: true,
@@ -552,6 +740,10 @@ const getRegistrationBatches = async (req, res) => {
   }
 };
 
+// ============================================================
+// EXPORTS
+// ============================================================
+
 module.exports = {
   createBatch,
   getBatches,
@@ -559,4 +751,5 @@ module.exports = {
   getRegistrationBatches,
   updateBatch,
   removeBatch,
+  getTeacherBatches,
 };

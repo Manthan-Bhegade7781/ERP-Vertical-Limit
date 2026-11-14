@@ -21,38 +21,38 @@ router.use(protect);
 router.get("/my/results", getStudentResults);
 router.post("/my/submit", submitTestResult);
 
-// Create examination
+// Examinations list (Admin, Super Admin, Teacher, Student)
+router.get(
+  "/",
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  getExaminations
+);
+
+// Admin / Super Admin management routes
 router.post(
   "/",
   authorizeRoles("super_admin", "admin"),
   createExamination
 );
 
-// Get examinations
-router.get("/", getExaminations);
-
-// Get examination by ID
 router.get(
   "/:id",
-  authorizeRoles("super_admin", "admin"),
+  authorizeRoles("super_admin", "admin", "teacher", "student"),
   getExaminationById
 );
 
-// Update examination details
 router.put(
   "/:id",
   authorizeRoles("super_admin", "admin"),
   updateExamination
 );
 
-// Cancel examination
 router.patch(
   "/:id/cancel",
   authorizeRoles("super_admin", "admin"),
   cancelExamination
 );
 
-// Schedule a cancelled examination again
 router.patch(
   "/:id/reschedule",
   authorizeRoles("super_admin", "admin"),

@@ -1,684 +1,489 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 
+import {
+  fetchTeacherAssignedStudents,
+  getReferenceId,
+  getReferenceName,
+} from '../../../services/students';
+
+import type {
+  TeacherStudentApiRecord,
+} from '../../../services/students';
+
+import {
+  fetchStudentAttendanceSummary,
+  fetchExaminations,
+} from '../../../services/reports';
+
+import type {
+  StudentAttendanceSummary,
+  Examination,
+} from '../../../services/reports';
+
 type ReportsPageProps = {
   studentId?: string;
   studentName?: string;
   onContentScroll?: (event: any) => void;
+  onBack?: () => void;
 };
 
-type TestResult = {
+type ReportStudent = {
   id: string;
-  testName: string;
-  date: string;
-  marks: number;
-  maxMarks: number;
-};
-
-type StudentReport = {
-  id: string;
+  studentCode: string;
   name: string;
-  batch: string;
-  subject: string;
-  initials: string;
-
-  attendance: {
-    present: number;
-    absent: number;
-  };
-
-  tests: TestResult[];
+  batchId: string;
+  batchName: string;
+  standard: string;
+  subjects: string[];
 };
 
-const REPORT_DATA: StudentReport[] = [
-  {
-    id: 'STU-0801',
-    name: 'Aarav Mehta',
-    batch: '8th Standard',
-    subject: 'Physics',
-    initials: 'AM',
+const PURPLE = '#6428D7';
 
-    attendance: {
-      present: 22,
-      absent: 2,
-    },
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : 'Something went wrong. Please try again.';
 
-    tests: [
-      {
-        id: 'TEST-0801-1',
-        testName: 'Force & Motion',
-        date: '05 Sep 2026',
-        marks: 42,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0801-2',
-        testName: 'Light & Reflection',
-        date: '28 Aug 2026',
-        marks: 45,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0801-3',
-        testName: 'Matter & Energy',
-        date: '14 Aug 2026',
-        marks: 38,
-        maxMarks: 50,
-      },
-    ],
-  },
+const mapStudent = (
+  record: TeacherStudentApiRecord,
+): ReportStudent => {
+  const user =
+    record.userId && typeof record.userId === 'object'
+      ? record.userId
+      : undefined;
 
-  {
-    id: 'STU-0802',
-    name: 'Avni Shah',
-    batch: '8th Standard',
-    subject: 'Physics',
-    initials: 'AS',
+  const batch =
+    record.batchId && typeof record.batchId === 'object'
+      ? record.batchId
+      : undefined;
 
-    attendance: {
-      present: 23,
-      absent: 1,
-    },
-
-    tests: [
-      {
-        id: 'TEST-0802-1',
-        testName: 'Force & Motion',
-        date: '05 Sep 2026',
-        marks: 46,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0802-2',
-        testName: 'Light & Reflection',
-        date: '28 Aug 2026',
-        marks: 43,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0802-3',
-        testName: 'Matter & Energy',
-        date: '14 Aug 2026',
-        marks: 47,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-0803',
-    name: 'Harsh Kumar',
-    batch: '8th Standard',
-    subject: 'Physics',
-    initials: 'HK',
-
-    attendance: {
-      present: 20,
-      absent: 4,
-    },
-
-    tests: [
-      {
-        id: 'TEST-0803-1',
-        testName: 'Force & Motion',
-        date: '05 Sep 2026',
-        marks: 36,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0803-2',
-        testName: 'Light & Reflection',
-        date: '28 Aug 2026',
-        marks: 39,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0803-3',
-        testName: 'Matter & Energy',
-        date: '14 Aug 2026',
-        marks: 35,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-0901',
-    name: 'Kiara Patel',
-    batch: '9th Standard',
-    subject: 'Physics',
-    initials: 'KP',
-
-    attendance: {
-      present: 21,
-      absent: 1,
-    },
-
-    tests: [
-      {
-        id: 'TEST-0901-1',
-        testName: 'Motion',
-        date: '05 Sep 2026',
-        marks: 44,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0901-2',
-        testName: 'Gravitation',
-        date: '26 Aug 2026',
-        marks: 41,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0901-3',
-        testName: 'Work & Energy',
-        date: '12 Aug 2026',
-        marks: 46,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-0902',
-    name: 'Reyansh Singh',
-    batch: '9th Standard',
-    subject: 'Physics',
-    initials: 'RS',
-
-    attendance: {
-      present: 20,
-      absent: 2,
-    },
-
-    tests: [
-      {
-        id: 'TEST-0902-1',
-        testName: 'Motion',
-        date: '05 Sep 2026',
-        marks: 40,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0902-2',
-        testName: 'Gravitation',
-        date: '26 Aug 2026',
-        marks: 37,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0902-3',
-        testName: 'Work & Energy',
-        date: '12 Aug 2026',
-        marks: 43,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-0903',
-    name: 'Tara Joshi',
-    batch: '9th Standard',
-    subject: 'Physics',
-    initials: 'TJ',
-
-    attendance: {
-      present: 22,
-      absent: 0,
-    },
-
-    tests: [
-      {
-        id: 'TEST-0903-1',
-        testName: 'Motion',
-        date: '05 Sep 2026',
-        marks: 48,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0903-2',
-        testName: 'Gravitation',
-        date: '26 Aug 2026',
-        marks: 46,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-0903-3',
-        testName: 'Work & Energy',
-        date: '12 Aug 2026',
-        marks: 47,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1001',
-    name: 'Aditi Verma',
-    batch: '10th Standard',
-    subject: 'Physics',
-    initials: 'AV',
-
-    attendance: {
-      present: 24,
-      absent: 1,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1001-1',
-        testName: 'Electricity',
-        date: '05 Sep 2026',
-        marks: 45,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1001-2',
-        testName: 'Magnetic Effects',
-        date: '25 Aug 2026',
-        marks: 47,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1001-3',
-        testName: 'Light',
-        date: '10 Aug 2026',
-        marks: 44,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1002',
-    name: 'Rohan Malhotra',
-    batch: '10th Standard',
-    subject: 'Physics',
-    initials: 'RM',
-
-    attendance: {
-      present: 21,
-      absent: 4,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1002-1',
-        testName: 'Electricity',
-        date: '05 Sep 2026',
-        marks: 39,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1002-2',
-        testName: 'Magnetic Effects',
-        date: '25 Aug 2026',
-        marks: 42,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1002-3',
-        testName: 'Light',
-        date: '10 Aug 2026',
-        marks: 40,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1003',
-    name: 'Ishita Rao',
-    batch: '10th Standard',
-    subject: 'Physics',
-    initials: 'IR',
-
-    attendance: {
-      present: 23,
-      absent: 1,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1003-1',
-        testName: 'Electricity',
-        date: '05 Sep 2026',
-        marks: 48,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1003-2',
-        testName: 'Magnetic Effects',
-        date: '25 Aug 2026',
-        marks: 45,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1003-3',
-        testName: 'Light',
-        date: '10 Aug 2026',
-        marks: 46,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1101',
-    name: 'Arjun Kapoor',
-    batch: '11th Standard',
-    subject: 'Physics',
-    initials: 'AK',
-
-    attendance: {
-      present: 22,
-      absent: 2,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1101-1',
-        testName: 'Kinematics',
-        date: '04 Sep 2026',
-        marks: 44,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1101-2',
-        testName: 'Laws of Motion',
-        date: '22 Aug 2026',
-        marks: 41,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1101-3',
-        testName: 'Work & Energy',
-        date: '08 Aug 2026',
-        marks: 46,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1102',
-    name: 'Meera Nair',
-    batch: '11th Standard',
-    subject: 'Physics',
-    initials: 'MN',
-
-    attendance: {
-      present: 24,
-      absent: 0,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1102-1',
-        testName: 'Kinematics',
-        date: '04 Sep 2026',
-        marks: 47,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1102-2',
-        testName: 'Laws of Motion',
-        date: '22 Aug 2026',
-        marks: 49,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1102-3',
-        testName: 'Work & Energy',
-        date: '08 Aug 2026',
-        marks: 45,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1103',
-    name: 'Vivaan Sharma',
-    batch: '11th Standard',
-    subject: 'Physics',
-    initials: 'VS',
-
-    attendance: {
-      present: 19,
-      absent: 5,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1103-1',
-        testName: 'Kinematics',
-        date: '04 Sep 2026',
-        marks: 36,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1103-2',
-        testName: 'Laws of Motion',
-        date: '22 Aug 2026',
-        marks: 38,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1103-3',
-        testName: 'Work & Energy',
-        date: '08 Aug 2026',
-        marks: 40,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1201',
-    name: 'Aditya Joshi',
-    batch: '12th Standard',
-    subject: 'Physics',
-    initials: 'AJ',
-
-    attendance: {
-      present: 23,
-      absent: 1,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1201-1',
-        testName: 'Electrostatics',
-        date: '03 Sep 2026',
-        marks: 46,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1201-2',
-        testName: 'Current Electricity',
-        date: '20 Aug 2026',
-        marks: 44,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1201-3',
-        testName: 'Magnetism',
-        date: '06 Aug 2026',
-        marks: 48,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1202',
-    name: 'Ananya Gupta',
-    batch: '12th Standard',
-    subject: 'Physics',
-    initials: 'AG',
-
-    attendance: {
-      present: 24,
-      absent: 0,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1202-1',
-        testName: 'Electrostatics',
-        date: '03 Sep 2026',
-        marks: 49,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1202-2',
-        testName: 'Current Electricity',
-        date: '20 Aug 2026',
-        marks: 47,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1202-3',
-        testName: 'Magnetism',
-        date: '06 Aug 2026',
-        marks: 46,
-        maxMarks: 50,
-      },
-    ],
-  },
-
-  {
-    id: 'STU-1203',
-    name: 'Kabir Shah',
-    batch: '12th Standard',
-    subject: 'Physics',
-    initials: 'KS',
-
-    attendance: {
-      present: 21,
-      absent: 3,
-    },
-
-    tests: [
-      {
-        id: 'TEST-1203-1',
-        testName: 'Electrostatics',
-        date: '03 Sep 2026',
-        marks: 41,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1203-2',
-        testName: 'Current Electricity',
-        date: '20 Aug 2026',
-        marks: 39,
-        maxMarks: 50,
-      },
-      {
-        id: 'TEST-1203-3',
-        testName: 'Magnetism',
-        date: '06 Aug 2026',
-        marks: 43,
-        maxMarks: 50,
-      },
-    ],
-  },
-];
+  return {
+    id: record._id,
+    studentCode: record.studentId || '',
+    name:
+      user?.fullName ||
+      user?.name ||
+      'Unnamed student',
+    batchId: getReferenceId(record.batchId),
+    batchName: batch?.name || 'Batch not assigned',
+    standard: batch?.standard || '',
+    subjects: (record.teacherSubjects || []).map(
+      (subject) => subject.name,
+    ),
+  };
+};
 
 export default function ReportsPage({
   studentId,
   studentName,
   onContentScroll,
+  onBack,
 }: ReportsPageProps) {
-  const [selectedTestId, setSelectedTestId] =
-    useState<string | null>(null);
+  const [students, setStudents] = useState<ReportStudent[]>([]);
+  const [selectedStudent, setSelectedStudent] =
+    useState<ReportStudent | null>(null);
 
-  const student = useMemo(() => {
-    if (studentId) {
-      return (
-        REPORT_DATA.find(
-          (item) => item.id === studentId,
-        ) ?? null
-      );
+  const [attendance, setAttendance] =
+    useState<StudentAttendanceSummary | null>(null);
+
+  const [examinations, setExaminations] =
+    useState<Examination[]>([]);
+
+  const [search, setSearch] = useState('');
+
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [loadingReport, setLoadingReport] = useState(false);
+
+  const [studentError, setStudentError] = useState('');
+  const [reportError, setReportError] = useState('');
+
+  /*
+   * Load only students assigned to the authenticated teacher.
+   */
+  const loadStudents = useCallback(async () => {
+    setLoadingStudents(true);
+    setStudentError('');
+
+    try {
+      const response = await fetchTeacherAssignedStudents();
+
+      const mappedStudents = response
+        .map(mapStudent)
+        .filter((student) => student.id);
+
+      setStudents(mappedStudents);
+
+      return mappedStudents;
+    } catch (error) {
+      setStudentError(getErrorMessage(error));
+      return [];
+    } finally {
+      setLoadingStudents(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      const result = await fetchTeacherAssignedStudents()
+        .then((records) => records.map(mapStudent).filter((s) => s.id))
+        .catch((error) => {
+          if (mounted) {
+            setStudentError(getErrorMessage(error));
+          }
+          return [];
+        });
+
+      if (!mounted) return;
+
+      setStudents(result);
+      setLoadingStudents(false);
+    };
+
+    load();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /*
+   * Select the student passed from Students page.
+   * Otherwise, show the teacher's student-selection list.
+   */
+  useEffect(() => {
+    if (!studentId || students.length === 0) {
+      if (!studentId) {
+        setSelectedStudent(null);
+      }
+      return;
     }
 
-    if (studentName) {
-      return (
-        REPORT_DATA.find(
-          (item) => item.name === studentName,
-        ) ?? null
-      );
+    const matchedStudent = students.find(
+      (student) => student.id === studentId,
+    );
+
+    if (matchedStudent) {
+      setSelectedStudent(matchedStudent);
+    } else {
+      setSelectedStudent(null);
+    }
+  }, [studentId, students]);
+
+  /*
+   * Fetch real attendance and examination information.
+   */
+  useEffect(() => {
+    if (!selectedStudent) {
+      setAttendance(null);
+      setExaminations([]);
+      return;
     }
 
-    return REPORT_DATA[0];
-  }, [studentId, studentName]);
+    let mounted = true;
 
-  if (!student) {
+    const loadReport = async () => {
+      setLoadingReport(true);
+      setReportError('');
+
+      setAttendance(null);
+      setExaminations([]);
+
+      try {
+        const [attendanceResult, examinationResult] =
+          await Promise.all([
+            fetchStudentAttendanceSummary(
+              selectedStudent.id,
+              selectedStudent.batchId || undefined,
+            ),
+            fetchExaminations(
+              selectedStudent.batchId || undefined,
+            ),
+          ]);
+
+        if (!mounted) return;
+
+        setAttendance(attendanceResult);
+        setExaminations(examinationResult);
+      } catch (error) {
+        if (mounted) {
+          setReportError(getErrorMessage(error));
+        }
+      } finally {
+        if (mounted) {
+          setLoadingReport(false);
+        }
+      }
+    };
+
+    loadReport();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedStudent]);
+
+  const filteredStudents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) return students;
+
+    return students.filter((student) =>
+      [
+        student.name,
+        student.studentCode,
+        student.batchName,
+        student.standard,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [students, search]);
+
+  const attendancePercentage =
+    attendance?.percentage ?? 0;
+
+  const openStudent = (student: ReportStudent) => {
+    setSelectedStudent(student);
+    setReportError('');
+  };
+
+  const backToStudents = () => {
+    setSelectedStudent(null);
+    setAttendance(null);
+    setExaminations([]);
+    setReportError('');
+  };
+
+  /*
+   * STUDENT SELECTION SCREEN
+   */
+  if (!selectedStudent) {
     return (
-      <View style={styles.emptyContainer}>
-        <View style={styles.emptyIcon}>
-          <Ionicons
-            name="person-outline"
-            size={32}
-            color="#6428D7"
-          />
-        </View>
+      <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          onScroll={onContentScroll}
+          scrollEventThrottle={16}
+        >
+          <View style={styles.pageHeader}>
+            {onBack && (
+              <Pressable
+                style={styles.backButton}
+                onPress={onBack}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Go back to Teacher Dashboard"
+              >
+                <Ionicons
+                  name="arrow-back"
+                  size={21}
+                  color={PURPLE}
+                />
+              </Pressable>
+            )}
 
-        <Text style={styles.emptyTitle}>
-          Student report unavailable
-        </Text>
+            <View style={styles.headerIcon}>
+              <Ionicons
+                name="bar-chart-outline"
+                size={27}
+                color={PURPLE}
+              />
+            </View>
 
-        <Text style={styles.emptySubtitle}>
-          No report data is available for this
-          student yet.
-        </Text>
+            <View style={styles.headerText}>
+              <Text style={styles.pageTitle}>
+                Student Reports
+              </Text>
+
+              <Text style={styles.pageSubtitle}>
+                Select a student to view their academic report
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.studentSummary}>
+            <View style={styles.summaryIcon}>
+              <Ionicons
+                name="people-outline"
+                size={23}
+                color={PURPLE}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.summaryValue}>
+                {students.length}
+              </Text>
+
+              <Text style={styles.summaryLabel}>
+                Assigned Students
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.searchBox}>
+            <Ionicons
+              name="search-outline"
+              size={19}
+              color="#858996"
+            />
+
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search student..."
+              placeholderTextColor="#999999"
+              style={styles.searchInput}
+            />
+          </View>
+
+          <Text style={styles.sectionTitle}>
+            Select Student
+          </Text>
+
+          <Text style={styles.sectionSubtitle}>
+            Choose a student to view attendance and examination details.
+          </Text>
+
+          {loadingStudents ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size="large"
+                color={PURPLE}
+              />
+
+              <Text style={styles.loadingText}>
+                Loading assigned students...
+              </Text>
+            </View>
+          ) : studentError ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={38}
+                color="#D64545"
+              />
+
+              <Text style={styles.emptyTitle}>
+                Unable to load students
+              </Text>
+
+              <Text style={styles.emptySubtitle}>
+                {studentError}
+              </Text>
+
+              <Pressable
+                style={styles.retryButton}
+                onPress={() => {
+                  void loadStudents();
+                }}
+              >
+                <Text style={styles.retryText}>
+                  Retry
+                </Text>
+              </Pressable>
+            </View>
+          ) : filteredStudents.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name="people-outline"
+                size={38}
+                color="#A0A0A0"
+              />
+
+              <Text style={styles.emptyTitle}>
+                No students found
+              </Text>
+
+              <Text style={styles.emptySubtitle}>
+                No assigned students match your search.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.studentList}>
+              {filteredStudents.map((student) => (
+                <Pressable
+                  key={student.id}
+                  style={({ pressed }) => [
+                    styles.studentCard,
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={() => openStudent(student)}
+                >
+                  <View style={styles.studentAvatar}>
+                    <Text style={styles.studentInitials}>
+                      {student.name
+                        .split(' ')
+                        .map((part) => part[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                    </Text>
+                  </View>
+
+                  <View style={styles.studentInfo}>
+                    <Text style={styles.studentName}>
+                      {student.name}
+                    </Text>
+
+                    <Text style={styles.studentId}>
+                      {student.studentCode || 'Student ID unavailable'}
+                    </Text>
+
+                    <View style={styles.profileMeta}>
+                      <Ionicons
+                        name="school-outline"
+                        size={13}
+                        color="#858996"
+                      />
+
+                      <Text style={styles.profileMetaText}>
+                        {student.batchName}
+                      </Text>
+                    </View>
+
+                    {!!student.standard && (
+                      <Text style={styles.studentStandard}>
+                        {student.standard}
+                      </Text>
+                    )}
+                  </View>
+
+                  <Ionicons
+                    name="chevron-forward"
+                    size={21}
+                    color={PURPLE}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          <View style={styles.bottomSpace} />
+        </ScrollView>
       </View>
     );
   }
 
-  const totalClasses =
-    student.attendance.present +
-    student.attendance.absent;
-
-  const attendancePercentage =
-    totalClasses > 0
-      ? Math.round(
-          (student.attendance.present /
-            totalClasses) *
-            100,
-        )
-      : 0;
-
-  const totalMarks = student.tests.reduce(
-    (sum, test) => sum + test.marks,
-    0,
-  );
-
-  const totalMaxMarks = student.tests.reduce(
-    (sum, test) => sum + test.maxMarks,
-    0,
-  );
-
-  const overallTestPercentage =
-    totalMaxMarks > 0
-      ? Math.round(
-          (totalMarks /
-            totalMaxMarks) *
-            100,
-        )
-      : 0;
-
+  /*
+   * INDIVIDUAL STUDENT REPORT SCREEN
+   */
   return (
     <View style={styles.container}>
       <ScrollView
@@ -688,16 +493,23 @@ export default function ReportsPage({
         onScroll={onContentScroll}
         scrollEventThrottle={16}
       >
-        {/* ================================
-            HEADER
-        ================================= */}
-
         <View style={styles.pageHeader}>
+          <Pressable
+            style={styles.backButton}
+            onPress={backToStudents}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={21}
+              color={PURPLE}
+            />
+          </Pressable>
+
           <View style={styles.headerIcon}>
             <Ionicons
               name="bar-chart-outline"
               size={27}
-              color="#6428D7"
+              color={PURPLE}
             />
           </View>
 
@@ -707,376 +519,272 @@ export default function ReportsPage({
             </Text>
 
             <Text style={styles.pageSubtitle}>
-              Attendance and academic performance
+              Attendance and examination details
             </Text>
           </View>
         </View>
 
-        {/* ================================
-            STUDENT PROFILE
-        ================================= */}
-
         <View style={styles.studentProfileCard}>
           <View style={styles.studentAvatar}>
             <Text style={styles.studentInitials}>
-              {student.initials}
+              {selectedStudent.name
+                .split(' ')
+                .map((part) => part[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()}
             </Text>
           </View>
 
           <View style={styles.studentProfileInfo}>
             <Text style={styles.studentName}>
-              {student.name}
+              {selectedStudent.name}
             </Text>
 
             <Text style={styles.studentId}>
-              Student ID: {student.id}
+              Student ID: {selectedStudent.studentCode}
             </Text>
 
             <View style={styles.profileMeta}>
-              <View style={styles.profileMetaItem}>
-                <Ionicons
-                  name="school-outline"
-                  size={14}
-                  color="#6D7280"
-                />
-
-                <Text style={styles.profileMetaText}>
-                  {student.batch}
-                </Text>
-              </View>
-
-              <View style={styles.profileMetaDot} />
-
-              <View style={styles.profileMetaItem}>
-                <Ionicons
-                  name="book-outline"
-                  size={14}
-                  color="#6D7280"
-                />
-
-                <Text style={styles.profileMetaText}>
-                  {student.subject}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* ================================
-            ATTENDANCE
-        ================================= */}
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>
-                Attendance
-              </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                Lecture attendance record
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.percentageBadge,
-                attendancePercentage < 75 &&
-                  styles.percentageBadgeWarning,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.percentageText,
-                  attendancePercentage < 75 &&
-                    styles.percentageTextWarning,
-                ]}
-              >
-                {attendancePercentage}%
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.attendanceStats}>
-            <View style={styles.attendanceStat}>
-              <View
-                style={[
-                  styles.statIcon,
-                  styles.presentIcon,
-                ]}
-              >
-                <Ionicons
-                  name="checkmark"
-                  size={18}
-                  color="#27A566"
-                />
-              </View>
-
-              <View>
-                <Text style={styles.statNumber}>
-                  {student.attendance.present}
-                </Text>
-
-                <Text style={styles.statLabel}>
-                  Present
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.attendanceStat}>
-              <View
-                style={[
-                  styles.statIcon,
-                  styles.absentIcon,
-                ]}
-              >
-                <Ionicons
-                  name="close"
-                  size={18}
-                  color="#D64545"
-                />
-              </View>
-
-              <View>
-                <Text style={styles.statNumber}>
-                  {student.attendance.absent}
-                </Text>
-
-                <Text style={styles.statLabel}>
-                  Absent
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.attendanceStat}>
-              <View
-                style={[
-                  styles.statIcon,
-                  styles.totalIcon,
-                ]}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={18}
-                  color="#6428D7"
-                />
-              </View>
-
-              <View>
-                <Text style={styles.statNumber}>
-                  {totalClasses}
-                </Text>
-
-                <Text style={styles.statLabel}>
-                  Classes
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.progressBackground}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${attendancePercentage}%`,
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-        {/* ================================
-            TEST PERFORMANCE
-        ================================= */}
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>
-                Test Performance
-              </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                Marks secured in each test
-              </Text>
-            </View>
-
-            <View style={styles.testCountBadge}>
-              <Text style={styles.testCountText}>
-                {student.tests.length} Tests
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.overallMarksCard}>
-            <View style={styles.overallMarksIcon}>
               <Ionicons
-                name="trophy-outline"
-                size={24}
-                color="#F28A17"
+                name="school-outline"
+                size={14}
+                color="#6D7280"
               />
-            </View>
 
-            <View style={styles.overallMarksInfo}>
-              <Text style={styles.overallMarksLabel}>
-                Overall Performance
-              </Text>
-
-              <Text style={styles.overallMarksValue}>
-                {totalMarks} / {totalMaxMarks}
-              </Text>
-            </View>
-
-            <View style={styles.overallPercentage}>
-              <Text style={styles.overallPercentageText}>
-                {overallTestPercentage}%
+              <Text style={styles.profileMetaText}>
+                {selectedStudent.batchName}
               </Text>
             </View>
           </View>
+        </View>
 
-          <View style={styles.testList}>
-            {student.tests.map((test) => {
-              const testPercentage =
-                test.maxMarks > 0
-                  ? Math.round(
-                      (test.marks /
-                        test.maxMarks) *
-                        100,
-                    )
-                  : 0;
+        {loadingReport ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator
+              size="large"
+              color={PURPLE}
+            />
 
-              const isSelected =
-                selectedTestId === test.id;
+            <Text style={styles.loadingText}>
+              Loading student report...
+            </Text>
+          </View>
+        ) : reportError ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={38}
+              color="#D64545"
+            />
 
-              return (
-                <Pressable
-                  key={test.id}
-                  style={({ pressed }) => [
-                    styles.testCard,
-                    isSelected &&
-                      styles.testCardSelected,
-                    pressed && styles.pressed,
+            <Text style={styles.emptyTitle}>
+              Unable to load report
+            </Text>
+
+            <Text style={styles.emptySubtitle}>
+              {reportError}
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* ATTENDANCE */}
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.sectionTitle}>
+                    Attendance
+                  </Text>
+
+                  <Text style={styles.sectionSubtitle}>
+                    Actual attendance from the backend
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.percentageBadge,
+                    attendancePercentage < 75 &&
+                      styles.percentageBadgeWarning,
                   ]}
-                  onPress={() =>
-                    setSelectedTestId(
-                      isSelected
-                        ? null
-                        : test.id,
-                    )
-                  }
                 >
-                  <View style={styles.testIcon}>
-                    <Ionicons
-                      name="document-text-outline"
-                      size={20}
-                      color="#6428D7"
+                  <Text
+                    style={[
+                      styles.percentageText,
+                      attendancePercentage < 75 &&
+                        styles.percentageTextWarning,
+                    ]}
+                  >
+                    {attendancePercentage.toFixed(2)}%
+                  </Text>
+                </View>
+              </View>
+
+              {attendance ? (
+                <>
+                  <View style={styles.attendanceStats}>
+                    <AttendanceStat
+                      icon="checkmark"
+                      label="Present"
+                      value={attendance.present}
+                      color="#27A566"
+                      background="#E3F7EB"
+                    />
+
+                    <View style={styles.statDivider} />
+
+                    <AttendanceStat
+                      icon="close"
+                      label="Absent"
+                      value={attendance.absent}
+                      color="#D64545"
+                      background="#FDECEC"
+                    />
+
+                    <View style={styles.statDivider} />
+
+                    <AttendanceStat
+                      icon="calendar-outline"
+                      label="Total"
+                      value={attendance.totalDays}
+                      color={PURPLE}
+                      background="#EEE7FF"
                     />
                   </View>
 
-                  <View style={styles.testInfo}>
-                    <Text style={styles.testName}>
-                      {test.testName}
+                  <View style={styles.extraAttendanceStats}>
+                    <Text style={styles.extraStat}>
+                      Late: {attendance.late}
                     </Text>
 
+                    <Text style={styles.extraStat}>
+                      Leave: {attendance.leave}
+                    </Text>
+                  </View>
+
+                  <View style={styles.progressBackground}>
                     <View
-                      style={styles.testDateRow}
-                    >
-                      <Ionicons
-                        name="calendar-outline"
-                        size={13}
-                        color="#858996"
-                      />
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${Math.min(
+                            100,
+                            Math.max(0, attendancePercentage),
+                          )}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.noDataText}>
+                  No attendance records are available for this student.
+                </Text>
+              )}
+            </View>
 
-                      <Text
-                        style={styles.testDate}
-                      >
-                        {test.date}
-                      </Text>
-                    </View>
+            {/* EXAMINATIONS */}
 
-                    {isSelected && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.sectionTitle}>
+                    Examinations
+                  </Text>
+
+                  <Text style={styles.sectionSubtitle}>
+                    Scheduled and completed examinations
+                  </Text>
+                </View>
+
+                <View style={styles.testCountBadge}>
+                  <Text style={styles.testCountText}>
+                    {examinations.length} Exams
+                  </Text>
+                </View>
+              </View>
+
+              {examinations.length === 0 ? (
+                <Text style={styles.noDataText}>
+                  No examinations are available for this students batch.
+                </Text>
+              ) : (
+                <View style={styles.testList}>
+                  {examinations.map((exam, index) => {
+                    const subject =
+                      typeof exam.subjectId === 'object'
+                        ? exam.subjectId?.name
+                        : undefined;
+
+                    return (
                       <View
-                        style={styles.testProgressArea}
+                        key={`${exam._id || exam._id || 'exam'}-${index}`}
+                        style={styles.examCard}
                       >
-                        <View
-                          style={
-                            styles.testProgressBackground
-                          }
-                        >
-                          <View
-                            style={[
-                              styles.testProgressFill,
-                              {
-                                width: `${testPercentage}%`,
-                              },
-                            ]}
+                        <View style={styles.testIcon}>
+                          <Ionicons
+                            name="document-text-outline"
+                            size={20}
+                            color={PURPLE}
                           />
                         </View>
 
-                        <Text
-                          style={
-                            styles.testPercentageSmall
-                          }
-                        >
-                          {testPercentage}% secured
-                        </Text>
+                        <View style={styles.testInfo}>
+                          <Text style={styles.testName}>
+                            {exam.examinationName}
+                          </Text>
+
+                          <Text style={styles.testDate}>
+                            {subject || 'Subject not available'}
+                          </Text>
+
+                          <Text style={styles.testDate}>
+                            {new Date(
+                              exam.examinationDate,
+                            ).toLocaleDateString()}
+                          </Text>
+
+                          <Text style={styles.testDate}>
+                            {exam.durationMinutes} minutes
+                          </Text>
+                        </View>
+
+                        <View style={styles.examMarks}>
+                          <Text style={styles.examTotalMarks}>
+                            {exam.totalMarks}
+                          </Text>
+
+                          <Text style={styles.examMarksLabel}>
+                            Total marks
+                          </Text>
+
+                          <Text style={styles.examStatus}>
+                            {exam.status}
+                          </Text>
+                        </View>
                       </View>
-                    )}
-                  </View>
+                    );
+                  })}
+                </View>
+              )}
 
-                  <View style={styles.marksContainer}>
-                    <Text style={styles.marksValue}>
-                      {test.marks}
-                    </Text>
+              <View style={styles.noticeBox}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={19}
+                  color={PURPLE}
+                />
 
-                    <Text style={styles.marksMax}>
-                      / {test.maxMarks}
-                    </Text>
-
-                    <Text
-                      style={styles.marksPercentage}
-                    >
-                      {testPercentage}%
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* ================================
-            SUMMARY
-        ================================= */}
-
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryIcon}>
-            <Ionicons
-              name="information-circle-outline"
-              size={22}
-              color="#6428D7"
-            />
-          </View>
-
-          <View style={styles.summaryText}>
-            <Text style={styles.summaryTitle}>
-              Performance Summary
-            </Text>
-
-            <Text style={styles.summaryDescription}>
-              {student.name} has attended{' '}
-              {attendancePercentage}% of lectures
-              and has secured{' '}
-              {overallTestPercentage}% overall
-              in the recorded tests.
-            </Text>
-          </View>
-        </View>
+                <Text style={styles.noticeText}>
+                  Student marks and individual exam results are not
+                  available from the current backend API. Only
+                  examination details are displayed.
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
 
         <View style={styles.bottomSpace} />
       </ScrollView>
@@ -1084,9 +792,46 @@ export default function ReportsPage({
   );
 }
 
-/* =====================================
-   STYLES
-===================================== */
+function AttendanceStat({
+  icon,
+  label,
+  value,
+  color,
+  background,
+}: {
+  icon: string;
+  label: string;
+  value: number;
+  color: string;
+  background: string;
+}) {
+  return (
+    <View style={styles.attendanceStat}>
+      <View
+        style={[
+          styles.statIcon,
+          { backgroundColor: background },
+        ]}
+      >
+        <Ionicons
+          name={icon as any}
+          size={18}
+          color={color}
+        />
+      </View>
+
+      <View>
+        <Text style={styles.statNumber}>
+          {value}
+        </Text>
+
+        <Text style={styles.statLabel}>
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -1140,73 +885,55 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  studentProfileCard: {
+  studentSummary: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 16,
     padding: 15,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
   },
 
-  studentAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+  summaryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
     backgroundColor: '#EEE7FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
 
-  studentInitials: {
-    color: '#6428D7',
+  summaryValue: {
+    color: '#171A2B',
     fontFamily: 'PoppinsBold',
-    fontSize: 16,
+    fontSize: 19,
   },
 
-  studentProfileInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  studentName: {
-    color: '#111528',
-    fontFamily: 'PoppinsBold',
-    fontSize: 17,
-  },
-
-  studentId: {
+  summaryLabel: {
     color: '#858996',
     fontFamily: 'PoppinsRegular',
-    fontSize: 10.5,
-    marginTop: 1,
+    fontSize: 10,
   },
 
-  profileMeta: {
+  searchBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 13,
+    paddingHorizontal: 13,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
+    marginBottom: 17,
+    borderWidth: 1,
+    borderColor: '#E9E8ED',
   },
 
-  profileMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  profileMetaText: {
-    color: '#6D7280',
+  searchInput: {
+    flex: 1,
+    marginLeft: 9,
+    color: '#171A2B',
     fontFamily: 'PoppinsRegular',
-    fontSize: 9.5,
-    marginLeft: 4,
-  },
-
-  profileMetaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#B5B7BE',
-    marginHorizontal: 7,
+    fontSize: 12,
   },
 
   section: {
@@ -1233,7 +960,100 @@ const styles = StyleSheet.create({
     color: '#858996',
     fontFamily: 'PoppinsRegular',
     fontSize: 10.5,
-    marginTop: 1,
+    marginTop: 2,
+    marginBottom: 10,
+  },
+
+  studentList: {
+    gap: 9,
+  },
+
+  studentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E9E8ED',
+  },
+
+  studentAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  studentInitials: {
+    color: PURPLE,
+    fontFamily: 'PoppinsBold',
+    fontSize: 15,
+  },
+
+  studentInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  studentName: {
+    color: '#111528',
+    fontFamily: 'PoppinsBold',
+    fontSize: 14,
+  },
+
+  studentId: {
+    color: '#858996',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 10,
+    marginTop: 2,
+  },
+
+  studentStandard: {
+    color: '#858996',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9,
+    marginTop: 2,
+  },
+
+  studentProfileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  studentProfileInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  profileMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+
+  profileMetaText: {
+    color: '#6D7280',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 9.5,
+    marginLeft: 5,
+  },
+
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
   },
 
   percentageBadge: {
@@ -1279,18 +1099,6 @@ const styles = StyleSheet.create({
     marginRight: 7,
   },
 
-  presentIcon: {
-    backgroundColor: '#E3F7EB',
-  },
-
-  absentIcon: {
-    backgroundColor: '#FDECEC',
-  },
-
-  totalIcon: {
-    backgroundColor: '#EEE7FF',
-  },
-
   statNumber: {
     color: '#171A2B',
     fontFamily: 'PoppinsBold',
@@ -1301,13 +1109,24 @@ const styles = StyleSheet.create({
     color: '#858996',
     fontFamily: 'PoppinsRegular',
     fontSize: 9,
-    marginTop: 0,
   },
 
   statDivider: {
     width: 1,
     height: 34,
     backgroundColor: '#E8E8ED',
+  },
+
+  extraAttendanceStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 13,
+  },
+
+  extraStat: {
+    color: '#6D7280',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10,
   },
 
   progressBackground: {
@@ -1332,79 +1151,24 @@ const styles = StyleSheet.create({
   },
 
   testCountText: {
-    color: '#6428D7',
+    color: PURPLE,
     fontFamily: 'PoppinsSemiBold',
     fontSize: 9.5,
-  },
-
-  overallMarksCard: {
-    backgroundColor: '#F8F7FA',
-    borderRadius: 14,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-
-  overallMarksIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#FFF0DF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-
-  overallMarksInfo: {
-    flex: 1,
-  },
-
-  overallMarksLabel: {
-    color: '#858996',
-    fontFamily: 'PoppinsRegular',
-    fontSize: 9.5,
-  },
-
-  overallMarksValue: {
-    color: '#171A2B',
-    fontFamily: 'PoppinsBold',
-    fontSize: 16,
-    marginTop: 1,
-  },
-
-  overallPercentage: {
-    backgroundColor: '#E3F7EB',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-
-  overallPercentageText: {
-    color: '#27A566',
-    fontFamily: 'PoppinsBold',
-    fontSize: 12,
   },
 
   testList: {
     gap: 8,
   },
 
-  testCard: {
-    minHeight: 70,
+  examCard: {
+    minHeight: 76,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E9E8ED',
     borderRadius: 13,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-
-  testCardSelected: {
-    backgroundColor: '#FAF8FF',
-    borderColor: '#DCD0FF',
   },
 
   testIcon: {
@@ -1425,144 +1189,121 @@ const styles = StyleSheet.create({
   testName: {
     color: '#171A2B',
     fontFamily: 'PoppinsSemiBold',
-    fontSize: 12.5,
-  },
-
-  testDateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
+    fontSize: 12,
   },
 
   testDate: {
     color: '#858996',
     fontFamily: 'PoppinsRegular',
     fontSize: 9.5,
-    marginLeft: 4,
-  },
-
-  testProgressArea: {
-    marginTop: 7,
-  },
-
-  testProgressBackground: {
-    height: 5,
-    backgroundColor: '#EDEDF1',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-
-  testProgressFill: {
-    height: '100%',
-    backgroundColor: '#6428D7',
-    borderRadius: 3,
-  },
-
-  testPercentageSmall: {
-    color: '#6428D7',
-    fontFamily: 'PoppinsMedium',
-    fontSize: 8.5,
     marginTop: 3,
   },
 
-  marksContainer: {
+  examMarks: {
     alignItems: 'flex-end',
     marginLeft: 8,
   },
 
-  marksValue: {
-    color: '#6428D7',
+  examTotalMarks: {
+    color: PURPLE,
     fontFamily: 'PoppinsBold',
-    fontSize: 16,
+    fontSize: 15,
   },
 
-  marksMax: {
+  examMarksLabel: {
     color: '#858996',
     fontFamily: 'PoppinsRegular',
-    fontSize: 9,
+    fontSize: 8,
   },
 
-  marksPercentage: {
+  examStatus: {
     color: '#27A566',
     fontFamily: 'PoppinsSemiBold',
     fontSize: 9,
-    marginTop: 1,
+    marginTop: 4,
+    textTransform: 'capitalize',
   },
 
-  summaryCard: {
-    backgroundColor: '#EEE7FF',
-    borderRadius: 16,
-    padding: 13,
+  noticeBox: {
+    backgroundColor: '#F2EDFF',
+    borderRadius: 12,
+    padding: 11,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginTop: 13,
   },
 
-  summaryIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 9,
-  },
-
-  summaryText: {
+  noticeText: {
     flex: 1,
-  },
-
-  summaryTitle: {
-    color: '#171A2B',
-    fontFamily: 'PoppinsSemiBold',
-    fontSize: 12.5,
-  },
-
-  summaryDescription: {
     color: '#656A77',
     fontFamily: 'PoppinsRegular',
-    fontSize: 10,
-    lineHeight: 16,
-    marginTop: 2,
+    fontSize: 9.5,
+    lineHeight: 15,
+    marginLeft: 7,
+  },
+
+  noDataText: {
+    color: '#858996',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    paddingVertical: 12,
+  },
+
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 45,
+  },
+
+  loadingText: {
+    color: '#858996',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    marginTop: 10,
   },
 
   emptyContainer: {
-    flex: 1,
-    backgroundColor: '#F6F6F9',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 30,
-  },
-
-  emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#EEE7FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
+    paddingVertical: 40,
+    paddingHorizontal: 25,
   },
 
   emptyTitle: {
     color: '#171A2B',
     fontFamily: 'PoppinsBold',
-    fontSize: 17,
+    fontSize: 15,
+    marginTop: 10,
   },
 
   emptySubtitle: {
     color: '#858996',
     fontFamily: 'PoppinsRegular',
-    fontSize: 11,
+    fontSize: 10.5,
     textAlign: 'center',
     marginTop: 5,
+    lineHeight: 16,
   },
 
-  bottomSpace: {
-    height: 25,
+  retryButton: {
+    backgroundColor: PURPLE,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    borderRadius: 10,
+    marginTop: 14,
+  },
+
+  retryText: {
+    color: '#FFFFFF',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11,
   },
 
   pressed: {
     opacity: 0.7,
+  },
+
+  bottomSpace: {
+    height: 25,
   },
 });

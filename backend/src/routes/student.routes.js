@@ -1,9 +1,9 @@
-
 const express = require("express");
 
 const {
   createStudent,
   getStudents,
+  getTeacherStudents,
   getStudentById,
   updateStudent,
   updateStudentStatus,
@@ -23,7 +23,7 @@ router.post(
   createStudent
 );
 
-// Get all students
+// Get all students - Admin / Super Admin
 router.get(
   "/",
   protect,
@@ -37,6 +37,14 @@ router.get(
   protect,
   authorizeRoles("student"),
   getMyClasses
+);
+
+// Get assigned students - Teacher
+router.get(
+  "/teacher/assigned",
+  protect,
+  authorizeRoles("teacher"),
+  getTeacherStudents
 );
 
 // Get student by ID

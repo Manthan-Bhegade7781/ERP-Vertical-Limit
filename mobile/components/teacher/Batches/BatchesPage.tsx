@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,9 +12,11 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
+import { fetchMyBatches, TeacherBatch } from '../../../services/teachers';
 
 type BatchesPageProps = {
   onContentScroll?: (event: any) => void;
+  onBack?: () => void;
 };
 
 type Batch = {
@@ -22,62 +26,77 @@ type Batch = {
   students: number;
   subjects: string[];
   room: string;
+  subjectCount: number;
+  status: string;
 };
 
-const BATCHES: Batch[] = [
-  {
-    id: 'batch-8',
-    name: '8th Standard',
-    shortName: '8th',
-    students: 32,
-    subjects: ['Physics', 'Mathematics'],
-    room: 'Room 201',
-  },
-  {
-    id: 'batch-9',
-    name: '9th Standard',
-    shortName: '9th',
-    students: 28,
-    subjects: ['Physics', 'Mathematics'],
-    room: 'Room 202',
-  },
-  {
-    id: 'batch-10',
-    name: '10th Standard',
-    shortName: '10th',
-    students: 36,
-    subjects: ['Physics', 'Chemistry'],
-    room: 'Room 203',
-  },
-];
+const mapTeacherBatch = (batch: TeacherBatch): Batch => ({
+  id: batch._id,
+  name: batch.name,
+  shortName: batch.standard || batch.name.split(' ')[0],
+  students: batch.studentCount ?? 0,
+  subjects: Array.isArray(batch.subjects)
+    ? batch.subjects.map((subject) => subject.name)
+    : [],
+  // The current Batch model does not contain a room field.
+  room: 'Not assigned',
+  subjectCount: batch.subjectCount ?? batch.subjects?.length ?? 0,
+  status: batch.status || 'active',
+});
 
 export default function BatchesPage({
   onContentScroll,
+  onBack,
 }: BatchesPageProps) {
-  const [selectedBatchId, setSelectedBatchId] =
-    useState('batch-8');
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalType, setModalType] = useState<'batch' | 'subject'>('batch');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
-  const [selectedSubject, setSelectedSubject] =
-    useState('Physics');
+  const loadBatches = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError('');
 
-  const [modalVisible, setModalVisible] =
-    useState(false);
+      const response = await fetchMyBatches();
+      const mappedBatches = response.map(mapTeacherBatch);
+      setBatches(mappedBatches);
 
-  const [modalType, setModalType] =
-    useState<'batch' | 'subject'>('batch');
+      const firstBatch = mappedBatches[0];
+      setSelectedBatchId(firstBatch?.id || '');
+      setSelectedSubject(firstBatch?.subjects[0] || '');
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to load your assigned batches.',
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const selectedBatch =
-    BATCHES.find(
-      (batch) =>
-        batch.id === selectedBatchId,
-    ) || BATCHES[0];
+  useEffect(() => {
+    loadBatches();
+  }, [loadBatches]);
 
-  const totalStudents =
-    BATCHES.reduce(
-      (sum, batch) =>
-        sum + batch.students,
-      0,
-    );
+  const selectedBatch = batches.find(
+    (batch) => batch.id === selectedBatchId,
+  );
+
+  const totalStudents = batches.reduce(
+    (sum, batch) => sum + batch.students,
+    0,
+  );
 
   const openBatchModal = () => {
     setModalType('batch');
@@ -85,6 +104,7 @@ export default function BatchesPage({
   };
 
   const openSubjectModal = () => {
+    if (!selectedBatch?.subjects.length) return;
     setModalType('subject');
     setModalVisible(true);
   };
@@ -99,7 +119,7 @@ export default function BatchesPage({
     setSelectedBatchId(batch.id);
 
     setSelectedSubject(
-      batch.subjects[0],
+      batch.subjects[0] || '',
     );
 
     setModalVisible(false);
@@ -111,6 +131,60 @@ export default function BatchesPage({
     setSelectedSubject(subject);
     setModalVisible(false);
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.page, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#5420D8" />
+        <Text style={{ marginTop: 12, color: '#777C89', fontFamily: 'PoppinsRegular' }}>
+          Loading your batches...
+        </Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.page, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Ionicons name="alert-circle-outline" size={40} color="#E05252" />
+        <Text style={{ marginTop: 12, color: '#343848', textAlign: 'center', fontFamily: 'PoppinsRegular' }}>
+          {error}
+        </Text>
+        <Pressable onPress={() => loadBatches()} style={{ marginTop: 16, padding: 10 }}>
+          <Text style={{ color: '#5420D8', fontFamily: 'PoppinsSemiBold' }}>
+            Try Again
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (batches.length === 0) {
+    return (
+      <View style={[styles.page, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Ionicons name="layers-outline" size={42} color="#9296A2" />
+        <Text style={{ marginTop: 12, color: '#171A2B', fontFamily: 'PoppinsSemiBold', fontSize: 15 }}>
+          No batches assigned yet
+        </Text>
+        <Text style={{ marginTop: 6, color: '#858996', textAlign: 'center', fontFamily: 'PoppinsRegular', fontSize: 11 }}>
+          Your assigned batches will appear here once they are available.
+        </Text>
+        <Pressable onPress={() => loadBatches()} style={{ marginTop: 16, padding: 10 }}>
+          <Text style={{ color: '#5420D8', fontFamily: 'PoppinsSemiBold' }}>
+            Refresh
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (!selectedBatch) {
+    return (
+      <View style={[styles.page, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: '#777C89' }}>Select a batch to continue.</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.page}>
@@ -124,10 +198,32 @@ export default function BatchesPage({
         }
         scrollEventThrottle={16}
         onScroll={onContentScroll}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadBatches(true)}
+            tintColor="#5420D8"
+            colors={["#5420D8"]}
+          />
+        }
       >
         {/* HEADER */}
 
         <View style={styles.headerCard}>
+          <Pressable
+            style={styles.backButton}
+            onPress={onBack ?? (() => undefined)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Go back to previous screen"
+          >
+            <Ionicons
+              name="arrow-back"
+              size={26}
+              color="#5420D8"
+            />
+          </Pressable>
+
           <View style={styles.headerIcon}>
             <Ionicons
               name="layers-outline"
@@ -166,7 +262,7 @@ export default function BatchesPage({
 
             <View>
               <Text style={styles.summaryNumber}>
-                {BATCHES.length}
+                {batches.length}
               </Text>
 
               <Text style={styles.summaryLabel}>
@@ -275,6 +371,7 @@ export default function BatchesPage({
           <Pressable
             style={styles.dropdown}
             onPress={openSubjectModal}
+            disabled={!selectedBatch.subjects.length}
           >
             <View style={styles.dropdownIcon}>
               <Ionicons
@@ -286,7 +383,7 @@ export default function BatchesPage({
 
             <View style={styles.dropdownText}>
               <Text style={styles.dropdownValue}>
-                {selectedSubject}
+                {selectedSubject || 'No subject assigned'}
               </Text>
 
               <Text style={styles.dropdownHint}>
@@ -335,7 +432,7 @@ export default function BatchesPage({
               <View style={styles.activeDot} />
 
               <Text style={styles.activeText}>
-                Active
+                {selectedBatch.status.charAt(0).toUpperCase() + selectedBatch.status.slice(1)}
               </Text>
             </View>
           </View>
@@ -386,7 +483,7 @@ export default function BatchesPage({
 
               <View>
                 <Text style={styles.statValue}>
-                  {selectedBatch.subjects.length}
+                  {selectedBatch.subjectCount}
                 </Text>
 
                 <Text style={styles.statLabel}>
@@ -443,7 +540,7 @@ export default function BatchesPage({
               </Text>
 
               <Text style={styles.teacherName}>
-                Priya Sharma
+                You
               </Text>
             </View>
 
@@ -474,11 +571,11 @@ export default function BatchesPage({
             </View>
 
             <Text style={styles.batchCount}>
-              {BATCHES.length} batches
+              {batches.length} batches
             </Text>
           </View>
 
-          {BATCHES.map((batch) => {
+          {batches.map((batch) => {
             const isSelected =
               batch.id === selectedBatchId;
 
@@ -496,7 +593,7 @@ export default function BatchesPage({
                   );
 
                   setSelectedSubject(
-                    batch.subjects[0],
+                    batch.subjects[0] || '',
                   );
                 }}
               >
@@ -614,7 +711,7 @@ export default function BatchesPage({
               showsVerticalScrollIndicator={false}
             >
               {modalType === 'batch' &&
-                BATCHES.map((batch) => {
+                batches.map((batch) => {
                   const selected =
                     batch.id ===
                     selectedBatchId;
@@ -791,6 +888,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+  },
+
+  backButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#EEE7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
 
   headerIcon: {

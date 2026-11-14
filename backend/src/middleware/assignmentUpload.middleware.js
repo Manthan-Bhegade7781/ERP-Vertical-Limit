@@ -1,4 +1,3 @@
-
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
@@ -44,7 +43,7 @@ const uploadAssignmentPDF = multer({
   },
 }).single("attachment");
 
-// Validate the PDF signature after Multer saves the file.
+// Validate PDF signature
 const validatePDFSignature = (req, res, next) => {
   if (!req.file) return next();
 
@@ -60,10 +59,15 @@ const validatePDFSignature = (req, res, next) => {
     ) {
       fs.unlink(req.file.path, (error) => {
         if (error && error.code !== "ENOENT") {
-          console.error("Failed to remove invalid PDF:", error);
+          console.error(
+            "Failed to remove invalid PDF:",
+            error
+          );
         }
 
-        return next(new Error("The uploaded file is not a valid PDF."));
+        return next(
+          new Error("The uploaded file is not a valid PDF.")
+        );
       });
 
       return;

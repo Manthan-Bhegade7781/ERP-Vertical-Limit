@@ -1,4 +1,3 @@
-
 const express = require("express");
 const router = express.Router();
 
@@ -16,40 +15,38 @@ const {
 
 router.use(protect);
 
+// Admin, Super Admin and Teachers can view their permitted inbox.
 router.get(
   "/",
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  authorizeRoles("super_admin", "admin", "teacher"),
   getMessages
 );
 
-router.post(
-  "/",
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
-  createMessage
-);
-
+// Open permitted message details.
 router.get(
   "/:id",
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  authorizeRoles("super_admin", "admin", "teacher"),
   getMessageById
 );
 
+// Compose messages.
+router.post(
+  "/",
+  authorizeRoles("super_admin", "admin", "teacher"),
+  createMessage
+);
+
+// Both Teachers and Admin/Super Admin can reply.
 router.post(
   "/:id/reply",
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
+  authorizeRoles("super_admin", "admin", "teacher"),
   replyToMessage
 );
 
-router.patch(
-  "/:id/status",
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
-  updateMessageStatus
-);
+// Only Admin and Super Admin can manage messages.
+router.use(authorizeRoles("super_admin", "admin"));
 
-router.delete(
-  "/:id",
-  authorizeRoles("super_admin", "admin", "teacher", "student"),
-  deleteMessage
-);
+router.patch("/:id/status", updateMessageStatus);
+router.delete("/:id", deleteMessage);
 
 module.exports = router;

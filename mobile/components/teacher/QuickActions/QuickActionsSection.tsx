@@ -47,7 +47,7 @@ export default function QuickActionsSection({
 
         <QuickAction
           icon="people-outline"
-          label="Upload Marks"
+          label={"My \nBatches"}
           color="#1670E8"
           background="#E6F0FF"
           onPress={onBatchesPress}
@@ -55,7 +55,7 @@ export default function QuickActionsSection({
 
         <QuickAction
           icon="bar-chart-outline"
-          label="View Reports"
+          label={"View \nReports"}
           color="#F28A17"
           background="#FFF0DF"
           onPress={onReportsPress}

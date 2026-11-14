@@ -17,14 +17,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-
-import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import { API_BASE_URL } from '@/config/api';
 import { getToken } from '@/services/auth';
 import {
+  downloadAssignmentAttachment,
   fetchAssignments,
   deleteAssignment as deleteAssignmentApi,
   updateAssignment,
@@ -1222,520 +1221,6 @@ export default function AssignmentsPage() {
     );
   };
 
-  /* =====================================================
-     PDF HTML
-     ===================================================== */
-
-  const createAssignmentHtml = (
-    assignment: Assignment
-  ) => {
-    const assignmentSubmissions =
-      submissions[assignment.code] ?? [];
-
-    const submitted =
-      assignmentSubmissions.filter(
-        (item) =>
-          item.status ===
-            'Submitted' ||
-          item.status === 'Late'
-      ).length;
-
-    const pending =
-      assignment.students -
-      submitted;
-
-    const late =
-      assignmentSubmissions.filter(
-        (item) =>
-          item.status === 'Late'
-      ).length;
-
-    const submissionRate =
-      assignment.students > 0
-        ? (
-            (submitted /
-              assignment.students) *
-            100
-          ).toFixed(1)
-        : '0';
-
-    const submissionRows =
-      assignmentSubmissions
-        .map(
-          (student, index) => `
-            <tr>
-              <td>${index + 1}</td>
-
-              <td>
-                <strong>
-                  ${student.studentName}
-                </strong>
-
-                <br />
-
-                <span class="student-id">
-                  ${student.studentId}
-                </span>
-              </td>
-
-              <td>
-                ${student.submissionDate}
-              </td>
-
-              <td>
-                <span class="${
-                  student.status ===
-                  'Submitted'
-                    ? 'submitted'
-                    : student.status ===
-                      'Late'
-                    ? 'late'
-                    : 'pending'
-                }">
-                  ${student.status}
-                </span>
-              </td>
-
-              <td>
-                ${
-                  student.marks !==
-                  null
-                    ? student.marks
-                    : '-'
-                }
-              </td>
-
-              <td>
-                ${student.grade}
-              </td>
-            </tr>
-          `
-        )
-        .join('');
-
-    return `
-      <!DOCTYPE html>
-
-      <html>
-
-        <head>
-
-          <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1.0"
-          />
-
-          <style>
-
-            body {
-              font-family: Arial, sans-serif;
-              padding: 30px;
-              color: #172033;
-            }
-
-            .header {
-              background: #7040D5;
-              color: white;
-              padding: 24px;
-              border-radius: 12px;
-              margin-bottom: 25px;
-            }
-
-            .brand {
-              font-size: 13px;
-              opacity: 0.85;
-              margin-bottom: 6px;
-            }
-
-            h1 {
-              margin: 0;
-              font-size: 25px;
-            }
-
-            h2 {
-              font-size: 18px;
-              margin-top: 25px;
-            }
-
-            .details {
-              border: 1px solid #e6e8ef;
-              border-radius: 10px;
-              padding: 18px;
-              margin-bottom: 20px;
-            }
-
-            .detail {
-              margin-bottom: 9px;
-            }
-
-            .label {
-              color: #748096;
-              font-size: 11px;
-            }
-
-            .value {
-              font-size: 13px;
-              font-weight: bold;
-            }
-
-            .description {
-              background: #f7f8fc;
-              border-radius: 10px;
-              padding: 15px;
-              margin-top: 12px;
-              line-height: 1.5;
-              font-size: 12px;
-            }
-
-            .summary {
-              display: flex;
-              gap: 10px;
-              margin-bottom: 20px;
-            }
-
-            .summary-card {
-              flex: 1;
-              background: #f7f8fc;
-              border-radius: 10px;
-              padding: 15px;
-              text-align: center;
-            }
-
-            .summary-value {
-              font-size: 20px;
-              font-weight: bold;
-            }
-
-            .summary-label {
-              color: #748096;
-              font-size: 10px;
-              margin-top: 4px;
-            }
-
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 15px;
-              font-size: 10px;
-            }
-
-            th {
-              background: #f1eaff;
-              color: #7040D5;
-              padding: 10px;
-              text-align: left;
-            }
-
-            td {
-              border-bottom: 1px solid #eeeeee;
-              padding: 10px;
-            }
-
-            .student-id {
-              color: #748096;
-              font-size: 8px;
-            }
-
-            .submitted {
-              color: #35B878;
-              font-weight: bold;
-            }
-
-            .late {
-              color: #F7941D;
-              font-weight: bold;
-            }
-
-            .pending {
-              color: #E95386;
-              font-weight: bold;
-            }
-
-            .footer {
-              margin-top: 30px;
-              text-align: center;
-              color: #9aa3b2;
-              font-size: 9px;
-            }
-
-          </style>
-
-        </head>
-
-        <body>
-
-          <div class="header">
-
-            <div class="brand">
-              VLCC ERP PORTAL
-            </div>
-
-            <h1>
-              Assignment Details
-            </h1>
-
-          </div>
-
-          <div class="details">
-
-            <div class="detail">
-
-              <span class="label">
-                Assignment
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.title}
-              </span>
-
-            </div>
-
-            <div class="detail">
-
-              <span class="label">
-                Assignment Code
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.code}
-              </span>
-
-            </div>
-
-            <div class="detail">
-
-              <span class="label">
-                Course
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.course}
-              </span>
-
-            </div>
-
-            ${
-              assignment.chapter
-                ? `
-            <div class="detail">
-
-              <span class="label">
-                Chapter
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.chapter}
-              </span>
-
-            </div>
-              `
-                : ''
-            }
-
-            <div class="detail">
-
-              <span class="label">
-                Batch
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.batch}
-              </span>
-
-            </div>
-
-            <div class="detail">
-
-              <span class="label">
-                Branch
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.branch}
-              </span>
-
-            </div>
-
-            <div class="detail">
-
-              <span class="label">
-                Assigned Date
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.assignedDate}
-              </span>
-
-            </div>
-
-            <div class="detail">
-
-              <span class="label">
-                Due Date
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.dueDate}
-                -
-                ${assignment.dueTime}
-              </span>
-
-            </div>
-
-            <div class="detail">
-
-              <span class="label">
-                Maximum Marks
-              </span>
-
-              <br />
-
-              <span class="value">
-                ${assignment.maxMarks}
-              </span>
-
-            </div>
-
-            <div class="description">
-
-              <strong>
-                Assignment Description
-              </strong>
-
-              <br />
-
-              ${assignment.description}
-
-            </div>
-
-          </div>
-
-          <div class="summary">
-
-            <div class="summary-card">
-
-              <div class="summary-value">
-                ${assignment.students}
-              </div>
-
-              <div class="summary-label">
-                Students
-              </div>
-
-            </div>
-
-            <div class="summary-card">
-
-              <div class="summary-value">
-                ${submitted}
-              </div>
-
-              <div class="summary-label">
-                Submitted
-              </div>
-
-            </div>
-
-            <div class="summary-card">
-
-              <div class="summary-value">
-                ${pending}
-              </div>
-
-              <div class="summary-label">
-                Pending
-              </div>
-
-            </div>
-
-            <div class="summary-card">
-
-              <div class="summary-value">
-                ${late}
-              </div>
-
-              <div class="summary-label">
-                Late
-              </div>
-
-            </div>
-
-            <div class="summary-card">
-
-              <div class="summary-value">
-                ${submissionRate}%
-              </div>
-
-              <div class="summary-label">
-                Submission Rate
-              </div>
-
-            </div>
-
-          </div>
-
-          <h2>
-            Student Submission Details
-          </h2>
-
-          ${
-            assignmentSubmissions.length >
-            0
-              ? `
-                <table>
-
-                  <thead>
-
-                    <tr>
-                      <th>#</th>
-                      <th>Student</th>
-                      <th>Submission Date</th>
-                      <th>Status</th>
-                      <th>Marks</th>
-                      <th>Grade</th>
-                    </tr>
-
-                  </thead>
-
-                  <tbody>
-                    ${submissionRows}
-                  </tbody>
-
-                </table>
-              `
-              : `
-                <p>
-                  No student submission data is currently available.
-                </p>
-              `
-          }
-
-          <div class="footer">
-            Generated by VLCC ERP Portal
-          </div>
-
-        </body>
-
-      </html>
-    `;
-  };
-
   const shareLocalNotesPdf = async (assignment: Assignment) => {
     try {
       if (assignment.pdfUri && !assignment.pdfUri.startsWith('http')) {
@@ -1788,48 +1273,53 @@ export default function AssignmentsPage() {
   };
 
   /* =====================================================
-     DOWNLOAD PDF
+     DOWNLOAD ORIGINAL UPLOADED PDF
      ===================================================== */
 
-  const downloadAssignmentPDF = async (
-    assignment: Assignment
-  ) => {
+  const downloadAssignmentPDF = async (assignment: Assignment) => {
     try {
-      const { uri } =
-        await Print.printToFileAsync({
-          html:
-            createAssignmentHtml(
-              assignment
-            ),
-        });
+      if (!assignment.id) {
+        Alert.alert('Download Failed', 'Assignment ID is missing.');
+        return;
+      }
 
-      const available =
-        await Sharing.isAvailableAsync();
+      if (!assignment.pdfName) {
+        Alert.alert(
+          'No Attachment',
+          'No original PDF has been uploaded for this assignment.'
+        );
+        return;
+      }
+
+      // Fetch the exact PDF stored by the backend.
+      const uri = await downloadAssignmentAttachment(
+        String(assignment.id),
+        assignment.pdfName
+      );
+
+      const available = await Sharing.isAvailableAsync();
 
       if (!available) {
         Alert.alert(
-          'PDF Generated',
-          'The assignment PDF was generated successfully.'
+          'PDF Downloaded',
+          'The original assignment PDF was downloaded successfully.'
         );
-
         return;
       }
 
       await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
-        dialogTitle:
-          `${assignment.title} - Assignment PDF`,
+        dialogTitle: `${assignment.title} - Original Assignment PDF`,
         UTI: 'com.adobe.pdf',
       });
     } catch (error) {
-      console.error(
-        'Assignment PDF error:',
-        error
-      );
+      console.error('Assignment PDF download error:', error);
 
       Alert.alert(
-        'PDF Error',
-        'Unable to generate the assignment PDF.'
+        'Download Failed',
+        error instanceof Error
+          ? error.message
+          : 'Unable to download the original assignment PDF.'
       );
     }
   };
