@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -493,9 +494,11 @@ export default function FeeReceipt({
           {/* School Header */}
           <View style={styles.schoolSection}>
             <View style={styles.schoolLogo}>
-              <Text style={styles.schoolLogoText}>
-                VL
-              </Text>
+              <Image
+                source={require('@/assets/images/android-icon-foreground.png')}
+                style={styles.schoolLogoImage}
+                resizeMode="contain"
+              />
             </View>
 
             <Text style={styles.schoolName}>
@@ -793,19 +796,18 @@ const styles = StyleSheet.create({
   },
 
   schoolLogo: {
-    width: 54,
-    height: 54,
+    width: 56,
+    height: 56,
     borderRadius: 17,
-    backgroundColor: '#6630D7',
+    backgroundColor: '#F0ECFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
   },
 
-  schoolLogoText: {
-    fontFamily: 'PoppinsBold',
-    fontSize: 18,
-    color: '#fff',
+  schoolLogoImage: {
+    width: 46,
+    height: 46,
   },
 
   schoolName: {

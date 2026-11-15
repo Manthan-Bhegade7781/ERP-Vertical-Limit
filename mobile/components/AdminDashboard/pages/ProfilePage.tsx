@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -490,6 +491,16 @@ export default function ProfilePage() {
                 You can access and manage data only for your assigned branch.
               </Text>
             </View>
+          </View>
+
+          <View style={styles.brandingFooter}>
+            <Image
+              source={require('@/assets/images/android-icon-foreground.png')}
+              style={styles.brandingLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.brandingTitle}>VERTICAL LIMIT</Text>
+            <Text style={styles.brandingSubtitle}>Admin Portal • Coaching Institute ERP</Text>
           </View>
         </View>
       </ScrollView>
@@ -1286,5 +1297,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#E95386',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  brandingFooter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    marginTop: 8,
+    opacity: 0.88,
+  },
+  brandingLogo: {
+    width: 48,
+    height: 48,
+    marginBottom: 6,
+  },
+  brandingTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 14,
+    color: '#21104F',
+    letterSpacing: 0.5,
+  },
+  brandingSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#8792A4',
+    marginTop: 2,
   },
 });

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import {
   Alert,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -377,11 +378,19 @@ export default function ProfilePage({
           </View>
         </View>
 
-        {/* VERSION */}
+        {/* BRANDING FOOTER */}
 
-        <Text style={styles.versionText}>
-          Vertical Limits • Teacher Portal
-        </Text>
+        <View style={styles.brandingFooter}>
+          <Image
+            source={require('@/assets/images/android-icon-foreground.png')}
+            style={styles.brandingLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.brandingTitle}>VERTICAL LIMIT</Text>
+          <Text style={styles.versionText}>
+            Teacher Portal • Coaching Institute ERP
+          </Text>
+        </View>
       </ScrollView>
 
       {/* EDIT PROFILE MODAL */}
@@ -819,5 +828,26 @@ const styles = StyleSheet.create({
 
   saveButtonTextDisabled: {
     color: '#92929A',
+  },
+
+  brandingFooter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    marginTop: 10,
+    opacity: 0.88,
+  },
+
+  brandingLogo: {
+    width: 50,
+    height: 50,
+    marginBottom: 6,
+  },
+
+  brandingTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 14,
+    color: '#21104F',
+    letterSpacing: 0.5,
   },
 });

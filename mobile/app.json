@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "TeacherDashboard",
-    "slug": "TeacherDashboard",
+    "name": "Vertical Limit ERP",
+    "slug": "vertical-limit-erp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -12,6 +12,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.verticallimit.erp",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -40,13 +42,18 @@
           }
         }
       ],
-
       "expo-font",
       "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "204738e6-f1b1-43ba-93ed-07a9f2048bca"
+      }
     }
   }
 }

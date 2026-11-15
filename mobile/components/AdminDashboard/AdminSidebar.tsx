@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -96,11 +97,15 @@ export default function AdminSidebar({ collapsed = false, onClose }: Props) {
     <View style={[styles.sidebar, collapsed && styles.sidebarCollapsed]}>
       <View style={[styles.brandContainer, collapsed && styles.brandContainerCollapsed]}>
         <View style={styles.brandIcon}>
-          <MaterialCommunityIcons name="school-outline" size={25} color="#FFFFFF" />
+          <Image
+            source={require('@/assets/images/android-icon-foreground.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
         </View>
         {!collapsed && (
           <View style={styles.brandTextContainer}>
-            <Text style={styles.brandTitle} numberOfLines={1}>VLCC ERP</Text>
+            <Text style={styles.brandTitle} numberOfLines={1}>Vertical Limit</Text>
             <Text style={styles.brandSubtitle}>ADMIN PANEL</Text>
           </View>
         )}
@@ -163,13 +168,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   brandIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 11,
-    backgroundColor: '#7040D5',
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#F0ECFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  brandLogo: {
+    width: 40,
+    height: 40,
   },
   brandTextContainer: {
     flex: 1,

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -372,6 +373,17 @@ export default function StudentProfilePage({
               to you and authorized school staff.
             </Text>
           </View>
+        </View>
+
+        {/* BRANDING FOOTER */}
+        <View style={styles.brandingFooter}>
+          <Image
+            source={require('@/assets/images/android-icon-foreground.png')}
+            style={styles.brandingLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.brandingTitle}>VERTICAL LIMIT</Text>
+          <Text style={styles.brandingSubtitle}>Student Portal • Coaching Institute ERP</Text>
         </View>
 
         <View style={{ height: 100 }} />
@@ -1042,5 +1054,33 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
     fontSize: 10,
     color: '#FFFFFF',
+  },
+
+  brandingFooter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    marginTop: 10,
+    opacity: 0.85,
+  },
+
+  brandingLogo: {
+    width: 52,
+    height: 52,
+    marginBottom: 6,
+  },
+
+  brandingTitle: {
+    fontFamily: 'PoppinsBold',
+    fontSize: 14,
+    color: '#21104F',
+    letterSpacing: 0.5,
+  },
+
+  brandingSubtitle: {
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    color: '#8A8794',
+    marginTop: 2,
   },
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -214,10 +215,10 @@ const Sidebar: React.FC<SidebarProps> = ({
               : styles.brandIconDesktop,
           ]}
         >
-          <MaterialCommunityIcons
-            name="school-outline"
-            size={isMobile ? 32 : 25}
-            color="#7040D5"
+          <Image
+            source={require('@/assets/images/android-icon-foreground.png')}
+            style={isMobile ? styles.brandLogoMobile : styles.brandLogoDesktop}
+            resizeMode="contain"
           />
         </View>
 
@@ -233,7 +234,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             adjustsFontSizeToFit
             minimumFontScale={0.8}
           >
-            VLCC ERP
+            Vertical Limit
           </Text>
 
           <Text
@@ -245,7 +246,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             ]}
             numberOfLines={1}
           >
-            Portal
+            Super Admin Portal
           </Text>
         </View>
       </View>
@@ -468,6 +469,16 @@ const styles = StyleSheet.create({
     height: 43,
     borderRadius: 12,
     marginRight: 11,
+  },
+
+  brandLogoMobile: {
+    width: 44,
+    height: 44,
+  },
+
+  brandLogoDesktop: {
+    width: 34,
+    height: 34,
   },
 
   brandTextContainer: {

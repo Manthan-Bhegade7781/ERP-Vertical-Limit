@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -98,15 +99,15 @@ export default function TeacherSidebar({
 
       <View style={styles.brand}>
         <View style={styles.brandIcon}>
-          <MaterialCommunityIcons
-            name="school-outline"
-            size={32}
-            color="#7040D5"
+          <Image
+            source={require("@/assets/images/android-icon-foreground.png")}
+            style={styles.brandLogo}
+            resizeMode="contain"
           />
         </View>
 
         <View>
-          <Text style={styles.brandTitle}>VLCC ERP</Text>
+          <Text style={styles.brandTitle}>Vertical Limit</Text>
           <Text style={styles.brandSubtitle}>Teacher Portal</Text>
         </View>
       </View>
@@ -188,6 +189,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
+  },
+
+  brandLogo: {
+    width: 46,
+    height: 46,
   },
 
   brandTitle: {

@@ -1,14 +1,17 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 export function AuthLogo() {
   return (
     <View style={styles.wrapper}>
       <View style={styles.logoMark}>
-        <MaterialCommunityIcons name="school-outline" size={76} color="#2E155E" />
+        <Image
+          source={require('@/assets/images/android-icon-foreground.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
       </View>
-      <Text style={styles.brand}>VERTICAL CLASSES</Text>
+      <Text style={styles.brand}>VERTICAL LIMIT</Text>
       <Text style={styles.tagline}>Coaching Institute ERP</Text>
     </View>
   );
@@ -19,45 +22,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoMark: {
-    width: 112,
-    height: 108,
+    width: 104,
+    height: 104,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    shadowColor: '#2E155E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+    marginBottom: 4,
   },
-  book: {
-    position: 'absolute',
-    bottom: 3,
-  },
-  bookLine: {
-    position: 'absolute',
-    width: 62,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#5A2EC4',
-    bottom: 15,
-  },
-  goldAccent: {
-    position: 'absolute',
-    right: 17,
-    top: 29,
-    width: 7,
-    height: 38,
-    borderRadius: 2,
-    backgroundColor: '#F0B323',
+  logoImage: {
+    width: 92,
+    height: 92,
   },
   brand: {
-    marginTop: 5,
-    fontSize: 28,
-    lineHeight: 34,
+    marginTop: 8,
+    fontSize: 26,
+    lineHeight: 32,
     fontWeight: '800',
-    letterSpacing: 0.2,
+    letterSpacing: 0.5,
     color: '#21104F',
+    fontFamily: 'PoppinsBold',
   },
   tagline: {
     marginTop: 2,
-    fontSize: 16,
+    fontSize: 14,
     color: '#88858F',
     fontWeight: '500',
+    fontFamily: 'PoppinsMedium',
   },
 });
